@@ -88,24 +88,25 @@ const FAMILY_DAY_DESC = '١. وجبة (متى تيسّر)\n٢. وقت مع ال�
 const DUAA_DESC = 'ساعة استجابة الدعاء قبل مغرب الجمعة — تفرّغ للدعاء.';
 const WORK_DESC = 'مهام اليوم — تُكتب هنا (حرّر الوصف وأضف سطرًا لكل مهمة).';
 
-// وحدة اليوم dIso: من مغرب اليوم السابق إلى مغرب dIso — ١٦ حدثًا (١٧ يوم الجمعة بساعة الدعاء)
+// وحدة اليوم dIso: من فجر اليوم إلى فجر الغد — ١٦ حدثًا (١٧ يوم الجمعة بساعة الدعاء)
+// أول اليوم صلاة الفجر، نهاره حتى المغرب، ثم ليله (المغرب ← فجر الغد) في العمود نفسه
 export function buildUnit(dIso) {
-  const prevIso = addDays(dIso, -1);
-  const P0 = prayerTimes(prevIso); // مغرب وعشاء الليلة (أمس فلكيًا)
-  const P1 = prayerTimes(dIso); // مواقيت نهار اليوم
+  const nextIso = addDays(dIso, 1);
+  const P1 = prayerTimes(dIso); // مواقيت اليوم كاملة
+  const P2 = prayerTimes(nextIso); // فجر الغد (نهاية الوحدة)
 
-  // كل الأزمنة دقائق منسوبة إلى منتصف ليل prevIso (قد تتجاوز 1440)
-  const M0 = P0.maghrib;
-  const ISH = P0.isha;
-  const F = P1.fajr + 1440;
-  const SR = P1.sunrise + 1440;
-  const DH = P1.dhuhr + 1440;
-  const AS = P1.asr + 1440;
-  const M1 = P1.maghrib + 1440;
+  // كل الأزمنة دقائق منسوبة إلى منتصف ليل dIso (قد تتجاوز 1440)
+  const F = P1.fajr;
+  const SR = P1.sunrise;
+  const DH = P1.dhuhr;
+  const AS = P1.asr;
+  const M = P1.maghrib;
+  const ISH = P1.isha;
+  const F2 = P2.fajr + 1440;
 
-  const night = F - M0;
-  const third1 = M0 + Math.round(night / 3);
-  const third2 = M0 + Math.round((2 * night) / 3);
+  const night = F2 - M;
+  const third1 = M + Math.round(night / 3);
+  const third2 = M + Math.round((2 * night) / 3);
   const qiyamStart = third2 - 30;
   const napEnd = SR + 90 + NAP_MINUTES;
 
@@ -113,12 +114,12 @@ export function buildUnit(dIso) {
   const friday = day === 5;
   const restName = day === 5 || day === 6 ? 'راحة' : 'زوجة';
 
-  const stPrev = quranStateFor(prevIso); // سنن المغرب والعشاء تتبع تثبيت يومها (أمس)
-  const stToday = quranStateFor(dIso);
-  const tPrev = stPrev ? tathbeetLabels(stPrev) : tathbeetLabels(stToday);
-  const tToday = tathbeetLabels(stToday);
+  // كل سنن الوحدة (من الفجر إلى العشاء) على تثبيت يومها نفسه
+  const st = quranStateFor(dIso);
+  const t = tathbeetLabels(st);
 
   const trainType = workoutDayType(dIso);
+  const workTitle = friday ? 'عائلة' : 'عمل'; // نهار الجمعة «عائلة» لا «عمل»
 
   const ev = [];
   const push = (slot, title, start, end, colorId, desc = '', transparent = false) => {
@@ -127,37 +128,37 @@ export function buildUnit(dIso) {
       unit: dIso,
       slot,
       title,
-      start: minToDateTime(prevIso, start),
-      end: minToDateTime(prevIso, end),
+      start: minToDateTime(dIso, start),
+      end: minToDateTime(dIso, end),
       colorId,
       desc,
       transparent,
     });
   };
 
-  push('maghrib', 'المغرب', M0, M0 + 30, 9, maghribDesc(tPrev));
-  push('sleep1', 'نوم', M0 + 30, ISH, 8);
-  push('isha', 'العشاء', ISH, ISH + 45, 9, ishaDesc(tPrev));
+  // ── النهار: من الفجر إلى المغرب ──
+  push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(t));
+  push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
+  push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
+  push('nap', 'نوم', SR + 90, napEnd, 8);
+  push('work1', workTitle, napEnd, DH, 6, friday ? FAMILY_DAY_DESC : WORK_DESC);
+  push('dhuhr', 'الظهر', DH, DH + 45, 9, dhuhrDesc(t));
+  push('work2', workTitle, DH + 45, AS, 6);
+  push('asr', 'العصر', AS, AS + 45, 9, asrDesc(t));
+  if (friday) {
+    push('work3', workTitle, AS + 45, M - 60, 6);
+    push('duaa', 'دعاء', M - 60, M, 9, DUAA_DESC);
+  } else {
+    push('work3', workTitle, AS + 45, M, 6);
+  }
+  // ── الليل: من المغرب إلى فجر الغد ──
+  push('maghrib', 'المغرب', M, M + 30, 9, maghribDesc(t));
+  push('sleep1', 'نوم', M + 30, ISH, 8);
+  push('isha', 'العشاء', ISH, ISH + 45, 9, ishaDesc(t));
   push('family', 'أسرة', ISH + 45, third1, 6, FAMILY_DESC);
   push('rest', restName, third1, qiyamStart, 8, '', true);
   push('qiyam', 'صلاة القيام', qiyamStart, third2, 9, QIYAM_DESC);
-  push('sleep2', 'نوم', third2, F, 8);
-  push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(tToday));
-  push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(stToday, tToday));
-  push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
-  // نهار الجمعة «عائلة» لا «عمل»
-  const workTitle = friday ? 'عائلة' : 'عمل';
-  push('nap', 'نوم', SR + 90, napEnd, 8);
-  push('work1', workTitle, napEnd, DH, 6, friday ? FAMILY_DAY_DESC : WORK_DESC);
-  push('dhuhr', 'الظهر', DH, DH + 45, 9, dhuhrDesc(tToday));
-  push('work2', workTitle, DH + 45, AS, 6);
-  push('asr', 'العصر', AS, AS + 45, 9, asrDesc(tToday));
-  if (friday) {
-    push('work3', workTitle, AS + 45, M1 - 60, 6);
-    push('duaa', 'دعاء', M1 - 60, M1, 9, DUAA_DESC);
-  } else {
-    push('work3', workTitle, AS + 45, M1, 6);
-  }
+  push('sleep2', 'نوم', third2, F2, 8);
   return ev;
 }
 

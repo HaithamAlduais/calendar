@@ -28,17 +28,19 @@ check('30/7 isha', fmtTime(p30.isha), '20:09');
 const p1 = prayerTimes('2026-08-01');
 check('1/8 fajr', fmtTime(p1.fajr), '03:55');
 
-// ── بنية وحدة الخميس ٣٠ يوليو مقابل ما بناه هيثم يدويًا ─────────────
+// ── بنية وحدة الخميس ٣٠ يوليو (فجر ← فجر الغد) ─────────────────────
 const u30 = buildUnit('2026-07-30');
 const bySlot = Object.fromEntries(u30.map((e) => [e.slot, e]));
 const T = (s) => s.slice(11);
-check('u30 maghrib', `${T(bySlot.maghrib.start)}-${T(bySlot.maghrib.end)}`, '18:40-19:10');
-check('u30 sleep1', `${T(bySlot.sleep1.start)}-${T(bySlot.sleep1.end)}`, '19:10-20:10');
-check('u30 isha', `${T(bySlot.isha.start)}-${T(bySlot.isha.end)}`, '20:10-20:55');
-check('u30 family end (ثلث أول)', T(bySlot.family.end), '21:45');
+check('u30 maghrib', `${T(bySlot.maghrib.start)}-${T(bySlot.maghrib.end)}`, '18:39-19:09');
+check('u30 sleep1', `${T(bySlot.sleep1.start)}-${T(bySlot.sleep1.end)}`, '19:09-20:09');
+check('u30 isha', `${T(bySlot.isha.start)}-${T(bySlot.isha.end)}`, '20:09-20:54');
+check('u30 family end (ثلث أول)', T(bySlot.family.end), '21:44');
 check('u30 qiyam', `${T(bySlot.qiyam.start)}-${T(bySlot.qiyam.end)}`, '00:19-00:49');
 check('u30 sleep2', `${T(bySlot.sleep2.start)}-${T(bySlot.sleep2.end)}`, '00:49-03:54');
-check('u30 fajr', `${T(bySlot.fajr.start)}-${T(bySlot.fajr.end)}`, '03:54-04:39');
+check('u30 fajr أول الوحدة', `${T(bySlot.fajr.start)}-${T(bySlot.fajr.end)}`, '03:54-04:39');
+check('u30 يبدأ بالفجر', u30[0].slot, 'fajr');
+check('u30 ينتهي بنوم حتى فجر الغد', u30[u30.length - 1].slot, 'sleep2');
 check('u30 quran', `${T(bySlot.quran.start)}-${T(bySlot.quran.end)}`, '04:39-05:35');
 check('u30 train', `${T(bySlot.train.start)}-${T(bySlot.train.end)}`, '05:35-06:50');
 check('u30 nap (نوم بعد التمرين)', `${T(bySlot.nap.start)}-${T(bySlot.nap.end)}`, '06:50-09:20');
@@ -104,9 +106,9 @@ check('8/8 انتقال جزء الحفظ', JSON.stringify(q('2026-08-08')), JSO
 // التثبيت في وصف فجر ٨ أغسطس يصبح الجزءين ٩ و١٠
 const fajr8 = buildUnit('2026-08-08').find((e) => e.slot === 'fajr');
 check('تثبيت 8/8 = جزء ٩', fajr8.desc.includes('سنة الفجر — الجزء ٩'), true);
-// عشاء ليلة ٨/٨ (وحدة ٨/٨ مساء ٧/٨) ما زال على تثبيت يوم ٧/٨ = جزء ٩
+// عشاء وحدة ٨/٨ (مساء ٨/٨ نفسه) على تثبيت يومه الجديد [٩،١٠] → سنن العشاء من الجزء ١٠
 const isha8 = buildUnit('2026-08-08').find((e) => e.slot === 'isha');
-check('عشاء ليلة 7/8 على تثبيت الجزء ٩ القديم', isha8.desc.includes('الجزء ٩'), true);
+check('عشاء وحدة 8/8 على تثبيت يومه (الجزء ١٠)', isha8.desc.includes('الجزء ١٠'), true);
 
 // ── تقدّم التمرين عبر الشهر ────────────────────────────────────────
 const trainOn = (d) => byUnit.get(d).find((e) => e.slot === 'train').desc;

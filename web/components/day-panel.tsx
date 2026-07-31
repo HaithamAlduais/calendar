@@ -71,7 +71,7 @@ export function DayPanel({
   events: Ev[]
 }) {
   const [meal, setMeal] = useState({ kcal: "", p: "", c: "", f: "" })
-  const d = currentUnit() // وحدة اليوم تبدأ بأذان المغرب
+  const d = currentUnit() // وحدة اليوم تبدأ بصلاة الفجر
   const dayEvents = events.filter((e) => e.unit === d)
 
   // إنجاز اليوم
@@ -117,8 +117,8 @@ export function DayPanel({
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-[320px] overflow-y-auto sm:w-[360px]">
         <SheetHeader>
-          <SheetTitle>لوحة وحدة {fmtDateLong(d)}</SheetTitle>
-          <p className="text-muted-foreground text-xs">اليوم يبدأ بأذان المغرب وينتهي بمغرب الغد</p>
+          <SheetTitle>لوحة يوم {fmtDateLong(d)}</SheetTitle>
+          <p className="text-muted-foreground text-xs">اليوم يبدأ بصلاة الفجر وينتهي بفجر الغد</p>
         </SheetHeader>
         <div className="flex flex-col gap-4 px-4 pb-8">
           <Section title={`إنجاز اليوم ${arab(pct)}٪`}>

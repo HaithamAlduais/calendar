@@ -89,14 +89,14 @@ export function nowStamp(): string {
   return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}T${p(n.getHours())}:${p(n.getMinutes())}`
 }
 
-// اليوم عند هيثم يبدأ بأذان المغرب لا بمنتصف الليل:
-// قبل مغرب اليوم نحن في وحدة اليوم، وبعده دخلنا وحدة الغد
+// اليوم عند هيثم يبدأ بصلاة الفجر لا بمنتصف الليل:
+// قبل فجر اليوم ما زلنا في وحدة الأمس (ليلها)، ومن الفجر تبدأ وحدة اليوم
 export function currentUnit(): string {
   const t = todayIso()
-  const mag = prayerTimes(t).maghrib as number
+  const fajr = prayerTimes(t).fajr as number
   const p = (x: number) => String(x).padStart(2, "0")
-  const magStamp = `${t}T${p(Math.floor(mag / 60))}:${p(mag % 60)}`
-  return nowStamp() >= magStamp ? addDays(t, 1) : t
+  const fajrStamp = `${t}T${p(Math.floor(fajr / 60))}:${p(fajr % 60)}`
+  return nowStamp() >= fajrStamp ? t : addDays(t, -1)
 }
 
 // ── التقدّم مشروط بالإنجاز الفعلي ──
