@@ -1,11 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { PlusIcon, RotateCcwIcon } from "lucide-react"
+import { MinusIcon, PlusIcon, RotateCcwIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -61,6 +59,52 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+// عدّاد لمسي: زيادة/نقصان بمقدار جاهز — بلا كتابة
+function FoodStepper({
+  label,
+  value,
+  target,
+  unit,
+  step,
+  onDelta,
+}: {
+  label: string
+  value: number
+  target: number
+  unit: string
+  step: number
+  onDelta: (d: number) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-1 text-sm">
+      <span className="flex-none">{label}</span>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2 text-xs tabular-nums"
+          aria-label={`إنقاص ${label}`}
+          onClick={() => onDelta(-step)}
+        >
+          −{arab(step)}
+        </Button>
+        <span className="text-muted-foreground w-24 text-center text-xs tabular-nums">
+          {arab(value)} / {arab(target)} {unit}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2 text-xs tabular-nums"
+          aria-label={`زيادة ${label}`}
+          onClick={() => onDelta(step)}
+        >
+          +{arab(step)}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function DayPanel({
   open,
   onClose,
@@ -70,7 +114,6 @@ export function DayPanel({
   onClose: () => void
   events: Ev[]
 }) {
-  const [meal, setMeal] = useState({ kcal: "", p: "", c: "", f: "" })
   const d = currentUnit() // وحدة اليوم تبدأ بصلاة الفجر
   const dayEvents = events.filter((e) => e.unit === d)
 
@@ -157,52 +200,44 @@ export function DayPanel({
           <Section title="التغذية">
             <div className="flex items-center justify-between text-sm">
               <span>الوزن</span>
-              <Input
-                type="number"
-                className="h-7 w-16 text-center text-xs"
-                defaultValue={w}
-                onBlur={(e2) =>
-                  saveSettings({ weight: Math.max(30, Math.min(200, +e2.target.value || 70)) })
-                }
-              />
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  aria-label="إنقاص الوزن"
+                  onClick={() => saveSettings({ weight: Math.max(30, w - 1) })}
+                >
+                  <MinusIcon />
+                </Button>
+                <span className="w-16 text-center text-sm tabular-nums">{arab(w)} كجم</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  aria-label="زيادة الوزن"
+                  onClick={() => saveSettings({ weight: Math.min(200, w + 1) })}
+                >
+                  <PlusIcon />
+                </Button>
+              </div>
             </div>
-            <Row label="هدفك" value={`${arab(tgt.kcal)} سعرة • ب ${arab(tgt.protein)} • ك ${arab(tgt.carbs)} • د ${arab(tgt.fat)} غ`} />
-            <Row label="أكلت" value={`${arab(eaten.kcal)} / ${arab(tgt.kcal)} سعرة`} />
+            <Row label="هدفك اليومي" value={`${arab(tgt.kcal)} سعرة • ب ${arab(tgt.protein)} • ك ${arab(tgt.carbs)} • د ${arab(tgt.fat)} غ`} />
+            <FoodStepper label="سعرات" value={eaten.kcal} target={tgt.kcal} unit="" step={100} onDelta={(x) => addFood(d, { kcal: x })} />
             <Progress value={Math.min(100, (eaten.kcal / tgt.kcal) * 100)} className="h-1.5" />
-            <Row label="بروتين" value={`${arab(eaten.p)} / ${arab(tgt.protein)} غ`} />
+            <FoodStepper label="بروتين" value={eaten.p} target={tgt.protein} unit="غ" step={10} onDelta={(x) => addFood(d, { p: x })} />
             <Progress value={Math.min(100, (eaten.p / tgt.protein) * 100)} className="h-1.5" />
-            <div className="flex gap-1.5">
-              {(["kcal", "p", "c", "f"] as const).map((k2) => (
-                <Input
-                  key={k2}
-                  type="number"
-                  placeholder={{ kcal: "سعرات", p: "بروتين", c: "كارب", f: "دهون" }[k2]}
-                  className="h-8 min-w-0 flex-1 px-1.5 text-xs"
-                  value={meal[k2]}
-                  onChange={(e2) => setMeal({ ...meal, [k2]: e2.target.value })}
-                />
-              ))}
-              <Button
-                size="icon"
-                className="size-8 flex-none"
-                aria-label="أضف الوجبة"
-                onClick={() => {
-                  addFood(d, { kcal: +meal.kcal, p: +meal.p, c: +meal.c, f: +meal.f })
-                  setMeal({ kcal: "", p: "", c: "", f: "" })
-                }}
-              >
-                <PlusIcon />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-8 flex-none"
-                aria-label="تصفير اليوم"
-                onClick={() => resetFood(d)}
-              >
-                <RotateCcwIcon />
-              </Button>
-            </div>
+            <FoodStepper label="كارب" value={eaten.c} target={tgt.carbs} unit="غ" step={10} onDelta={(x) => addFood(d, { c: x })} />
+            <FoodStepper label="دهون" value={eaten.f} target={tgt.fat} unit="غ" step={5} onDelta={(x) => addFood(d, { f: x })} />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground self-start"
+              onClick={() => resetFood(d)}
+            >
+              <RotateCcwIcon />
+              تصفير اليوم
+            </Button>
           </Section>
 
           <Card className="bg-muted/40 py-3">

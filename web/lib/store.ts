@@ -221,11 +221,12 @@ export function foodFor(d: string) {
 }
 export function addFood(d: string, add: { kcal?: number; p?: number; c?: number; f?: number }) {
   const cur = foodFor(d)
+  // يقبل السالب (عدّادات −/+) ولا ينزل تحت الصفر
   food[d] = {
-    kcal: cur.kcal + (+(add.kcal || 0) || 0),
-    p: cur.p + (+(add.p || 0) || 0),
-    c: cur.c + (+(add.c || 0) || 0),
-    f: cur.f + (+(add.f || 0) || 0),
+    kcal: Math.max(0, cur.kcal + (+(add.kcal || 0) || 0)),
+    p: Math.max(0, cur.p + (+(add.p || 0) || 0)),
+    c: Math.max(0, cur.c + (+(add.c || 0) || 0)),
+    f: Math.max(0, cur.f + (+(add.f || 0) || 0)),
   }
   save(K.food, food)
   notify()
