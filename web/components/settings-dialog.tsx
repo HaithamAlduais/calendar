@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { PlusIcon, RefreshCwIcon, XIcon } from "lucide-react"
+import { BellIcon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,9 +15,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { addAccount, dropToken, pullAccount } from "@/lib/gcal"
+import { notificationsGranted, requestNotifications, scheduleNotifications } from "@/lib/notify"
 import { addDays, arab } from "@/lib/engine/dates.js"
 import { dotColor } from "@/lib/format"
 import {
+  allEvents,
   getPulled,
   saveSettings,
   setPulled,
@@ -153,6 +155,34 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
               {arab(getPulled().events.length)} حدث Google معروض حاليًا
             </Badge>
           )}
+
+          <div className="border-t pt-3">
+            <h3 className="mb-2 text-sm font-semibold">تنبيهات البلوكات</h3>
+            <p className="text-muted-foreground mb-2 text-xs">
+              تنبيهان لكل بلوك: قبله بثلاثين دقيقة وعند بدئه — والتطبيق مثبتًا على هاتفك يعرضها
+              كإشعارات نظام.
+            </p>
+            <Button
+              variant={settings.notify && notificationsGranted() ? "secondary" : "default"}
+              className="w-full"
+              onClick={async () => {
+                if (settings.notify && notificationsGranted()) {
+                  saveSettings({ notify: false })
+                  scheduleNotifications([])
+                  setStatus("🔕 أُوقفت التنبيهات")
+                  return
+                }
+                const ok = await requestNotifications()
+                if (!ok) return setStatus("❌ رُفض إذن التنبيهات — فعّله من إعدادات المتصفح للموقع")
+                saveSettings({ notify: true })
+                const n = scheduleNotifications(allEvents())
+                setStatus(`🔔 فُعّلت — جُدول ${arab(n)} تنبيهًا للساعات القادمة`)
+              }}
+            >
+              <BellIcon />
+              {settings.notify && notificationsGranted() ? "إيقاف التنبيهات" : "تفعيل التنبيهات"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

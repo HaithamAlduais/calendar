@@ -16,12 +16,12 @@ import { checklistLines, durMin, fmtDateLong, fmtDur, dow } from "@/lib/format"
 import {
   addFood,
   checksFor,
+  currentUnit,
   foodFor,
   resetFood,
   saveSettings,
   settings,
   SCHEDULE_START,
-  todayIso,
   type Ev,
 } from "@/lib/store"
 
@@ -71,7 +71,7 @@ export function DayPanel({
   events: Ev[]
 }) {
   const [meal, setMeal] = useState({ kcal: "", p: "", c: "", f: "" })
-  const d = todayIso()
+  const d = currentUnit() // وحدة اليوم تبدأ بأذان المغرب
   const dayEvents = events.filter((e) => e.unit === d)
 
   // إنجاز اليوم
@@ -117,7 +117,8 @@ export function DayPanel({
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-[320px] overflow-y-auto sm:w-[360px]">
         <SheetHeader>
-          <SheetTitle>لوحة اليوم — {fmtDateLong(d)}</SheetTitle>
+          <SheetTitle>لوحة وحدة {fmtDateLong(d)}</SheetTitle>
+          <p className="text-muted-foreground text-xs">اليوم يبدأ بأذان المغرب وينتهي بمغرب الغد</p>
         </SheetHeader>
         <div className="flex flex-col gap-4 px-4 pb-8">
           <Section title={`إنجاز اليوم ${arab(pct)}٪`}>

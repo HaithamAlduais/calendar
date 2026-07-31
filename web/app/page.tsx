@@ -10,13 +10,16 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { DayPanel } from "@/components/day-panel"
+import { DayPopup } from "@/components/day-popup"
 import { EventSheet } from "@/components/event-sheet"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { WeekView } from "@/components/week-view"
+import { scheduleNotifications } from "@/lib/notify"
 import { addDays, arab, parseIso, MONTH_NAMES } from "@/lib/engine/dates.js"
 import {
   allEvents,
   getVersion,
+  settings,
   subscribe,
   todayIso,
   weekStartOf,
@@ -49,6 +52,18 @@ export default function Page() {
 
   // الحدث المفتوح يُقرأ حيًّا من القائمة المُحدَّثة حتى تظهر المهام والتعديلات فورًا
   const liveOpenEv = openEv ? (events.find((e) => e.id === openEv.id) ?? openEv) : null
+
+  // جدولة تنبيهات البلوكات (٣٠ د قبل + عند البدء) وإعادتها عند العودة للتطبيق
+  useEffect(() => {
+    if (!mounted || !settings.notify) return
+    scheduleNotifications(events)
+    const onVis = () => {
+      if (document.visibilityState === "visible" && settings.notify)
+        scheduleNotifications(allEvents())
+    }
+    document.addEventListener("visibilitychange", onVis)
+    return () => document.removeEventListener("visibilitychange", onVis)
+  }, [mounted, events])
 
   if (!mounted) {
     return (
@@ -111,6 +126,7 @@ export default function Page() {
       <EventSheet ev={liveOpenEv} onClose={() => setOpenEv(null)} />
       <DayPanel open={panelOpen} onClose={() => setPanelOpen(false)} events={events} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <DayPopup />
     </div>
   )
 }

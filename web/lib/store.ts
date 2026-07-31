@@ -3,6 +3,7 @@
 // المخزن — يربط المحرك المُتحقَّق منه بالواجهة، وكل الحالة في localStorage
 import { buildRange } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
+import { prayerTimes } from "@/lib/engine/prayers.js"
 import { setQuranCompletion, clearQuranCache } from "@/lib/engine/quran.js"
 import { setWorkoutCompletion } from "@/lib/engine/workout.js"
 
@@ -31,6 +32,7 @@ const K = {
   food: "hc.food.v1",
   settings: "hc.settings.v2",
   pulled: "hc.pulled.v1",
+  lastSeen: "hc.lastseen.v1",
 }
 
 const isClient = typeof window !== "undefined"
@@ -53,11 +55,12 @@ let checks = load<Record<string, number[]>>(K.checks, {})
 let tasks = load<Record<string, string[]>>(K.tasks, {})
 let food = load<Record<string, { kcal: number; p: number; c: number; f: number }>>(K.food, {})
 export const settings = Object.assign(
-  { clientId: "", weight: 70, accounts: [] as string[] },
-  load<{ clientId: string; weight: number; accounts: string[] }>(K.settings, {
+  { clientId: "", weight: 70, accounts: [] as string[], notify: false },
+  load<{ clientId: string; weight: number; accounts: string[]; notify: boolean }>(K.settings, {
     clientId: "",
     weight: 70,
     accounts: [],
+    notify: false,
   })
 )
 
@@ -82,19 +85,50 @@ export function todayIso(): string {
   return toIso(t.getFullYear(), t.getMonth() + 1, t.getDate())
 }
 
+export function nowStamp(): string {
+  const n = new Date()
+  const p = (x: number) => String(x).padStart(2, "0")
+  return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}T${p(n.getHours())}:${p(n.getMinutes())}`
+}
+
+// اليوم عند هيثم يبدأ بأذان المغرب لا بمنتصف الليل:
+// قبل مغرب اليوم نحن في وحدة اليوم، وبعده دخلنا وحدة الغد
+export function currentUnit(): string {
+  const t = todayIso()
+  const mag = prayerTimes(t).maghrib as number
+  const p = (x: number) => String(x).padStart(2, "0")
+  const magStamp = `${t}T${p(Math.floor(mag / 60))}:${p(mag % 60)}`
+  return nowStamp() >= magStamp ? addDays(t, 1) : t
+}
+
 // ── التقدّم مشروط بالإنجاز الفعلي ──
-// الأيام الماضية غير المعلَّمة لا تتقدم (تُعاد مهمتها)، واليوم فصاعدًا يُفترض إنجازه
+// الوحدات الماضية (انتهت بمغربها) غير المعلَّمة لا تتقدم، والوحدة الحالية فصاعدًا يُفترض إنجازها
 if (isClient) {
   setQuranCompletion((d: string) => {
-    if (d >= todayIso()) return { review: true, hifz: true }
+    if (d >= currentUnit()) return { review: true, hifz: true }
     const dn = !!done[`${d}#quran`]
     const arr = checks[`${d}#quran`] || []
     return { review: dn || arr.includes(0), hifz: dn || arr.includes(1) }
   })
   setWorkoutCompletion((d: string) => {
-    if (d >= todayIso()) return true
+    if (d >= currentUnit()) return true
     return !!done[`${d}#train`] || (checks[`${d}#train`] || []).length > 0
   })
+}
+
+export function isDone(id: string): boolean {
+  return !!done[id]
+}
+
+// نافذة «تقرير أمس»: تظهر مرة واحدة عند أول فتح في كل وحدة جديدة
+export function popupUnitIfNew(): { prev: string; cur: string } | null {
+  if (!isClient) return null
+  const cur = currentUnit()
+  if (load<string>(K.lastSeen, "") === cur) return null
+  return { prev: addDays(cur, -1), cur }
+}
+export function markPopupSeen(cur: string) {
+  save(K.lastSeen, cur)
 }
 
 // نهاية النافذة: تغطي دومًا كتلة شهر التمرين الجارية كاملة
