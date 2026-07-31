@@ -53,12 +53,12 @@ export default function Page() {
   // الحدث المفتوح يُقرأ حيًّا من القائمة المُحدَّثة حتى تظهر المهام والتعديلات فورًا
   const liveOpenEv = openEv ? (events.find((e) => e.id === openEv.id) ?? openEv) : null
 
-  // جدولة تنبيهات البلوكات (٣٠ د قبل + عند البدء) وإعادتها عند العودة للتطبيق
+  // الجدولة المحلية احتياط فقط عندما لا يعمل دفع الخادم (الخادم يرسل حتى والتطبيق مغلق)
   useEffect(() => {
-    if (!mounted || !settings.notify) return
+    if (!mounted || !settings.notify || settings.push) return
     scheduleNotifications(events)
     const onVis = () => {
-      if (document.visibilityState === "visible" && settings.notify)
+      if (document.visibilityState === "visible" && settings.notify && !settings.push)
         scheduleNotifications(allEvents())
     }
     document.addEventListener("visibilitychange", onVis)

@@ -55,13 +55,11 @@ let checks = load<Record<string, number[]>>(K.checks, {})
 let tasks = load<Record<string, string[]>>(K.tasks, {})
 let food = load<Record<string, { kcal: number; p: number; c: number; f: number }>>(K.food, {})
 export const settings = Object.assign(
-  { clientId: "", weight: 70, accounts: [] as string[], notify: false },
-  load<{ clientId: string; weight: number; accounts: string[]; notify: boolean }>(K.settings, {
-    clientId: "",
-    weight: 70,
-    accounts: [],
-    notify: false,
-  })
+  { clientId: "", weight: 70, accounts: [] as string[], notify: false, push: false },
+  load<{ clientId: string; weight: number; accounts: string[]; notify: boolean; push: boolean }>(
+    K.settings,
+    { clientId: "", weight: 70, accounts: [], notify: false, push: false }
+  )
 )
 
 // ── إشعار React بالتغييرات ──

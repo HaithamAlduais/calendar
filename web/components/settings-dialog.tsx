@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { addAccount, dropToken, pullAccount } from "@/lib/gcal"
 import { notificationsGranted, requestNotifications, scheduleNotifications } from "@/lib/notify"
+import { disablePush, enablePush, pushSupported } from "@/lib/push"
 import { addDays, arab } from "@/lib/engine/dates.js"
 import { dotColor } from "@/lib/format"
 import {
@@ -159,24 +160,37 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           <div className="border-t pt-3">
             <h3 className="mb-2 text-sm font-semibold">تنبيهات البلوكات</h3>
             <p className="text-muted-foreground mb-2 text-xs">
-              تنبيهان لكل بلوك: قبله بثلاثين دقيقة وعند بدئه — والتطبيق مثبتًا على هاتفك يعرضها
-              كإشعارات نظام.
+              تنبيهان لكل بلوك: قبله بثلاثين دقيقة وعند بدئه — من خادمنا مباشرة، فتصل هاتفك حتى
+              والتطبيق مغلق تمامًا.
             </p>
             <Button
               variant={settings.notify && notificationsGranted() ? "secondary" : "default"}
               className="w-full"
+              disabled={busy}
               onClick={async () => {
                 if (settings.notify && notificationsGranted()) {
-                  saveSettings({ notify: false })
+                  setBusy(true)
+                  await disablePush()
+                  saveSettings({ notify: false, push: false })
                   scheduleNotifications([])
+                  setBusy(false)
                   setStatus("🔕 أُوقفت التنبيهات")
                   return
                 }
                 const ok = await requestNotifications()
                 if (!ok) return setStatus("❌ رُفض إذن التنبيهات — فعّله من إعدادات المتصفح للموقع")
-                saveSettings({ notify: true })
-                const n = scheduleNotifications(allEvents())
-                setStatus(`🔔 فُعّلت — جُدول ${arab(n)} تنبيهًا للساعات القادمة`)
+                setBusy(true)
+                const serverPush = pushSupported() && (await enablePush())
+                setBusy(false)
+                if (serverPush) {
+                  saveSettings({ notify: true, push: true })
+                  scheduleNotifications([])
+                  setStatus("🔔 فُعّلت الإشعارات المضمونة — تصل حتى والتطبيق مغلق ✅")
+                } else {
+                  saveSettings({ notify: true, push: false })
+                  const n = scheduleNotifications(allEvents())
+                  setStatus(`🔔 فُعّلت محليًا (جُدول ${arab(n)}) — الخادم غير متاح الآن`)
+                }
               }}
             >
               <BellIcon />

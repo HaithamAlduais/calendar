@@ -13,6 +13,32 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// إشعارات الدفع من خادم Supabase — تصل حتى والتطبيق مغلق
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data.json(); } catch { d = { title: 'تقويم هيثم', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(
+    self.registration.showNotification(d.title || 'تقويم هيثم', {
+      body: d.body || '',
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      tag: d.tag || undefined,
+      dir: 'rtl',
+      lang: 'ar',
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ws) => {
+      for (const w of ws) if ('focus' in w) return w.focus();
+      return clients.openWindow('./');
+    })
+  );
+});
+
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
