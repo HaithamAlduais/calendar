@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>تقويم هيثم</title>
+  <meta name="description" content="جدولك اليومي المولّد فلكيًا — الصلوات والقرآن والتمرين والعمل">
+  <meta name="theme-color" content="#1a73e8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="تقويم">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%231a73e8'/><rect x='14' y='26' width='72' height='60' rx='8' fill='white'/><text x='50' y='72' font-size='40' text-anchor='middle' fill='%231a73e8' font-family='Arial'>٣١</text></svg>">
+</head>
+<body>
+  <header id="topbar">
+    <div class="tb-section">
+      <button id="btnMenu" class="icon-btn" title="القائمة"><span class="burger"></span></button>
+      <div class="logo">
+        <div class="logo-icon" id="logoDay">31</div>
+        <span class="logo-text">تقويم</span>
+      </div>
+      <button id="btnToday" class="btn-outline">اليوم</button>
+      <button id="btnPrev" class="icon-btn chev" title="السابق">›</button>
+      <button id="btnNext" class="icon-btn chev" title="التالي">‹</button>
+      <h1 id="rangeTitle"></h1>
+    </div>
+    <div class="tb-section">
+      <div class="search-wrap">
+        <input id="search" placeholder="البحث في الجدول" autocomplete="off">
+        <div id="searchResults" hidden></div>
+      </div>
+      <button id="btnSync" class="btn-outline" title="مزامنة مع Google Calendar">المزامنة ⟳</button>
+      <select id="viewSel" title="طريقة العرض">
+        <option value="day">يوم</option>
+        <option value="week" selected>أسبوع</option>
+        <option value="month">شهر</option>
+        <option value="agenda">جدول</option>
+      </select>
+      <button id="btnSettings" class="icon-btn" title="الإعدادات">⚙</button>
+      <div class="avatar" title="haithamhameed15@gmail.com">هـ</div>
+    </div>
+  </header>
+
+  <div id="layout">
+    <aside id="sidebar">
+      <button id="btnCreate" class="create-btn"><span class="plus">＋</span> إنشاء</button>
+      <div id="miniCal"></div>
+      <div class="cal-list">
+        <h3>تقاويمي</h3>
+        <label class="cal-item"><input type="checkbox" data-group="prayers" checked><span class="cbox" style="--c:#3f51b5"></span>الصلوات والقيام</label>
+        <label class="cal-item"><input type="checkbox" data-group="growth" checked><span class="cbox" style="--c:#0b8043"></span>القرآن والتمرين</label>
+        <label class="cal-item"><input type="checkbox" data-group="work" checked><span class="cbox" style="--c:#f4511e"></span>العمل والأسرة</label>
+        <label class="cal-item"><input type="checkbox" data-group="rest" checked><span class="cbox" style="--c:#616161"></span>النوم والراحة</label>
+        <label class="cal-item"><input type="checkbox" data-group="external" checked><span class="cbox" style="--c:#039be5"></span>من Google</label>
+      </div>
+      <div id="dashboard"></div>
+    </aside>
+    <main id="main"></main>
+  </div>
+
+  <div id="popover" hidden></div>
+  <div id="modalOverlay" hidden><div id="modal"></div></div>
+  <div id="toast" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "haitham-calendar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "تقويم هيثم — جدول يومي مولّد فلكيًا بواجهة تشبه Google Calendar ومزامنة معه",
+  "scripts": {
+    "start": "python -m http.server 8080",
+    "test": "node test/verify.mjs"
+  }
+}
