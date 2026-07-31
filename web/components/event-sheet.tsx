@@ -11,7 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { checklistLines, dotColor, fmt12, fmtDateLong, dateOf, timeOf } from "@/lib/format"
 import { shareEventImage } from "@/lib/share"
-import { addTask, checksFor, removeTask, toggleCheck, toggleDone, type Ev } from "@/lib/store"
+import { addTask, checksFor, removeTask, tasksFor, toggleCheck, toggleDone, type Ev } from "@/lib/store"
 
 export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void }) {
   const [taskText, setTaskText] = useState("")
@@ -22,6 +22,8 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
   const checked = new Set(checksFor(ev.id))
   const doneItems = items.filter((l) => checked.has(l.idx)).length
   const isWorkTasks = ev.slot === "work1" && !ev.external && ev.title === "عمل"
+  // زر الحذف لمهامك اليدوية فقط — بنود Google المدموجة تُدار من تقويم Google نفسه
+  const manualTaskCount = isWorkTasks ? tasksFor(ev.unit!).length : 0
 
   const submitTask = () => {
     const t = taskText.trim()
@@ -40,7 +42,11 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
           </SheetTitle>
           <div className="text-muted-foreground text-sm">
             {fmtDateLong(dateOf(ev.start))} ⋅ {fmt12(timeOf(ev.start))} – {fmt12(timeOf(ev.end))}
-            {ev.external && <span className="ms-2 text-sky-600">من Google — عرض فقط</span>}
+            {ev.external && (
+              <span className="ms-2 text-sky-600">
+                من Google{ev.account ? ` — ${ev.account}` : ""} (عرض فقط)
+              </span>
+            )}
           </div>
         </SheetHeader>
 
@@ -66,7 +72,7 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
                       className="mt-0.5"
                     />
                     <span className="leading-relaxed">{l.text}</span>
-                    {isWorkTasks && (
+                    {isWorkTasks && l.idx < manualTaskCount && (
                       <button
                         onClick={(e2) => {
                           e2.preventDefault()

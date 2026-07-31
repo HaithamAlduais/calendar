@@ -21,8 +21,14 @@ export function fmtDateLong(d: string): string {
 }
 
 // شريط اللون حسب المجموعة (ألوان جدول هيثم) — أصناف حرفية كاملة حتى يولّدها Tailwind
+// أحداث Google: كل حساب بلون فهرسه: 7 سماوي، 3 بنفسجي، 5 أصفر، 4 وردي
 export function barColor(colorId: number, external?: boolean): string {
-  if (external) return "after:bg-sky-500"
+  if (external)
+    return (
+      { 7: "after:bg-sky-500", 3: "after:bg-purple-500", 5: "after:bg-yellow-500", 4: "after:bg-rose-500" }[
+        colorId
+      ] || "after:bg-sky-500"
+    )
   return (
     {
       9: "after:bg-blue-600",
@@ -34,9 +40,10 @@ export function barColor(colorId: number, external?: boolean): string {
 }
 
 export function dotColor(colorId: number, external?: boolean): string {
-  if (external) return "bg-sky-500"
+  const ext = { 7: "bg-sky-500", 3: "bg-purple-500", 5: "bg-yellow-500", 4: "bg-rose-500" }
+  if (external) return ext[colorId as 7 | 3 | 5 | 4] || "bg-sky-500"
   return (
-    { 9: "bg-blue-600", 10: "bg-emerald-600", 6: "bg-orange-500", 8: "bg-zinc-400" }[colorId] ||
+    { 9: "bg-blue-600", 10: "bg-emerald-600", 6: "bg-orange-500", 8: "bg-zinc-400", ...ext }[colorId] ||
     "bg-sky-500"
   )
 }

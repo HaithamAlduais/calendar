@@ -18,6 +18,7 @@ export type Ev = {
   transparent?: boolean
   done?: boolean
   external?: boolean
+  account?: string // بريد حساب Google المصدر (للأحداث الخارجية)
 }
 
 export const SCHEDULE_START = "2026-07-31"
@@ -52,8 +53,12 @@ let checks = load<Record<string, number[]>>(K.checks, {})
 let tasks = load<Record<string, string[]>>(K.tasks, {})
 let food = load<Record<string, { kcal: number; p: number; c: number; f: number }>>(K.food, {})
 export const settings = Object.assign(
-  { clientId: "", weight: 70 },
-  load<{ clientId: string; weight: number }>(K.settings, { clientId: "", weight: 70 })
+  { clientId: "", weight: 70, accounts: [] as string[] },
+  load<{ clientId: string; weight: number; accounts: string[] }>(K.settings, {
+    clientId: "",
+    weight: 70,
+    accounts: [],
+  })
 )
 
 // ── إشعار React بالتغييرات ──
@@ -98,14 +103,40 @@ function windowEnd(): string {
   return addDays(BLOCK_START, (Math.floor(off / 28) + 1) * 28 - 1)
 }
 
-// كل أحداث النافذة مع تراكب المهام وحالة الإنجاز
+// البلوكات التي تستقبل مهام Google: عمل/عائلة (work1-3) والراحة/الزوجة (rest)
+const GOOGLE_HOST_SLOTS = ["work1", "work2", "work3", "rest"]
+const NUMBERED_RE = /^[٠-٩]+\.\s/
+
+function fmt12Short(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number)
+  const ap = h < 12 ? "ص" : "م"
+  const h12 = h % 12 || 12
+  return m === 0 ? `${arab(h12)} ${ap}` : `${arab(h12)}:${arab(String(m).padStart(2, "0"))} ${ap}`
+}
+
+// كل أحداث النافذة مع تراكب المهام وحالة الإنجاز، وأحداث Google مدموجة كمهام داخل بلوكاتها
 export function allEvents(): Ev[] {
+  const pulledEvents = getPulled().events
   const out: Ev[] = []
   for (const raw of buildRange(SCHEDULE_START, windowEnd()) as Ev[]) {
     const ev: Ev = { ...raw, done: !!done[raw.id] }
     if (ev.slot === "work1" && ev.title === "عمل") {
       const list = tasks[ev.unit!] || []
       ev.desc = list.length ? list.map((t, i) => `${arab(i + 1)}. ${t}`).join("\n") : ""
+    }
+    // أحداث Google التي تبدأ داخل هذا البلوك تصير بنود مهام فيه (وما خارج هذه البلوكات يُهمل)
+    if (GOOGLE_HOST_SLOTS.includes(ev.slot || "")) {
+      const gs = pulledEvents
+        .filter((g) => g.start >= ev.start && g.start < ev.end)
+        .sort((a, b) => (a.start < b.start ? -1 : 1))
+      if (gs.length) {
+        const base = ev.desc ? ev.desc.split("\n") : []
+        let n = base.filter((l) => NUMBERED_RE.test(l)).length
+        const extra = gs.map(
+          (g) => `${arab(++n)}. ${g.title} — ${fmt12Short(g.start.slice(11))} (Google)`
+        )
+        ev.desc = [...base, ...extra].join("\n")
+      }
     }
     out.push(ev)
   }

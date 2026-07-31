@@ -16,7 +16,6 @@ import { WeekView } from "@/components/week-view"
 import { addDays, arab, parseIso, MONTH_NAMES } from "@/lib/engine/dates.js"
 import {
   allEvents,
-  getPulled,
   getVersion,
   subscribe,
   todayIso,
@@ -42,9 +41,10 @@ export default function Page() {
 
   useEffect(() => setMounted(true), [])
 
+  // أحداث Google مدموجة داخل بلوكاتها في allEvents — لا بطاقات مستقلة لها
   const events = useMemo(() => {
     if (!mounted) return []
-    return [...allEvents(), ...getPulled().events]
+    return allEvents()
   }, [mounted, version])
 
   // الحدث المفتوح يُقرأ حيًّا من القائمة المُحدَّثة حتى تظهر المهام والتعديلات فورًا
