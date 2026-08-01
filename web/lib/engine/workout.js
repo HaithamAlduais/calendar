@@ -24,27 +24,27 @@ const EXERCISES = {
   fly:    { name: 'فراشة صدر',                sets: 2, lo: 8, hi: 11, w0: null, inc: 2.5, rest: 60,  days: [2] },
 };
 
-// مصدر الإنجاز: دالة (dateIso) => boolean هل أُدّي تمرين ذلك اليوم فعلًا.
-// الافتراضي: كل الجلسات مؤداة. الجلسة الفائتة لا تُحتسب فتبقى أهدافها للجلسة التالية.
+// مصدر الإنجاز: دالة (dateIso, exKey) => boolean هل أُدّي هذا التمرين ذلك اليوم فعلًا.
+// الافتراضي: الكل مؤدّى. والتمرين الفائت وحده يتجمّد تقدّمه — لا يؤثر في بقية التمارين.
 let completionSource = null;
 export function setWorkoutCompletion(fn) {
   completionSource = fn;
 }
 
-// عدد جلسات التمرين المؤدّاة لهذا التمرين منذ بداية الشهر (لا يشمل اليوم نفسه)
-function sessionsBefore(ex, dateIso) {
+// عدد جلسات هذا التمرين المؤدّاة منذ بداية الشهر (لا يشمل اليوم نفسه)
+function sessionsBefore(ex, dateIso, exKey) {
   if (dateIso <= GYM_START) return 0;
   let n = 0;
   for (let d = GYM_START; d < dateIso; d = addDays(d, 1)) {
     const t = WDAY[dow(d)];
-    if (t && ex.days.includes(t) && (!completionSource || completionSource(d))) n++;
+    if (t && ex.days.includes(t) && (!completionSource || completionSource(d, exKey))) n++;
   }
   return n;
 }
 
 function target(exKey, dateIso) {
   const ex = EXERCISES[exKey];
-  const n = sessionsBefore(ex, dateIso);
+  const n = sessionsBefore(ex, dateIso, exKey);
   const span = ex.hi - ex.lo + 1;
   return {
     reps: ex.lo + (n % span),
@@ -68,7 +68,7 @@ function supersetLine(aKey, bKey, dateIso) {
 
 function plankSeconds(dateIso) {
   // بلانك: البداية ٤٠ ث، +٢٫٥ ث كل جلسة (يظهر في اليومين الأول والثاني)
-  const n = sessionsBefore({ days: [1, 2] }, dateIso);
+  const n = sessionsBefore({ days: [1, 2] }, dateIso, 'plank');
   return 40 + 2.5 * n;
 }
 
@@ -82,6 +82,49 @@ const FRONT_DELT_LINE =
 
 const HEADER = 'التقدّم المزدوج: زد عدة كل جلسة حتى أعلى النطاق، ثم زد الوزن وارجع إلى أدنى النطاق.';
 const FOOTER = 'سجّل ما أنجزته فعليًا هنا بعد التمرين ✅';
+
+// ── الخطة المُهيكلة للواجهة التفاعلية ──
+// أنواع البنود: reps (عدات ووزن)، superset (طرفان)، failure (حتى الفشل)، hold (ثوانٍ)
+const SQUAT_STEPS =
+  'التدرّج نحو سكوات الرجل الواحدة: ١) سكوات قافز ٢) نزول برجل وصعود بقدمين ٣) نزول برجل وصعود بقدمين مع قفز ٤) نزول وصعود برجل واحدة ٥) برجل واحدة مع قفز — انتقل للمستوى التالي عند إتقان الحالي';
+const FRONT_DELT_STEPS = 'التدرّج: وقوف على اليدين مستندًا إلى الجدار ← ثم دون جدار عند التمكن';
+
+function repsItem(key, dateIso) {
+  const ex = EXERCISES[key];
+  const t = target(key, dateIso);
+  return { key, kind: 'reps', name: ex.name, sets: ex.sets, rest: ex.rest, reps: t.reps, weight: t.weight, lo: ex.lo, hi: ex.hi, inc: ex.inc };
+}
+
+export function workoutPlan(dateIso) {
+  const t = workoutDayType(dateIso);
+  if (t === 0) return null;
+  if (t === 3) {
+    return {
+      type: 3,
+      title: workoutTitle(dateIso),
+      items: [
+        { key: 'warmup', kind: 'failure', name: 'إحماء — هرولة خفيفة', sets: 1, rest: 0, note: '٥ دقائق' },
+        { key: 'sprint', kind: 'failure', name: 'عدو ١٠–٢٠ ث ثم هرولة ٩٠ ث', sets: 4, rest: 90, note: 'زد جولة أو ١٠ ثوانٍ كل أسبوع' },
+        { key: 'cool', kind: 'failure', name: 'تهدئة — مشي', sets: 1, rest: 0, note: '٥ دقائق' },
+      ],
+    };
+  }
+  const items = [];
+  if (t === 1) {
+    items.push(repsItem('press', dateIso), repsItem('row', dateIso), repsItem('pullup', dateIso));
+    items.push({ key: 'squat', kind: 'failure', name: 'سكوات', sets: 5, rest: 120, note: SQUAT_STEPS });
+    items.push(repsItem('rear', dateIso), repsItem('lat', dateIso));
+    items.push({ key: 'bi+tri', kind: 'superset', name: 'باي + تراي', sets: 2, rest: 60, parts: [repsItem('bi', dateIso), repsItem('tri', dateIso)] });
+  } else {
+    items.push(repsItem('press', dateIso), repsItem('fly', dateIso), repsItem('row', dateIso), repsItem('pullup', dateIso));
+    items.push({ key: 'squat', kind: 'failure', name: 'سكوات', sets: 5, rest: 120, note: SQUAT_STEPS });
+    items.push({ key: 'frontdelt', kind: 'failure', name: 'كتف أمامي بوزن الجسم', sets: 3, rest: 120, note: FRONT_DELT_STEPS });
+    items.push(repsItem('lat', dateIso));
+    items.push({ key: 'hammer+tri', kind: 'superset', name: 'هامر + تراي', sets: 2, rest: 60, parts: [repsItem('hammer', dateIso), repsItem('tri', dateIso)] });
+  }
+  items.push({ key: 'plank', kind: 'hold', name: 'بلانك', sets: 2, rest: 60, seconds: plankSeconds(dateIso) });
+  return { type: t, title: workoutTitle(dateIso), items };
+}
 
 // لقطة القوة الحالية: أهداف الجلسة القادمة للرفعات الرئيسية + البلانك
 export function strengthSnapshot(dateIso) {

@@ -138,11 +138,37 @@ check('إنجاز التسميع وحده يقدّمه وحده', JSON.stringify
 setQuranCompletion(null);
 clearQuranCache();
 
-// فوات تمرين الأحد ٢/٨: الثلاثاء ٤/٨ يعرض أهداف الأحد نفسها (بريس ٦ لا ٧)
+// فوات تمرين الأحد ٢/٨ كاملًا: الثلاثاء ٤/٨ يعرض أهداف الأحد نفسها (بريس ٦ لا ٧)
 setWorkoutCompletion((d) => d !== '2026-08-02');
 check('فوات الأحد → الثلاثاء بريس ٤٠×٦', workoutDesc('2026-08-04').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
 setWorkoutCompletion(null);
 check('بعد الاسترجاع: الثلاثاء بريس ٤٠×٧', workoutDesc('2026-08-04').includes('× ٧ عدات @ ٤٠ كجم'), true);
+
+// ── تجميد تمرين واحد لا يؤثر في البقية ──
+setWorkoutCompletion((d, k) => !(d === '2026-08-02' && k === 'press'));
+const d4 = workoutDesc('2026-08-04');
+check('البريس وحده تجمّد (٦ عدات)', d4.includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
+check('السحب الأفقي تقدّم رغم ذلك (٧ عدات)', d4.includes('السحب الأفقي — ٤ جلسات × ٧ عدات @ ٥٠ كجم'), true);
+setWorkoutCompletion(null);
+
+// ── الخطة المُهيكلة للواجهة التفاعلية ──
+const { workoutPlan } = await import('../lib/engine/workout.js');
+const plan1 = workoutPlan('2026-08-02');
+check('خطة اليوم الأول ٨ بنود', plan1.items.length, 8);
+check('أول بند البريس', plan1.items[0].key, 'press');
+check('البريس ٤ جلسات', plan1.items[0].sets, 4);
+check('السكوات حتى الفشل', plan1.items[3].kind, 'failure');
+check('باي+تراي سوبر ست', plan1.items[6].kind, 'superset');
+check('السوبر ست طرفان', plan1.items[6].parts.length, 2);
+check('البلانك hold', plan1.items[7].kind, 'hold');
+check('راحة البريس ١٢٠', plan1.items[0].rest, 120);
+const plan2 = workoutPlan('2026-08-04');
+check('خطة اليوم الثاني ٩ بنود', plan2.items.length, 9);
+check('اليوم الثاني فيه فراشة', plan2.items[1].key, 'fly');
+check('اليوم الثاني كتف أمامي فشل', plan2.items.find((i) => i.key === 'frontdelt').kind, 'failure');
+check('اليوم الثاني هامر+تراي', plan2.items.find((i) => i.kind === 'superset').key, 'hammer+tri');
+check('الخميس جري', workoutPlan('2026-08-06').type, 3);
+check('الجمعة بلا خطة', workoutPlan('2026-08-07'), null);
 
 // ── عينة عرض ───────────────────────────────────────────────────────
 console.log('\n── وحدة اليوم الجمعة ٣١ يوليو ──');

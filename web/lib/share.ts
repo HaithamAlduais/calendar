@@ -31,7 +31,12 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   return lines
 }
 
-export function eventStatus(ev: Ev, checked: Set<number>): string {
+export function eventStatus(ev: Ev, checked: Set<number>, prog?: { done: number; total: number }): string {
+  if (prog && prog.total) {
+    if (prog.done === 0) return "⬜ لم يبدأ بعد"
+    if (prog.done >= prog.total) return "✅ اكتمل التمرين"
+    return `🔄 قيد التنفيذ — ${arab(prog.done)} من ${arab(prog.total)} جلسة`
+  }
   const items = checklistLines(ev.desc).filter((l) => l.item)
   const doneItems = items.filter((l) => checked.has(l.idx)).length
   const n = new Date()
@@ -44,7 +49,11 @@ export function eventStatus(ev: Ev, checked: Set<number>): string {
   return "⬜ لم يبدأ بعد"
 }
 
-export async function shareEventImage(ev: Ev, checked: Set<number>): Promise<"shared" | "downloaded"> {
+export async function shareEventImage(
+  ev: Ev,
+  checked: Set<number>,
+  workout?: { prog: { done: number; total: number }; lines: string[] }
+): Promise<"shared" | "downloaded"> {
   const W = 900
   const pad = 52
   const lineH = 48
@@ -54,17 +63,27 @@ export async function shareEventImage(ev: Ev, checked: Set<number>): Promise<"sh
   x.font = `400 28px ${FONT}`
 
   // لفّ الأسطر الطويلة مع حفظ نوع كل سطر
-  const lines = checklistLines(ev.desc)
   const rlines: RLine[] = []
-  for (const l of lines) {
-    const maxW = W - pad * 2 - (l.item ? 56 : 16)
-    wrapText(x, l.text, maxW).forEach((t, i) =>
-      rlines.push({
-        text: t,
-        kind: l.item ? (i === 0 ? "item" : "cont") : "plain",
-        checked: checked.has(l.idx),
-      })
-    )
+  if (workout) {
+    // بطاقة التمرين: سطر لكل تمرين بحالته
+    for (const raw of workout.lines) {
+      const on = raw.startsWith("✅")
+      const text = raw.slice(2)
+      wrapText(x, text, W - pad * 2 - 56).forEach((t, i) =>
+        rlines.push({ text: t, kind: i === 0 ? "item" : "cont", checked: on })
+      )
+    }
+  } else {
+    for (const l of checklistLines(ev.desc)) {
+      const maxW = W - pad * 2 - (l.item ? 56 : 16)
+      wrapText(x, l.text, maxW).forEach((t, i) =>
+        rlines.push({
+          text: t,
+          kind: l.item ? (i === 0 ? "item" : "cont") : "plain",
+          checked: checked.has(l.idx),
+        })
+      )
+    }
   }
 
   const headerH = 210
@@ -94,7 +113,7 @@ export async function shareEventImage(ev: Ev, checked: Set<number>): Promise<"sh
     122
   )
   // الحالة
-  const status = eventStatus(ev, checked)
+  const status = eventStatus(ev, checked, workout?.prog)
   x.font = `600 30px ${FONT}`
   x.fillStyle = status.startsWith("✅") ? "#059669" : status.startsWith("⬜") ? "#71717a" : "#d97706"
   x.fillText(status, xr, 172)
@@ -141,11 +160,12 @@ export async function shareEventImage(ev: Ev, checked: Set<number>): Promise<"sh
   a.download = `${ev.title}.png`
   a.click()
   URL.revokeObjectURL(a.href)
-  const items = checklistLines(ev.desc).filter((l) => l.item)
-  const txt = encodeURIComponent(
-    `*${ev.title}* — ${status}\n` +
-      items.map((l) => `${checked.has(l.idx) ? "✅" : "⬜"} ${l.text}`).join("\n")
-  )
+  const bodyLines = workout
+    ? workout.lines
+    : checklistLines(ev.desc)
+        .filter((l) => l.item)
+        .map((l) => `${checked.has(l.idx) ? "✅" : "⬜"} ${l.text}`)
+  const txt = encodeURIComponent(`*${ev.title}* — ${status}\n` + bodyLines.join("\n"))
   window.open(`https://wa.me/?text=${txt}`, "_blank")
   return "downloaded"
 }

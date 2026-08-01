@@ -10,8 +10,21 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { checklistLines, dotColor, fmt12, fmtDateLong, dateOf, timeOf } from "@/lib/format"
+import { WorkoutSheet } from "@/components/workout-sheet"
 import { shareEventImage } from "@/lib/share"
-import { addTask, checksFor, removeTask, tasksFor, toggleCheck, toggleDone, type Ev } from "@/lib/store"
+import {
+  addTask,
+  checksFor,
+  planFor,
+  removeTask,
+  sessionProgress,
+  setsDoneCount,
+  tasksFor,
+  toggleCheck,
+  toggleDone,
+  type Ev,
+} from "@/lib/store"
+import { arab } from "@/lib/engine/dates.js"
 
 export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void }) {
   const [taskText, setTaskText] = useState("")
@@ -22,6 +35,7 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
   const checked = new Set(checksFor(ev.id))
   const doneItems = items.filter((l) => checked.has(l.idx)).length
   const isWorkTasks = ev.slot === "work1" && !ev.external && ev.title === "عمل"
+  const isWorkout = ev.slot === "train" && !ev.external && ev.title.startsWith("تمرين")
   // زر الحذف لمهامك اليدوية فقط — بنود Google المدموجة تُدار من تقويم Google نفسه
   const manualTaskCount = isWorkTasks ? tasksFor(ev.unit!).length : 0
 
@@ -51,11 +65,13 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
         </SheetHeader>
 
         <div className="flex flex-col gap-3 px-4 pb-6">
-          {items.length > 0 && (
+          {isWorkout && <WorkoutSheet date={ev.unit!} />}
+
+          {!isWorkout && items.length > 0 && (
             <Progress value={(doneItems / items.length) * 100} className="h-1.5" />
           )}
 
-          {lines.length > 0 && (
+          {!isWorkout && lines.length > 0 && (
             <div className="flex flex-col gap-1">
               {lines.map((l) =>
                 l.item && !ev.external ? (
@@ -126,7 +142,24 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
             <Button
               variant="outline"
               className="flex-1 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
-              onClick={() => shareEventImage(ev, new Set(checksFor(ev.id)))}
+              onClick={() => {
+                if (isWorkout) {
+                  const plan = planFor(ev.unit!)
+                  const lines = (plan?.items || []).map((it) => {
+                    const n = setsDoneCount(ev.unit!, it)
+                    const detail =
+                      it.kind === "reps"
+                        ? ` — ${arab(it.reps!)} عدات @ ${it.weight == null ? "—" : `${arab(it.weight)} كجم`}`
+                        : it.kind === "hold"
+                          ? ` — ${arab(it.seconds!)} ث`
+                          : ""
+                    return `${n >= it.sets ? "✅" : "⬜"} ${it.name}${detail} (${arab(n)}/${arab(it.sets)})`
+                  })
+                  shareEventImage(ev, new Set(), { prog: sessionProgress(ev.unit!), lines })
+                } else {
+                  shareEventImage(ev, new Set(checksFor(ev.id)))
+                }
+              }}
             >
               <Share2Icon />
               مشاركة واتساب

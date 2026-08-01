@@ -5,7 +5,7 @@ import { buildRange } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { prayerTimes } from "@/lib/engine/prayers.js"
 import { setQuranCompletion, clearQuranCache } from "@/lib/engine/quran.js"
-import { setWorkoutCompletion } from "@/lib/engine/workout.js"
+import { setWorkoutCompletion, workoutPlan } from "@/lib/engine/workout.js"
 
 export type Ev = {
   id: string
@@ -33,6 +33,7 @@ const K = {
   settings: "hc.settings.v2",
   pulled: "hc.pulled.v1",
   lastSeen: "hc.lastseen.v1",
+  gym: "hc.gym.v1",
 }
 
 const isClient = typeof window !== "undefined"
@@ -54,6 +55,8 @@ let done = load<Record<string, boolean>>(K.done, {})
 let checks = load<Record<string, number[]>>(K.checks, {})
 let tasks = load<Record<string, string[]>>(K.tasks, {})
 let food = load<Record<string, { kcal: number; p: number; c: number; f: number }>>(K.food, {})
+// سجل التمرين: تاريخ ← مفتاح خلية ("exKey:setIdx" أو "exKey:setIdx:partKey") ← منجَز
+let gym = load<Record<string, Record<string, boolean>>>(K.gym, {})
 export const settings = Object.assign(
   { clientId: "", weight: 70, accounts: [] as string[], notify: false, push: false },
   load<{ clientId: string; weight: number; accounts: string[]; notify: boolean; push: boolean }>(
@@ -108,14 +111,104 @@ if (isClient) {
     const arr = checks[`${d}#quran`] || []
     return { review: dn || arr.includes(0), hifz: dn || arr.includes(1) }
   })
-  setWorkoutCompletion((d: string) => {
+  // إنجاز التمرين لكل تمرين على حدة: الفائت وحده يتجمّد تقدّمه
+  setWorkoutCompletion((d: string, exKey: string) => {
     if (d >= currentUnit()) return true
-    return !!done[`${d}#train`] || (checks[`${d}#train`] || []).length > 0
+    if (done[`${d}#train`]) return true // تعليم الجلسة كلها ✅
+    return exerciseComplete(d, exKey)
   })
 }
 
 export function isDone(id: string): boolean {
   return !!done[id]
+}
+
+// ── سجل التمرين التفاعلي ──
+export type PlanItem = {
+  key: string
+  kind: "reps" | "superset" | "failure" | "hold"
+  name: string
+  sets: number
+  rest: number
+  reps?: number
+  weight?: number | null
+  seconds?: number
+  note?: string
+  lo?: number
+  hi?: number
+  inc?: number
+  parts?: { key: string; name: string; reps: number; weight: number | null }[]
+}
+export type Plan = { type: number; title: string; items: PlanItem[] }
+
+export function planFor(dateIso: string): Plan | null {
+  return workoutPlan(dateIso) as Plan | null
+}
+
+const cell = (exKey: string, setIdx: number, part?: string) =>
+  part ? `${exKey}:${setIdx}:${part}` : `${exKey}:${setIdx}`
+
+export function cellDone(d: string, exKey: string, setIdx: number, part?: string): boolean {
+  return !!gym[d]?.[cell(exKey, setIdx, part)]
+}
+
+export function toggleCell(d: string, exKey: string, setIdx: number, part?: string) {
+  const k = cell(exKey, setIdx, part)
+  const day = { ...(gym[d] || {}) }
+  if (day[k]) delete day[k]
+  else day[k] = true
+  if (Object.keys(day).length) gym[d] = day
+  else delete gym[d]
+  save(K.gym, gym)
+  notify()
+  return !!day[k]
+}
+
+// جلسة مكتملة؟ (السوبر ست يتطلب الطرفين)
+export function setComplete(d: string, item: PlanItem, setIdx: number): boolean {
+  if (item.kind === "superset")
+    return (item.parts || []).every((p) => cellDone(d, item.key, setIdx, p.key))
+  return cellDone(d, item.key, setIdx)
+}
+
+export function setsDoneCount(d: string, item: PlanItem): number {
+  let n = 0
+  for (let i = 0; i < item.sets; i++) if (setComplete(d, item, i)) n++
+  return n
+}
+
+// تمرين مكتمل = كل جلساته. يُستخدم لتقدّم الوزن والعدات
+export function exerciseComplete(d: string, exKey: string): boolean {
+  const plan = workoutPlan(d) as Plan | null
+  if (!plan) return false
+  for (const item of plan.items) {
+    if (item.key === exKey) return setsDoneCount(d, item) >= item.sets
+    // التمرين قد يكون طرفًا في سوبر ست
+    if (item.kind === "superset" && (item.parts || []).some((p) => p.key === exKey)) {
+      let n = 0
+      for (let i = 0; i < item.sets; i++) if (cellDone(d, item.key, i, exKey)) n++
+      return n >= item.sets
+    }
+  }
+  return false
+}
+
+export function sessionProgress(d: string): { done: number; total: number } {
+  const plan = workoutPlan(d) as Plan | null
+  if (!plan) return { done: 0, total: 0 }
+  let done2 = 0,
+    total = 0
+  for (const item of plan.items) {
+    total += item.sets
+    done2 += setsDoneCount(d, item)
+  }
+  return { done: done2, total }
+}
+
+export function resetWorkout(d: string) {
+  delete gym[d]
+  save(K.gym, gym)
+  notify()
 }
 
 // نافذة «تقرير أمس»: تظهر مرة واحدة عند أول فتح في كل وحدة جديدة
