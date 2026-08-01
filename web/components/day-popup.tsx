@@ -17,7 +17,14 @@ import { arab } from "@/lib/engine/dates.js"
 import { quranStateFor, reviewLine, hifzLine } from "@/lib/engine/quran.js"
 import { workoutDayType, workoutTitle } from "@/lib/engine/workout.js"
 import { fmtDateLong } from "@/lib/format"
-import { checksFor, isDone, markPopupSeen, popupUnitIfNew, SCHEDULE_START } from "@/lib/store"
+import {
+  checksFor,
+  isDone,
+  markPopupSeen,
+  popupUnitIfNew,
+  SCHEDULE_START,
+  sessionProgress,
+} from "@/lib/store"
 
 function StatusRow({ ok, label, note }: { ok: boolean; label: string; note?: string }) {
   return (
@@ -54,7 +61,9 @@ export function DayPopup() {
   const reviewDone = qDone || qChecks.includes(0)
   const hifzDone = qDone || qChecks.includes(1)
   const prevTrainType = workoutDayType(prev)
-  const trainDone = isDone(`${prev}#train`) || checksFor(`${prev}#train`).length > 0
+  const prevProg = sessionProgress(prev)
+  const trainDone =
+    isDone(`${prev}#train`) || (prevProg.total > 0 && prevProg.done >= prevProg.total)
 
   const close = () => {
     markPopupSeen(cur)
@@ -89,8 +98,12 @@ export function DayPopup() {
               {prevTrainType > 0 && (
                 <StatusRow
                   ok={trainDone}
-                  label={`التمرين: ${workoutTitle(prev)}`}
-                  note={trainDone ? undefined : "لم تُحتسب الجلسة — أهدافها تنتقل للجلسة القادمة"}
+                  label={`التمرين: ${workoutTitle(prev)}${prevProg.total ? ` (${arab(prevProg.done)}/${arab(prevProg.total)} جلسة)` : ""}`}
+                  note={
+                    trainDone
+                      ? undefined
+                      : "التمارين غير المكتملة وحدها تجمّد تقدّمها — والمكتملة تتقدّم"
+                  }
                 />
               )}
               <Separator />

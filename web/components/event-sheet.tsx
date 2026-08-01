@@ -15,6 +15,7 @@ import { shareEventImage } from "@/lib/share"
 import {
   addTask,
   checksFor,
+  isAutoDone,
   planFor,
   removeTask,
   sessionProgress,
@@ -36,6 +37,7 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
   const doneItems = items.filter((l) => checked.has(l.idx)).length
   const isWorkTasks = ev.slot === "work1" && !ev.external && ev.title === "عمل"
   const isWorkout = ev.slot === "train" && !ev.external && ev.title.startsWith("تمرين")
+  const auto = isAutoDone(ev) // اكتمل ببنوده فلا حاجة لزر الإنجاز
   // زر الحذف لمهامك اليدوية فقط — بنود Google المدموجة تُدار من تقويم Google نفسه
   const manualTaskCount = isWorkTasks ? tasksFor(ev.unit!).length : 0
 
@@ -126,19 +128,25 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
           )}
 
           <div className="flex gap-2">
-            {!ev.external && (
-              <Button
-                className="flex-1"
-                variant={ev.done ? "secondary" : "default"}
-                onClick={() => {
-                  toggleDone(ev.id)
-                  onClose()
-                }}
-              >
-                <CheckIcon />
-                {ev.done ? "تراجع عن الإنجاز" : "إنجاز الحدث كاملًا"}
-              </Button>
-            )}
+            {!ev.external &&
+              (auto ? (
+                <div className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-emerald-600/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                  <CheckIcon className="size-4" />
+                  اكتمل تلقائيًا — أُنجزت كل بنوده
+                </div>
+              ) : (
+                <Button
+                  className="flex-1"
+                  variant={ev.done ? "secondary" : "default"}
+                  onClick={() => {
+                    toggleDone(ev.id)
+                    onClose()
+                  }}
+                >
+                  <CheckIcon />
+                  {ev.done ? "تراجع عن الإنجاز" : "إنجاز الحدث كاملًا"}
+                </Button>
+              ))}
             <Button
               variant="outline"
               className="flex-1 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"

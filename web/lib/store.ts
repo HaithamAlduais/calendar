@@ -239,6 +239,22 @@ function fmt12Short(hhmm: string): string {
   return m === 0 ? `${arab(h12)} ${ap}` : `${arab(h12)}:${arab(String(m).padStart(2, "0"))} ${ap}`
 }
 
+// إنجاز تلقائي: البلوك يُعدّ منجزًا متى أُنجزت كل بنوده (أو كل جلسات تمرينه)
+export function isAutoDone(ev: Ev): boolean {
+  if (ev.external) return false
+  if (ev.slot === "train") {
+    const p = sessionProgress(ev.unit!)
+    return p.total > 0 && p.done >= p.total
+  }
+  const idx: number[] = []
+  ;(ev.desc || "").split("\n").forEach((ln, i) => {
+    if (NUMBERED_RE.test(ln)) idx.push(i)
+  })
+  if (!idx.length) return false
+  const marked = new Set(checksFor(ev.id))
+  return idx.every((i) => marked.has(i))
+}
+
 // كل أحداث النافذة مع تراكب المهام وحالة الإنجاز، وأحداث Google مدموجة كمهام داخل بلوكاتها
 export function allEvents(): Ev[] {
   const pulledEvents = getPulled().events
@@ -263,6 +279,7 @@ export function allEvents(): Ev[] {
         ev.desc = [...base, ...extra].join("\n")
       }
     }
+    if (!ev.done) ev.done = isAutoDone(ev) // بعد اكتمال الوصف النهائي
     out.push(ev)
   }
   return out

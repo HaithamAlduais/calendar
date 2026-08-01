@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
 import { barColor, checklistLines, fmt12, timeOf } from "@/lib/format"
-import { checksFor, type Ev } from "@/lib/store"
+import { checksFor, sessionProgress, type Ev } from "@/lib/store"
 
 export function EventChip({
   ev,
@@ -14,9 +14,16 @@ export function EventChip({
   current: boolean
   onOpen: (ev: Ev) => void
 }) {
-  const items = checklistLines(ev.desc).filter((l) => l.item)
+  // التمرين يعرض تقدّم الجلسات، وبقية البلوكات تعرض بنودها المؤشَّرة
+  const isWorkout = ev.slot === "train" && !ev.external && ev.title.startsWith("تمرين")
+  const sess = isWorkout ? sessionProgress(ev.unit!) : null
+  const items = isWorkout
+    ? Array.from({ length: sess!.total })
+    : checklistLines(ev.desc).filter((l) => l.item)
   const checked = new Set(checksFor(ev.id))
-  const doneItems = items.filter((l) => checked.has(l.idx)).length
+  const doneItems = isWorkout
+    ? sess!.done
+    : checklistLines(ev.desc).filter((l) => l.item && checked.has(l.idx)).length
   const quiet = ev.slot?.startsWith("sleep") || ev.slot === "nap" || ev.slot === "rest"
 
   return (
