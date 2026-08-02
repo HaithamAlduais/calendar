@@ -130,7 +130,12 @@ export default function Page() {
         <WeekView weekStart={weekStart} events={events} onOpen={setOpenEv} />
       </main>
 
-      <EventSheet ev={liveOpenEv} events={events} onClose={() => setOpenEv(null)} />
+      <EventSheet
+        ev={liveOpenEv}
+        events={events}
+        onClose={() => setOpenEv(null)}
+        onOpen={setOpenEv}
+      />
       <DayPanel open={panelOpen} onClose={() => setPanelOpen(false)} events={events} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <DayPopup />

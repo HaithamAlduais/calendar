@@ -1,7 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { CheckIcon, CircleAlertIcon, ClockAlertIcon, PlusIcon, Share2Icon, Trash2Icon } from "lucide-react"
+import {
+  CheckIcon,
+  CircleAlertIcon,
+  ClockAlertIcon,
+  DumbbellIcon,
+  PlusIcon,
+  Share2Icon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -37,10 +45,12 @@ export function EventSheet({
   ev,
   events,
   onClose,
+  onOpen,
 }: {
   ev: Ev | null
   events: Ev[]
   onClose: () => void
+  onOpen?: (ev: Ev) => void
 }) {
   const [taskText, setTaskText] = useState("")
   if (!ev) return <Sheet open={false}>{null}</Sheet>
@@ -105,16 +115,18 @@ export function EventSheet({
                 فات وقت هذا البلوك
               </div>
               <p className="text-muted-foreground text-xs leading-relaxed">
-                {pendingHere.length === 0
-                  ? "لا بنود معلّقة."
-                  : destTitle
-                    ? `انتقل ${arab(pendingHere.length)} من بنوده غير المنجزة إلى «${destTitle}» — أشّرها هناك قضاءً، وستُحتسب نصف إنجاز ½.`
-                    : `انقضى يومه و${arab(pendingHere.length)} من بنوده لم تُنجز — لا يمكن قضاؤها الآن. اجعل غدك أفضل.`}
+                {isWorkout
+                  ? "أكمل جلساته من هنا قضاءً — وإن لم يكتمل اليوم فسينتقل غدًا إلى بلوك التطوير (يوم واحد فقط ثم يُحذف)."
+                  : pendingHere.length === 0
+                    ? "لا بنود معلّقة."
+                    : destTitle
+                      ? `انتقل ${arab(pendingHere.length)} من بنوده غير المنجزة إلى «${destTitle}» — أشّرها هناك قضاءً، وستُحتسب نصف إنجاز ½.`
+                      : `انقضى يومه و${arab(pendingHere.length)} من بنوده لم تُنجز — لا يمكن قضاؤها الآن. اجعل غدك أفضل.`}
               </p>
             </div>
           )}
 
-          {isWorkout && <WorkoutSheet date={ev.unit!} />}
+          {isWorkout && <WorkoutSheet date={ev.trainDate ?? ev.unit!} />}
 
           {!isWorkout && items.length > 0 && (
             <Progress value={(doneItems / items.length) * 100} className="h-1.5" />
@@ -176,13 +188,28 @@ export function EventSheet({
               </div>
               <div className="flex flex-col gap-1">
                 {makeups.map((m) => {
+                  if (m.kind === "train") {
+                    // بطاقة التمرين الفائت: تُفتح وتُكمل جلساته قضاءً
+                    const trainEv = events.find((e2) => e2.id === m.srcId)
+                    return (
+                      <button
+                        key={m.srcId}
+                        onClick={() => trainEv && onOpen?.(trainEv)}
+                        className="hover:bg-muted flex items-center gap-3 rounded-md border border-amber-500/30 p-2 text-start text-sm"
+                      >
+                        <DumbbellIcon className="size-4 flex-none text-amber-600" />
+                        <span className="leading-relaxed">{m.text}</span>
+                      </button>
+                    )
+                  }
                   const on = checksFor(m.srcId).includes(m.idx)
                   return (
                     <label
                       key={`${m.srcId}:${m.idx}`}
                       className={cn(
                         "hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm",
-                        on && "text-muted-foreground line-through"
+                        on && "text-muted-foreground line-through",
+                        m.crossDay && "border border-amber-500/30"
                       )}
                     >
                       <Checkbox
@@ -244,9 +271,10 @@ export function EventSheet({
               className="flex-1 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
               onClick={() => {
                 if (isWorkout) {
-                  const plan = planFor(ev.unit!)
+                  const td = ev.trainDate ?? ev.unit!
+                  const plan = planFor(td)
                   const lines = (plan?.items || []).map((it) => {
-                    const n = setsDoneCount(ev.unit!, it)
+                    const n = setsDoneCount(td, it)
                     const detail =
                       it.kind === "reps"
                         ? ` — ${arab(it.reps!)} عدات @ ${it.weight == null ? "—" : `${arab(it.weight)} كجم`}`
@@ -255,7 +283,7 @@ export function EventSheet({
                           : ""
                     return `${n >= it.sets ? "✅" : "⬜"} ${it.name}${detail} (${arab(n)}/${arab(it.sets)})`
                   })
-                  shareEventImage(ev, new Set(), { prog: sessionProgress(ev.unit!), lines })
+                  shareEventImage(ev, new Set(), { prog: sessionProgress(ev.trainDate ?? ev.unit!), lines })
                 } else {
                   shareEventImage(ev, new Set(checksFor(ev.id)))
                 }

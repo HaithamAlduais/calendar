@@ -20,7 +20,7 @@ export function EventChip({
 }) {
   // التمرين يعرض تقدّم الجلسات، وبقية البلوكات تعرض بنودها المؤشَّرة
   const isWorkout = ev.slot === "train" && !ev.external && ev.title.startsWith("تمرين")
-  const sess = isWorkout ? sessionProgress(ev.unit!) : null
+  const sess = isWorkout ? sessionProgress(ev.trainDate ?? ev.unit!) : null
   const lines = isWorkout ? [] : checklistLines(ev.desc).filter((l) => l.item)
   const checked = new Set(checksFor(ev.id))
   const total = isWorkout ? sess!.total : lines.length

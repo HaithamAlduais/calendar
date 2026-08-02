@@ -4,8 +4,8 @@
 import { buildRange } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { prayerTimes } from "@/lib/engine/prayers.js"
-import { setQuranCompletion, clearQuranCache } from "@/lib/engine/quran.js"
-import { setWorkoutCompletion, workoutPlan } from "@/lib/engine/workout.js"
+import { setQuranCompletion, clearQuranCache, quranStateFor } from "@/lib/engine/quran.js"
+import { setWorkoutCompletion, workoutPlan, workoutDayType, workoutTitle } from "@/lib/engine/workout.js"
 
 export type Ev = {
   id: string
@@ -20,6 +20,7 @@ export type Ev = {
   done?: boolean
   external?: boolean
   account?: string // بريد حساب Google المصدر (للأحداث الخارجية)
+  trainDate?: string // بلوك تمرين قضاء: تاريخ الجلسة الأصلية (أمس)
 }
 
 export const SCHEDULE_START = "2026-07-31"
@@ -254,7 +255,7 @@ export function numberedIdx(desc?: string): number[] {
 export function isAutoDone(ev: Ev): boolean {
   if (ev.external) return false
   if (ev.slot === "train") {
-    const p = sessionProgress(ev.unit!)
+    const p = sessionProgress(ev.trainDate ?? ev.unit!)
     return p.total > 0 && p.done >= p.total
   }
   const idx = numberedIdx(ev.desc)
@@ -273,6 +274,8 @@ export type Makeup = {
   srcStart: string
   idx: number
   text: string
+  kind?: "line" | "train" // train: بطاقة تمرين تُفتح من بلوك العمل
+  crossDay?: boolean // مُرحَّل من أمس (يوم واحد فقط)
 }
 
 // البلوك فائت: انتهى وقته وفيه بنود لم تُنجز (والتمرين: جلسات ناقصة)
@@ -280,7 +283,7 @@ export type Makeup = {
 export function isMissed(ev: Ev, now: string): boolean {
   if (ev.external || ev.done || ev.end > now) return false
   if (ev.slot === "train") {
-    const p = sessionProgress(ev.unit!)
+    const p = sessionProgress(ev.trainDate ?? ev.unit!)
     return p.total > 0 && p.done < p.total
   }
   const idx = numberedIdx(ev.desc)
@@ -300,8 +303,47 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   // بلوكات العمل/العائلة التي لم ينتهِ وقتها بعد، بالترتيب
   const dests = sorted.filter((e) => !e.external && WORK_SLOTS.includes(e.slot || "") && e.end > now)
   if (!dests.length) return map
+  const push = (destId: string, m: Makeup) => {
+    const list = map.get(destId) || []
+    list.push(m)
+    map.set(destId, list)
+  }
+
+  // ترحيل الحفظ من أمس (يوم واحد فقط): يُقيَّد ليوم أمس فيُعيد الجدول لمساره
+  const prevU = addDays(cu, -1)
+  if (prevU >= SCHEDULE_START && !done[`${prevU}#quran`] && !(checks[`${prevU}#quran`] || []).includes(1)) {
+    const st = quranStateFor(prevU)
+    push(dests[0].id, {
+      destId: dests[0].id,
+      srcId: `${prevU}#quran`,
+      srcTitle: "قرآن أمس",
+      srcStart: `${prevU}T00:00`,
+      idx: 1, // بند الحفظ في بلوك قرآن أمس
+      crossDay: true,
+      text: `تكرار الربع ${arab(st.hifzQuarter)} من الجزء ${arab(st.hifzJuz)} — قضاء أمس، ومع حفظ اليوم يعود الجدول لمساره`,
+    })
+  }
+
   for (const ev of sorted) {
-    if (ev.external || ev.done || ev.end > now || ev.slot === "train") continue
+    if (ev.external || ev.done || ev.end > now) continue
+    // التمرين الفائت: بطاقة تُفتح من بلوك العمل وتُكمل جلساته قضاءً
+    if (ev.slot === "train") {
+      const td = ev.trainDate ?? ev.unit!
+      const p = sessionProgress(td)
+      if (p.total > 0 && p.done < p.total) {
+        const dest = dests.find((d) => d.start >= ev.end) || dests[0]
+        push(dest.id, {
+          destId: dest.id,
+          srcId: ev.id,
+          srcTitle: ev.title,
+          srcStart: ev.start,
+          idx: -1,
+          kind: "train",
+          text: `${ev.title} — ${arab(p.done)}/${arab(p.total)} جلسة، أكمله قضاءً`,
+        })
+      }
+      continue
+    }
     const idx = numberedIdx(ev.desc)
     if (!idx.length) continue
     const marked = new Set(checksFor(ev.id))
@@ -310,9 +352,8 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
     // أول بلوك عمل يبدأ بعد نهاية البلوك الفائت (أو الجاري الآن)
     const dest = dests.find((d) => d.start >= ev.end) || dests[0]
     const lines = (ev.desc || "").split("\n")
-    const list = map.get(dest.id) || []
     for (const i of pending)
-      list.push({
+      push(dest.id, {
         destId: dest.id,
         srcId: ev.id,
         srcTitle: ev.title,
@@ -320,20 +361,50 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
         idx: i,
         text: lines[i].replace(NUMBERED_RE, ""),
       })
-    map.set(dest.id, list)
   }
   return map
+}
+
+// هل جلسة تمرين اليوم d مكتملة؟
+function sessionCompleteFor(d: string): boolean {
+  const p = sessionProgress(d)
+  return p.total > 0 && p.done >= p.total
+}
+
+// ترحيل التمرين ليوم واحد: أمس تمرين لم يكتمل واليوم «تطوير» ← بلوك الصباح يصير قضاء التمرين
+function trainCarry(): { from: string; to: string } | null {
+  if (!isClient) return null
+  const cu = currentUnit()
+  const prevU = addDays(cu, -1)
+  if (prevU < SCHEDULE_START) return null
+  if (workoutDayType(prevU) === 0 || workoutDayType(cu) !== 0) return null
+  if (done[`${prevU}#train`] || sessionCompleteFor(prevU)) return null
+  return { from: prevU, to: cu }
 }
 
 // كل أحداث النافذة مع تراكب المهام وحالة الإنجاز، وأحداث Google مدموجة كمهام داخل بلوكاتها
 export function allEvents(): Ev[] {
   const pulledEvents = getPulled().events
+  const carry = trainCarry()
   const out: Ev[] = []
   for (const raw of buildRange(SCHEDULE_START, windowEnd()) as Ev[]) {
     const ev: Ev = { ...raw, done: !!done[raw.id] }
+    // التمرين المُرحَّل يحل محل «تطوير» اليوم، والتطوير ينتقل مهمةً لبلوك العمل
+    if (carry && ev.unit === carry.to && ev.slot === "train") {
+      ev.trainDate = carry.from
+      ev.title = `تمرين — قضاء ${workoutTitle(carry.from).replace("تمرين — ", "")}`
+      ev.desc = ""
+    }
     if (ev.slot === "work1" && ev.title === "عمل") {
-      const list = tasks[ev.unit!] || []
+      const list = (tasks[ev.unit!] || []).slice()
+      if (carry && ev.unit === carry.to)
+        list.push("تطوير — انتقل من بلوك الصباح (قضاء التمرين مكانه)")
       ev.desc = list.length ? list.map((t, i) => `${arab(i + 1)}. ${t}`).join("\n") : ""
+    } else if (ev.slot === "work1" && carry && ev.unit === carry.to) {
+      // يوم عائلة: أضف التطوير بعد بنودها
+      const base = ev.desc ? ev.desc.split("\n") : []
+      let n = base.filter((l) => NUMBERED_RE.test(l)).length
+      ev.desc = [...base, `${arab(++n)}. تطوير — انتقل من بلوك الصباح (قضاء التمرين مكانه)`].join("\n")
     }
     // أحداث Google التي تبدأ داخل هذا البلوك تصير بنود مهام فيه (وما خارج هذه البلوكات يُهمل)
     if (GOOGLE_HOST_SLOTS.includes(ev.slot || "")) {
