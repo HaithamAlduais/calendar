@@ -276,8 +276,9 @@ export type Makeup = {
 }
 
 // البلوك فائت: انتهى وقته وفيه بنود لم تُنجز (والتمرين: جلسات ناقصة)
+// تعليمه ✅ يدويًا تصريحٌ بإنجازه كاملًا: يُغلق فلا يفوت ولا تُرحَّل بنوده
 export function isMissed(ev: Ev, now: string): boolean {
-  if (ev.external || ev.end > now) return false
+  if (ev.external || ev.done || ev.end > now) return false
   if (ev.slot === "train") {
     const p = sessionProgress(ev.unit!)
     return p.total > 0 && p.done < p.total
@@ -300,7 +301,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   const dests = sorted.filter((e) => !e.external && WORK_SLOTS.includes(e.slot || "") && e.end > now)
   if (!dests.length) return map
   for (const ev of sorted) {
-    if (ev.external || ev.end > now || ev.slot === "train") continue
+    if (ev.external || ev.done || ev.end > now || ev.slot === "train") continue
     const idx = numberedIdx(ev.desc)
     if (!idx.length) continue
     const marked = new Set(checksFor(ev.id))
