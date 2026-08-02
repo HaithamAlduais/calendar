@@ -11,11 +11,13 @@ export function EventChip({
   ev,
   current,
   now,
+  makeupCount = 0,
   onOpen,
 }: {
   ev: Ev
   current: boolean
   now: string
+  makeupCount?: number
   onOpen: (ev: Ev) => void
 }) {
   // التمرين يعرض تقدّم الجلسات، وبقية البلوكات تعرض بنودها المؤشَّرة
@@ -74,6 +76,11 @@ export function EventChip({
           </span>
         )}
         {missed && <span className="text-red-600 dark:text-red-400">فات وقته</span>}
+        {makeupCount > 0 && !missed && (
+          <span className="rounded bg-amber-500/15 px-1 font-medium text-amber-600 dark:text-amber-400">
+            قضاء {arab(makeupCount)}
+          </span>
+        )}
         {ev.external && <span className="text-sky-600">Google</span>}
       </div>
     </button>

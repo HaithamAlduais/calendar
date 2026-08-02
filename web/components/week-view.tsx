@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { addDays, arab, parseIso } from "@/lib/engine/dates.js"
 import { dayName } from "@/lib/format"
-import { currentUnit, nowStamp, type Ev } from "@/lib/store"
+import { currentUnit, makeupMap, nowStamp, type Ev } from "@/lib/store"
 import { EventChip } from "@/components/event-chip"
 
 // شطر الليل من الوحدة: من المغرب إلى فجر الغد
@@ -18,6 +18,7 @@ function Section({
   chips,
   isCur,
   now,
+  mk,
   onOpen,
 }: {
   label: string
@@ -26,6 +27,7 @@ function Section({
   chips: Ev[]
   isCur: boolean
   now: string
+  mk: Map<string, unknown[]>
   onOpen: (ev: Ev) => void
 }) {
   if (!chips.length) return null
@@ -50,6 +52,7 @@ function Section({
               ev={e}
               now={now}
               current={isCur && e.start <= now && e.end > now}
+              makeupCount={mk.get(e.id)?.length || 0}
               onOpen={onOpen}
             />
             {nowHere && (
@@ -86,6 +89,7 @@ export function WeekView({
   }, [weekStart])
 
   const now = nowStamp()
+  const mk = makeupMap(events, now) // شارة «قضاء N» على البلوكات المستقبِلة
 
   return (
     <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 sm:grid sm:grid-cols-7 sm:gap-1 sm:overflow-visible sm:px-3">
@@ -122,8 +126,8 @@ export function WeekView({
               <div className="text-muted-foreground/60 py-8 text-center text-xs">لا أحداث</div>
             ) : (
               <div className="flex flex-col gap-2">
-                <Section label="من الفجر إلى المغرب" icon="☀️" night={false} chips={dayPart} isCur={isCur} now={now} onOpen={onOpen} />
-                <Section label="من المغرب إلى الفجر" icon="🌙" night chips={nightPart} isCur={isCur} now={now} onOpen={onOpen} />
+                <Section label="من الفجر إلى المغرب" icon="☀️" night={false} chips={dayPart} isCur={isCur} now={now} mk={mk} onOpen={onOpen} />
+                <Section label="من المغرب إلى الفجر" icon="🌙" night chips={nightPart} isCur={isCur} now={now} mk={mk} onOpen={onOpen} />
               </div>
             )}
           </div>

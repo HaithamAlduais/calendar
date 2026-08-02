@@ -264,8 +264,9 @@ export function isAutoDone(ev: Ev): boolean {
   return idx.every((i) => marked.has(i))
 }
 
-// ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى بلوك العمل القادم ──
-const WORK_SLOTS = ["work1", "work2", "work3"]
+// ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى البلوك المستقبِل القادم ──
+// المستقبِلات: بلوكات العمل/العائلة ثم الزوجة/الراحة المسائية
+const WORK_SLOTS = ["work1", "work2", "work3", "rest"]
 
 export type Makeup = {
   destId: string
@@ -300,7 +301,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   const sorted = events
     .filter((e) => e.unit === cu)
     .sort((a, b) => (a.start < b.start ? -1 : 1))
-  // بلوكات العمل/العائلة التي لم ينتهِ وقتها بعد، بالترتيب
+  // البلوكات المستقبِلة (عمل/عائلة ثم زوجة/راحة) التي لم ينتهِ وقتها بعد، بالترتيب
   const dests = sorted.filter((e) => !e.external && WORK_SLOTS.includes(e.slot || "") && e.end > now)
   if (!dests.length) return map
   const push = (destId: string, m: Makeup) => {
