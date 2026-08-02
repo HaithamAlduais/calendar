@@ -34,6 +34,7 @@ const K = {
   pulled: "hc.pulled.v1",
   lastSeen: "hc.lastseen.v1",
   gym: "hc.gym.v1",
+  late: "hc.late.v1",
 }
 
 const isClient = typeof window !== "undefined"
@@ -57,6 +58,8 @@ let tasks = load<Record<string, string[]>>(K.tasks, {})
 let food = load<Record<string, { kcal: number; p: number; c: number; f: number }>>(K.food, {})
 // سجل التمرين: تاريخ ← مفتاح خلية ("exKey:setIdx" أو "exKey:setIdx:partKey") ← منجَز
 let gym = load<Record<string, Record<string, boolean>>>(K.gym, {})
+// البنود المؤدّاة قضاءً (خارج وقتها) — نصف إنجاز: "eventId:lineIdx"
+let late = load<Record<string, boolean>>(K.late, {})
 export const settings = Object.assign(
   { clientId: "", weight: 70, accounts: [] as string[], notify: false, push: false },
   load<{ clientId: string; weight: number; accounts: string[]; notify: boolean; push: boolean }>(
@@ -239,6 +242,14 @@ function fmt12Short(hhmm: string): string {
   return m === 0 ? `${arab(h12)} ${ap}` : `${arab(h12)}:${arab(String(m).padStart(2, "0"))} ${ap}`
 }
 
+export function numberedIdx(desc?: string): number[] {
+  const idx: number[] = []
+  ;(desc || "").split("\n").forEach((ln, i) => {
+    if (NUMBERED_RE.test(ln)) idx.push(i)
+  })
+  return idx
+}
+
 // إنجاز تلقائي: البلوك يُعدّ منجزًا متى أُنجزت كل بنوده (أو كل جلسات تمرينه)
 export function isAutoDone(ev: Ev): boolean {
   if (ev.external) return false
@@ -246,13 +257,71 @@ export function isAutoDone(ev: Ev): boolean {
     const p = sessionProgress(ev.unit!)
     return p.total > 0 && p.done >= p.total
   }
-  const idx: number[] = []
-  ;(ev.desc || "").split("\n").forEach((ln, i) => {
-    if (NUMBERED_RE.test(ln)) idx.push(i)
-  })
+  const idx = numberedIdx(ev.desc)
   if (!idx.length) return false
   const marked = new Set(checksFor(ev.id))
   return idx.every((i) => marked.has(i))
+}
+
+// ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى بلوك العمل القادم ──
+const WORK_SLOTS = ["work1", "work2", "work3"]
+
+export type Makeup = {
+  destId: string
+  srcId: string
+  srcTitle: string
+  srcStart: string
+  idx: number
+  text: string
+}
+
+// البلوك فائت: انتهى وقته وفيه بنود لم تُنجز (والتمرين: جلسات ناقصة)
+export function isMissed(ev: Ev, now: string): boolean {
+  if (ev.external || ev.end > now) return false
+  if (ev.slot === "train") {
+    const p = sessionProgress(ev.unit!)
+    return p.total > 0 && p.done < p.total
+  }
+  const idx = numberedIdx(ev.desc)
+  if (!idx.length) return false
+  const marked = new Set(checksFor(ev.id))
+  return idx.some((i) => !marked.has(i))
+}
+
+// خريطة القضاء: بلوك العمل القادم ← البنود الفائتة المنقولة إليه
+// القضاء داخل اليوم الواحد فقط (وحدة فجر←فجر): ما فات يومه لا يُقضى
+export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
+  const map = new Map<string, Makeup[]>()
+  const cu = currentUnit()
+  const sorted = events
+    .filter((e) => e.unit === cu)
+    .sort((a, b) => (a.start < b.start ? -1 : 1))
+  // بلوكات العمل/العائلة التي لم ينتهِ وقتها بعد، بالترتيب
+  const dests = sorted.filter((e) => !e.external && WORK_SLOTS.includes(e.slot || "") && e.end > now)
+  if (!dests.length) return map
+  for (const ev of sorted) {
+    if (ev.external || ev.end > now || ev.slot === "train") continue
+    const idx = numberedIdx(ev.desc)
+    if (!idx.length) continue
+    const marked = new Set(checksFor(ev.id))
+    const pending = idx.filter((i) => !marked.has(i))
+    if (!pending.length) continue
+    // أول بلوك عمل يبدأ بعد نهاية البلوك الفائت (أو الجاري الآن)
+    const dest = dests.find((d) => d.start >= ev.end) || dests[0]
+    const lines = (ev.desc || "").split("\n")
+    const list = map.get(dest.id) || []
+    for (const i of pending)
+      list.push({
+        destId: dest.id,
+        srcId: ev.id,
+        srcTitle: ev.title,
+        srcStart: ev.start,
+        idx: i,
+        text: lines[i].replace(NUMBERED_RE, ""),
+      })
+    map.set(dest.id, list)
+  }
+  return map
 }
 
 // كل أحداث النافذة مع تراكب المهام وحالة الإنجاز، وأحداث Google مدموجة كمهام داخل بلوكاتها
@@ -297,14 +366,30 @@ export function toggleDone(id: string) {
 export function checksFor(id: string): number[] {
   return checks[id] || []
 }
-export function toggleCheck(id: string, lineIdx: number) {
+export function toggleCheck(id: string, lineIdx: number, asMakeup = false) {
   const set = new Set(checks[id] || [])
-  if (set.has(lineIdx)) set.delete(lineIdx)
-  else set.add(lineIdx)
+  const lk = `${id}:${lineIdx}`
+  if (set.has(lineIdx)) {
+    set.delete(lineIdx)
+    delete late[lk]
+  } else {
+    set.add(lineIdx)
+    if (asMakeup) late[lk] = true // قضاء: نصف إنجاز
+  }
   if (set.size) checks[id] = [...set]
   else delete checks[id]
   save(K.checks, checks)
+  save(K.late, late)
   notify()
+}
+
+export function isLate(id: string, lineIdx: number): boolean {
+  return !!late[`${id}:${lineIdx}`]
+}
+
+// عدد بنود البلوك المؤدّاة قضاءً
+export function lateCount(ev: Ev): number {
+  return numberedIdx(ev.desc).filter((i) => isLate(ev.id, i)).length
 }
 
 // ── مهام العمل (الإضافة الوحيدة المسموحة) ──

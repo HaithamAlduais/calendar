@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CheckIcon, PlusIcon, Share2Icon, Trash2Icon } from "lucide-react"
+import { CheckIcon, CircleAlertIcon, ClockAlertIcon, PlusIcon, Share2Icon, Trash2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,11 @@ import {
   addTask,
   checksFor,
   isAutoDone,
+  isLate,
+  isMissed,
+  makeupMap,
+  nowStamp,
+  numberedIdx,
   planFor,
   removeTask,
   sessionProgress,
@@ -24,10 +29,19 @@ import {
   toggleCheck,
   toggleDone,
   type Ev,
+  type Makeup,
 } from "@/lib/store"
 import { arab } from "@/lib/engine/dates.js"
 
-export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void }) {
+export function EventSheet({
+  ev,
+  events,
+  onClose,
+}: {
+  ev: Ev | null
+  events: Ev[]
+  onClose: () => void
+}) {
   const [taskText, setTaskText] = useState("")
   if (!ev) return <Sheet open={false}>{null}</Sheet>
 
@@ -40,6 +54,22 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
   const auto = isAutoDone(ev) // اكتمل ببنوده فلا حاجة لزر الإنجاز
   // زر الحذف لمهامك اليدوية فقط — بنود Google المدموجة تُدار من تقويم Google نفسه
   const manualTaskCount = isWorkTasks ? tasksFor(ev.unit!).length : 0
+
+  // القضاء: البلوك الفائت مقفل وبنوده تظهر في بلوك العمل القادم
+  const now = nowStamp()
+  const missed = isMissed(ev, now)
+  const map = makeupMap(events, now)
+  const makeups: Makeup[] = map.get(ev.id) || []
+  const pendingHere = missed ? numberedIdx(ev.desc).filter((i) => !checked.has(i)) : []
+  let destTitle = ""
+  if (missed && pendingHere.length) {
+    for (const [destId, list] of map)
+      if (list.some((m) => m.srcId === ev.id)) {
+        const dest = events.find((e) => e.id === destId)
+        if (dest) destTitle = `${dest.title} ${fmt12(timeOf(dest.start))}`
+        break
+      }
+  }
 
   const submitTask = () => {
     const t = taskText.trim()
@@ -67,6 +97,23 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
         </SheetHeader>
 
         <div className="flex flex-col gap-3 px-4 pb-6">
+          {/* بلوك فات وقته: مقفل، وبنوده انتقلت إلى بلوك العمل القادم */}
+          {missed && (
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
+              <div className="mb-1 flex items-center gap-1.5 font-medium text-red-600 dark:text-red-400">
+                <CircleAlertIcon className="size-4" />
+                فات وقت هذا البلوك
+              </div>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {pendingHere.length === 0
+                  ? "لا بنود معلّقة."
+                  : destTitle
+                    ? `انتقل ${arab(pendingHere.length)} من بنوده غير المنجزة إلى «${destTitle}» — أشّرها هناك قضاءً، وستُحتسب نصف إنجاز ½.`
+                    : `انقضى يومه و${arab(pendingHere.length)} من بنوده لم تُنجز — لا يمكن قضاؤها الآن. اجعل غدك أفضل.`}
+              </p>
+            </div>
+          )}
+
           {isWorkout && <WorkoutSheet date={ev.unit!} />}
 
           {!isWorkout && items.length > 0 && (
@@ -80,15 +127,22 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
                   <label
                     key={l.idx}
                     className={cn(
-                      "hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm",
+                      "flex items-start gap-3 rounded-md p-2 text-sm",
+                      missed ? "opacity-60" : "hover:bg-muted cursor-pointer",
                       checked.has(l.idx) && "text-muted-foreground line-through"
                     )}
                   >
                     <Checkbox
                       checked={checked.has(l.idx)}
+                      disabled={missed}
                       onCheckedChange={() => toggleCheck(ev.id, l.idx)}
                       className="mt-0.5"
                     />
+                    {isLate(ev.id, l.idx) && (
+                      <span className="mt-0.5 flex-none text-xs text-amber-500" title="أُدّي قضاءً">
+                        ½
+                      </span>
+                    )}
                     <span className="leading-relaxed">{l.text}</span>
                     {isWorkTasks && l.idx < manualTaskCount && (
                       <button
@@ -113,6 +167,43 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
             </div>
           )}
 
+          {/* قضاء: بنود فاتت أوقاتها وانتقلت إلى هذا البلوك */}
+          {makeups.length > 0 && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2">
+              <div className="mb-1 flex items-center gap-1.5 px-1 text-sm font-medium text-amber-600 dark:text-amber-400">
+                <ClockAlertIcon className="size-4" />
+                قضاء — {arab(makeups.length)} بند فات وقته
+              </div>
+              <div className="flex flex-col gap-1">
+                {makeups.map((m) => {
+                  const on = checksFor(m.srcId).includes(m.idx)
+                  return (
+                    <label
+                      key={`${m.srcId}:${m.idx}`}
+                      className={cn(
+                        "hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm",
+                        on && "text-muted-foreground line-through"
+                      )}
+                    >
+                      <Checkbox
+                        checked={on}
+                        onCheckedChange={() => toggleCheck(m.srcId, m.idx, true)}
+                        className="mt-0.5"
+                      />
+                      <span className="leading-relaxed">
+                        {m.text}
+                        <span className="text-muted-foreground/70 me-1 text-xs"> ({m.srcTitle})</span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-muted-foreground px-1 pt-1 text-[11px]">
+                تأشيرها هنا يؤشّرها في بلوكها الأصلي، وتُحتسب نصف إنجاز ½ لأنها خارج وقتها.
+              </p>
+            </div>
+          )}
+
           {isWorkTasks && (
             <div className="flex gap-2">
               <Input
@@ -129,6 +220,7 @@ export function EventSheet({ ev, onClose }: { ev: Ev | null; onClose: () => void
 
           <div className="flex gap-2">
             {!ev.external &&
+              !missed &&
               (auto ? (
                 <div className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-emerald-600/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
                   <CheckIcon className="size-4" />

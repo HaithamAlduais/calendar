@@ -44,6 +44,13 @@ export default function Page() {
 
   useEffect(() => setMounted(true), [])
 
+  // نبضة كل دقيقة: تحديث «الآن» وحالة البلوكات الفائتة
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 60000)
+    return () => clearInterval(t)
+  }, [])
+
   // أحداث Google مدموجة داخل بلوكاتها في allEvents — لا بطاقات مستقلة لها
   const events = useMemo(() => {
     if (!mounted) return []
@@ -123,7 +130,7 @@ export default function Page() {
         <WeekView weekStart={weekStart} events={events} onOpen={setOpenEv} />
       </main>
 
-      <EventSheet ev={liveOpenEv} onClose={() => setOpenEv(null)} />
+      <EventSheet ev={liveOpenEv} events={events} onClose={() => setOpenEv(null)} />
       <DayPanel open={panelOpen} onClose={() => setPanelOpen(false)} events={events} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <DayPopup />

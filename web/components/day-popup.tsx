@@ -115,6 +115,10 @@ export function DayPopup() {
           <p className="text-sm leading-relaxed">٢. {hifzLine(stCur)}</p>
           <p className="text-sm leading-relaxed">٣. {workoutTitle(cur)}</p>
 
+          <p className="text-muted-foreground text-[11px] leading-relaxed">
+            ما فات وقته اليوم ينتقل تلقائيًا إلى بلوك العمل القادم لتقضيه (نصف إنجاز ½)، وما انقضى
+            يومه لا يُقضى.
+          </p>
           <Button onClick={close}>بسم الله، توكلنا على الله</Button>
         </div>
       </DialogContent>

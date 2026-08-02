@@ -46,7 +46,12 @@ function Section({
         void nowAfter
         return (
           <div key={e.id} className="flex flex-col gap-1.5">
-            <EventChip ev={e} current={isCur && e.start <= now && e.end > now} onOpen={onOpen} />
+            <EventChip
+              ev={e}
+              now={now}
+              current={isCur && e.start <= now && e.end > now}
+              onOpen={onOpen}
+            />
             {nowHere && (
               <div className="flex items-center gap-1" aria-label="الآن">
                 <span className="size-2 rounded-full bg-red-500" />

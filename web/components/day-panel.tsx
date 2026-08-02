@@ -15,6 +15,7 @@ import {
   addFood,
   checksFor,
   currentUnit,
+  isLate,
   foodFor,
   resetFood,
   saveSettings,
@@ -121,17 +122,23 @@ export function DayPanel({
   const actionable = dayEvents.filter(
     (e) => !["sleep1", "sleep2", "nap", "rest"].includes(e.slot || "")
   )
+  // البند المؤدَّى قضاءً يُحتسب نصف إنجاز
   let score = 0
+  let lateTotal = 0
   for (const e of actionable) {
-    if (e.done) {
-      score += 1
-      continue
-    }
     const items = checklistLines(e.desc).filter((l) => l.item)
     if (items.length) {
       const marked = new Set(checksFor(e.id))
-      score += items.filter((l) => marked.has(l.idx)).length / items.length
-    }
+      let s = 0
+      for (const l of items) {
+        if (!marked.has(l.idx)) continue
+        if (isLate(e.id, l.idx)) {
+          s += 0.5
+          lateTotal++
+        } else s += 1
+      }
+      score += s / items.length
+    } else if (e.done) score += 1
   }
   const pct = actionable.length ? Math.round((score / actionable.length) * 100) : 0
 
@@ -170,6 +177,9 @@ export function DayPanel({
               label="أحداث مكتملة ✅"
               value={`${arab(actionable.filter((e) => e.done).length)} من ${arab(actionable.length)}`}
             />
+            {lateTotal > 0 && (
+              <Row label="بنود أُدّيت قضاءً ½" value={`${arab(lateTotal)} — نصف إنجاز`} />
+            )}
           </Section>
 
           <Section title="القرآن">
