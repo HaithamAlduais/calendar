@@ -3,3 +3,11 @@ web/.next/
 web/out/
 *.b64
 *.log
+
+# env files
+.env*
+!.env.example
+
+# Claude Code local state
+.claude/worktrees/
+.claude/settings.local.json
