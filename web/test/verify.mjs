@@ -85,56 +85,63 @@ check('gapless+contiguous 31/7→28/8', gapless, true);
 check('rest الجمعة', byUnit.get('2026-07-31').find((e) => e.slot === 'rest').title, 'راحة');
 check('rest السبت', byUnit.get('2026-08-01').find((e) => e.slot === 'rest').title, 'راحة');
 check('rest الأحد', byUnit.get('2026-08-02').find((e) => e.slot === 'rest').title, 'زوجة');
-check('train الأحد', byUnit.get('2026-08-02').find((e) => e.slot === 'train').title, 'تمرين — اليوم الأول');
-check('train الثلاثاء', byUnit.get('2026-08-04').find((e) => e.slot === 'train').title, 'تمرين — اليوم الثاني');
-check('train الخميس', byUnit.get('2026-08-06').find((e) => e.slot === 'train').title, 'تمرين — اليوم الثالث (جري)');
-check('train الجمعة=تطوير', byUnit.get('2026-08-07').find((e) => e.slot === 'train').title, 'تطوير');
+// دورة التمرين متتابعة لا علاقة لها بأيام الأسبوع: تمرين/تطوير بالتناوب والأنواع تدور أ←ب←جري
+check('2/8 تمرين أ', byUnit.get('2026-08-02').find((e) => e.slot === 'train').title, 'تمرين — اليوم الأول');
+check('3/8 تطوير', byUnit.get('2026-08-03').find((e) => e.slot === 'train').title, 'تطوير');
+check('4/8 تمرين ب', byUnit.get('2026-08-04').find((e) => e.slot === 'train').title, 'تمرين — اليوم الثاني');
+check('6/8 جري', byUnit.get('2026-08-06').find((e) => e.slot === 'train').title, 'تمرين — اليوم الثالث (جري)');
+check('7/8 تطوير', byUnit.get('2026-08-07').find((e) => e.slot === 'train').title, 'تطوير');
+check('8/8 (سبت!) تمرين أ — الدورة تتجاهل الأسبوع', byUnit.get('2026-08-08').find((e) => e.slot === 'train').title, 'تمرين — اليوم الأول');
+check('قبل البداية تطوير', byUnit.get('2026-08-01').find((e) => e.slot === 'train').title, 'تطوير');
 check('دعاء الجمعة موجود', !!byUnit.get('2026-08-07').find((e) => e.slot === 'duaa'), true);
 check('دعاء السبت غائب', !!byUnit.get('2026-08-08').find((e) => e.slot === 'duaa'), false);
 check('نهار الجمعة عائلة', byUnit.get('2026-08-07').find((e) => e.slot === 'work1').title, 'عائلة');
 check('نهار الجمعة عائلة (٣)', byUnit.get('2026-08-07').find((e) => e.slot === 'work3').title, 'عائلة');
 check('نهار السبت عمل', byUnit.get('2026-08-08').find((e) => e.slot === 'work1').title, 'عمل');
 
-// ── آلة حالة القرآن ─────────────────────────────────────────────────
+// ── آلة حالة القرآن (البذرة الجديدة: ٢ أغسطس — مراجعة جزء ٢، حفظ ربع ١ من جزء ١٠) ──
 const q = (d) => quranStateFor(d);
-check('31/7 review=1 حفظ ربع5 جزء10', JSON.stringify(q('2026-07-31')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 5, hifzMode: 'حفظ' }));
-check('1/8 تكرار ربع5', JSON.stringify(q('2026-08-01')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 5, hifzMode: 'تكرار' }));
-check('6/8 review=7 حفظ ربع8', JSON.stringify(q('2026-08-06')), JSON.stringify({ reviewJuz: 7, hifzJuz: 10, hifzQuarter: 8, hifzMode: 'حفظ' }));
-check('7/8 review يلف إلى 1', JSON.stringify(q('2026-08-07')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 8, hifzMode: 'تكرار' }));
-// ٨ أغسطس: اكتمل الجزء ١٠ → الحفظ جزء ١١ ربع ١، الدورة تتسع إلى ٨
-check('8/8 انتقال جزء الحفظ', JSON.stringify(q('2026-08-08')), JSON.stringify({ reviewJuz: 2, hifzJuz: 11, hifzQuarter: 1, hifzMode: 'حفظ' }));
-// التثبيت في وصف فجر ٨ أغسطس يصبح الجزءين ٩ و١٠
+check('2/8 البذرة: مراجعة 2 حفظ ربع1', JSON.stringify(q('2026-08-02')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
+check('قبل البذرة = البذرة', JSON.stringify(q('2026-08-01')), JSON.stringify(q('2026-08-02')));
+check('3/8 تكرار ربع1', JSON.stringify(q('2026-08-03')), JSON.stringify({ reviewJuz: 3, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'تكرار' }));
+check('7/8 review=7 تكرار ربع3', JSON.stringify(q('2026-08-07')), JSON.stringify({ reviewJuz: 7, hifzJuz: 10, hifzQuarter: 3, hifzMode: 'تكرار' }));
+check('8/8 review يلف إلى 1', JSON.stringify(q('2026-08-08')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 4, hifzMode: 'حفظ' }));
+// ١٧ أغسطس تكرار الربع ٨ ← ١٨ أغسطس: جزء ١١، والدورة تتسع إلى ٨
+check('17/8 تكرار ربع8', JSON.stringify(q('2026-08-17')), JSON.stringify({ reviewJuz: 3, hifzJuz: 10, hifzQuarter: 8, hifzMode: 'تكرار' }));
+check('18/8 انتقال جزء الحفظ', JSON.stringify(q('2026-08-18')), JSON.stringify({ reviewJuz: 4, hifzJuz: 11, hifzQuarter: 1, hifzMode: 'حفظ' }));
+// التثبيت: قبل الانتقال [٨،٩] وبعده [٩،١٠]
 const fajr8 = buildUnit('2026-08-08').find((e) => e.slot === 'fajr');
-check('تثبيت 8/8 = جزء ٩', fajr8.desc.includes('سنة الفجر — الجزء ٩'), true);
-// عشاء وحدة ٨/٨ (مساء ٨/٨ نفسه) على تثبيت يومه الجديد [٩،١٠] → سنن العشاء من الجزء ١٠
-const isha8 = buildUnit('2026-08-08').find((e) => e.slot === 'isha');
-check('عشاء وحدة 8/8 على تثبيت يومه (الجزء ١٠)', isha8.desc.includes('الجزء ١٠'), true);
+check('تثبيت 8/8 = جزء ٨', fajr8.desc.includes('سنة الفجر — الجزء ٨'), true);
+const fajr18 = buildUnit('2026-08-18').find((e) => e.slot === 'fajr');
+check('تثبيت 18/8 = جزء ٩', fajr18.desc.includes('سنة الفجر — الجزء ٩'), true);
+const isha18 = buildUnit('2026-08-18').find((e) => e.slot === 'isha');
+check('عشاء 18/8 على الجزء ١٠', isha18.desc.includes('الجزء ١٠'), true);
 
 // ── تقدّم التمرين عبر الشهر ────────────────────────────────────────
 const trainOn = (d) => byUnit.get(d).find((e) => e.slot === 'train').desc;
 check('2/8 بريس 40×6', trainOn('2026-08-02').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
 check('4/8 بريس 40×7', trainOn('2026-08-04').includes('× ٧ عدات @ ٤٠ كجم'), true);
-check('11/8 بريس 40×9', trainOn('2026-08-11').includes('× ٩ عدات @ ٤٠ كجم'), true);
-check('16/8 بريس 45×6 (زيادة الوزن)', trainOn('2026-08-16').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٥ كجم'), true);
-check('25/8 بريس 45×9', trainOn('2026-08-25').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٩ عدات @ ٤٥ كجم'), true);
-check('16/8 سحب أفقي 55', trainOn('2026-08-16').includes('السحب الأفقي — ٤ جلسات × ٦ عدات @ ٥٥ كجم'), true);
+check('10/8 بريس 40×9', trainOn('2026-08-10').includes('× ٩ عدات @ ٤٠ كجم'), true);
+check('14/8 بريس 45×6 (زيادة الوزن)', trainOn('2026-08-14').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٥ كجم'), true);
+check('22/8 بريس 45×9', trainOn('2026-08-22').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٩ عدات @ ٤٥ كجم'), true);
+check('14/8 سحب أفقي 55', trainOn('2026-08-14').includes('السحب الأفقي — ٤ جلسات × ٦ عدات @ ٥٥ كجم'), true);
 check('2/8 بلانك 40', trainOn('2026-08-02').includes('بلانك — جلستان × ٤٠ ث'), true);
 check('4/8 بلانك 42.5', trainOn('2026-08-04').includes('٤٢٫٥ ث'), true);
-check('25/8 بلانك 57.5', trainOn('2026-08-25').includes('٥٧٫٥ ث'), true);
-check('2/8 كتف خلفي 10×8', trainOn('2026-08-02').includes('كتف خلفي — جلستان'.replace('جلستان', '٢ جلسات')) || trainOn('2026-08-02').includes('كتف خلفي — ٢ جلسات × ٨ عدات @ ١٠ كجم'), true);
-check('16/8 كتف جانبي 12.5×8', trainOn('2026-08-16').includes('كتف جانبي — ٢ جلسات × ٨ عدات @ ١٢٫٥ كجم'), true);
+check('22/8 بلانك 57.5', trainOn('2026-08-22').includes('٥٧٫٥ ث'), true);
+check('2/8 كتف خلفي 10×8', trainOn('2026-08-02').includes('كتف خلفي — ٢ جلسات × ٨ عدات @ ١٠ كجم'), true);
+check('14/8 كتف جانبي 12.5×8', trainOn('2026-08-14').includes('كتف جانبي — ٢ جلسات × ٨ عدات @ ١٢٫٥ كجم'), true);
 
 // ── التقدّم المشروط بالإنجاز: اليوم الفائت تُعاد مهمته ولا يتقدم شيء ──
 const { setQuranCompletion, clearQuranCache } = await import('../lib/engine/quran.js');
 const { setWorkoutCompletion, workoutDesc } = await import('../lib/engine/workout.js');
 
-// فوات ٣١ يوليو كاملًا: ١ أغسطس يعيد نفس الحالة تمامًا
-setQuranCompletion((d) => (d === '2026-07-31' ? { review: false, hifz: false } : { review: true, hifz: true }));
-check('فوات ٣١/٧ → ١/٨ يعيد نفس المهمة', JSON.stringify(q('2026-08-01')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 5, hifzMode: 'حفظ' }));
-check('ثم ٢/٨ يتقدم طبيعيًا', JSON.stringify(q('2026-08-02')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 5, hifzMode: 'تكرار' }));
+// فوات ٢ أغسطس كاملًا: ٣ أغسطس يعيد نفس الحالة تمامًا
+setQuranCompletion((d) => (d === '2026-08-02' ? { review: false, hifz: false } : { review: true, hifz: true }));
+check('فوات ٢/٨ → ٣/٨ يعيد نفس المهمة', JSON.stringify(q('2026-08-03')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
+check('ثم ٤/٨ يتقدم طبيعيًا', JSON.stringify(q('2026-08-04')), JSON.stringify({ reviewJuz: 3, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'تكرار' }));
 // إنجاز جزئي: التسميع أُنجز والحفظ فات — يتقدم مسار دون الآخر
-setQuranCompletion((d) => (d === '2026-07-31' ? { review: true, hifz: false } : { review: true, hifz: true }));
-check('إنجاز التسميع وحده يقدّمه وحده', JSON.stringify(q('2026-08-01')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 5, hifzMode: 'حفظ' }));
+setQuranCompletion((d) => (d === '2026-08-02' ? { review: true, hifz: false } : { review: true, hifz: true }));
+check('إنجاز التسميع وحده يقدّمه وحده', JSON.stringify(q('2026-08-03')), JSON.stringify({ reviewJuz: 3, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
 setQuranCompletion(null);
 clearQuranCache();
 

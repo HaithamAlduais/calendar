@@ -1,14 +1,16 @@
-// خطة التمرين الشهرية — التقدّم المزدوج: +١ عدة كل جلسة عبر النطاق، ثم زيادة الوزن والعودة لأدناه
-// الشهر الأول: من السبت ١ أغسطس ٢٠٢٦، أربعة أسابيع (سبت→جمعة)
-// الأحد: اليوم الأول (كامل الجسم أ) • الثلاثاء: اليوم الثاني (كامل الجسم ب) • الخميس: اليوم الثالث (جري)
-import { addDays, dow, arab } from './dates.js';
+// خطة التمرين — التقدّم المزدوج: +١ عدة كل جلسة عبر النطاق، ثم زيادة الوزن والعودة لأدناه
+// دورة متتابعة لا علاقة لها بأيام الأسبوع (بدأت الأحد ٢ أغسطس ٢٠٢٦):
+// تمرين ثم تطوير بالتناوب، والتمارين الثلاثة تدور: الأول (أ) ← الثاني (ب) ← الثالث (جري)
+import { addDays, daysBetween, arab } from './dates.js';
 
-export const GYM_START = '2026-08-01';
+export const GYM_START = '2026-08-02';
 
-const WDAY = { 0: 1, 2: 2, 4: 3 }; // الأحد→١، الثلاثاء→٢، الخميس→٣
-
+// 0 = تطوير، 1/2/3 = أيام التمرين الثلاثة بالتناوب يومًا بعد يوم
 export function workoutDayType(dateIso) {
-  return WDAY[dow(dateIso)] || 0;
+  if (dateIso < GYM_START) return 0;
+  const off = daysBetween(GYM_START, dateIso);
+  if (off % 2 === 1) return 0; // يوم تطوير بين كل تمرينين
+  return ((off / 2) % 3) + 1;
 }
 
 // التمارين ذات التقدّم الرقمي. days: أيام الظهور (١ و/أو ٢)
@@ -31,12 +33,12 @@ export function setWorkoutCompletion(fn) {
   completionSource = fn;
 }
 
-// عدد جلسات هذا التمرين المؤدّاة منذ بداية الشهر (لا يشمل اليوم نفسه)
+// عدد جلسات هذا التمرين المؤدّاة منذ البداية (لا يشمل اليوم نفسه)
 function sessionsBefore(ex, dateIso, exKey) {
   if (dateIso <= GYM_START) return 0;
   let n = 0;
   for (let d = GYM_START; d < dateIso; d = addDays(d, 1)) {
-    const t = WDAY[dow(d)];
+    const t = workoutDayType(d);
     if (t && ex.days.includes(t) && (!completionSource || completionSource(d, exKey))) n++;
   }
   return n;

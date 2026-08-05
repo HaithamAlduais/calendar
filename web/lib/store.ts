@@ -23,8 +23,8 @@ export type Ev = {
   trainDate?: string // بلوك تمرين قضاء: تاريخ الجلسة الأصلية (أمس)
 }
 
-export const SCHEDULE_START = "2026-07-31"
-const BLOCK_START = "2026-08-01" // كتل شهر التمرين: ٢٨ يومًا (سبت←جمعة ×٤)
+export const SCHEDULE_START = "2026-08-02" // بداية جديدة (الأحد ٢ أغسطس) — نسينا ما قبلها
+const BLOCK_START = "2026-08-02" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
 
 const K = {
   done: "hc.done.v1",
