@@ -18,15 +18,18 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { checklistLines, dotColor, fmt12, fmtDateLong, dateOf, timeOf } from "@/lib/format"
+import { MistakeTracker } from "@/components/mistake-tracker"
 import { WorkoutSheet } from "@/components/workout-sheet"
 import { shareEventImage } from "@/lib/share"
 import {
   addTask,
   checksFor,
+  hasOldMistakes,
   isAutoDone,
   isLate,
   isMissed,
   makeupMap,
+  mistakePoolFor,
   nowStamp,
   numberedIdx,
   planFor,
@@ -134,48 +137,57 @@ export function EventSheet({
 
           {!isWorkout && lines.length > 0 && (
             <div className="flex flex-col gap-1">
-              {lines.map((l) =>
-                l.item && !ev.external ? (
-                  <label
-                    key={l.idx}
-                    className={cn(
-                      "flex items-start gap-3 rounded-md p-2 text-sm",
-                      missed ? "opacity-60" : "hover:bg-muted cursor-pointer",
-                      checked.has(l.idx) && "text-muted-foreground line-through"
-                    )}
-                  >
-                    <Checkbox
-                      checked={checked.has(l.idx)}
-                      disabled={missed}
-                      onCheckedChange={() => toggleCheck(ev.id, l.idx)}
-                      className="mt-0.5"
-                    />
-                    {isLate(ev.id, l.idx) && (
-                      <span className="mt-0.5 flex-none text-xs text-amber-500" title="أُدّي قضاءً">
-                        ½
-                      </span>
-                    )}
-                    <span className="leading-relaxed">{l.text}</span>
-                    {isWorkTasks && l.idx < manualTaskCount && (
-                      <button
-                        onClick={(e2) => {
-                          e2.preventDefault()
-                          // في بلوك المهام كل سطر = مهمة، ففهرس السطر هو فهرس المهمة
-                          removeTask(ev.unit!, l.idx)
+              {lines.map((l) => {
+                if (!l.item || ev.external)
+                  return (
+                    <p key={l.idx} className="text-muted-foreground p-1 text-xs leading-relaxed">
+                      {l.text}
+                    </p>
+                  )
+                const pool = mistakePoolFor(ev, l.idx)
+                return (
+                  <div key={l.idx} className="flex flex-col gap-1">
+                    <label
+                      className={cn(
+                        "flex items-start gap-3 rounded-md p-2 text-sm",
+                        missed ? "opacity-60" : "hover:bg-muted cursor-pointer",
+                        checked.has(l.idx) && "text-muted-foreground line-through"
+                      )}
+                    >
+                      <Checkbox
+                        checked={checked.has(l.idx)}
+                        disabled={missed}
+                        onCheckedChange={() => {
+                          const checking = !checked.has(l.idx)
+                          const asMakeup = checking && !!pool && hasOldMistakes(pool)
+                          toggleCheck(ev.id, l.idx, asMakeup)
                         }}
-                        className="text-muted-foreground hover:text-destructive ms-auto"
-                        aria-label="حذف المهمة"
-                      >
-                        <Trash2Icon className="size-3.5" />
-                      </button>
-                    )}
-                  </label>
-                ) : (
-                  <p key={l.idx} className="text-muted-foreground p-1 text-xs leading-relaxed">
-                    {l.text}
-                  </p>
+                        className="mt-0.5"
+                      />
+                      {isLate(ev.id, l.idx) && (
+                        <span className="mt-0.5 flex-none text-xs text-amber-500" title="نصف إنجاز">
+                          ½
+                        </span>
+                      )}
+                      <span className="leading-relaxed">{l.text}</span>
+                      {isWorkTasks && l.idx < manualTaskCount && (
+                        <button
+                          onClick={(e2) => {
+                            e2.preventDefault()
+                            // في بلوك المهام كل سطر = مهمة، ففهرس السطر هو فهرس المهمة
+                            removeTask(ev.unit!, l.idx)
+                          }}
+                          className="text-muted-foreground hover:text-destructive ms-auto"
+                          aria-label="حذف المهمة"
+                        >
+                          <Trash2Icon className="size-3.5" />
+                        </button>
+                      )}
+                    </label>
+                    {pool && <MistakeTracker poolKey={pool} />}
+                  </div>
                 )
-              )}
+              })}
             </div>
           )}
 

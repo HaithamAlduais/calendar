@@ -3,9 +3,9 @@
 //  • النوم بعد التمرين/التطوير بدل القيلولة، والعمل متصل من الاستيقاظ حتى المغرب
 //  • ما تبقى من الثلث الأول من الليل بعد العشاء = «أسرة»
 //  • الراحة تنتهي ببداية القيام (آخر ٣٠ دقيقة من الثلث الثاني) — واسمها «زوجة» من الأحد للخميس و«راحة» الجمعة والسبت
-import { addDays, dow, minToDateTime } from './dates.js';
+import { addDays, dow, minToDateTime, arab } from './dates.js';
 import { prayerTimes } from './prayers.js';
-import { quranStateFor, reviewLine, hifzLine, tathbeetLabels } from './quran.js';
+import { quranStateFor, quranTaskLines, tathbeetLabels } from './quran.js';
 import { workoutDayType, workoutTitle, workoutDesc } from './workout.js';
 
 const PRAYER_NOTE =
@@ -34,7 +34,9 @@ function fajrDesc(t) {
 }
 
 function quranDesc(st, t) {
-  return [`١. ${reviewLine(st)}`, `٢. ${hifzLine(st)}`, `٣. سنة الضحى — ${t[1]}`].join('\n');
+  const rows = quranTaskLines(st).map((l) => l.text);
+  rows.push(`سنة الضحى — ${t[1]}`);
+  return rows.map((r, i) => `${arab(i + 1)}. ${r}`).join('\n');
 }
 
 function dhuhrDesc(t) {

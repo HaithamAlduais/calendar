@@ -4,7 +4,13 @@
 import { buildRange } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { prayerTimes } from "@/lib/engine/prayers.js"
-import { setQuranCompletion, clearQuranCache, quranStateFor } from "@/lib/engine/quran.js"
+import {
+  setQuranCompletion,
+  clearQuranCache,
+  quranStateFor,
+  quranTaskLines,
+  tathbeetPoolKey,
+} from "@/lib/engine/quran.js"
 import { setWorkoutCompletion, workoutPlan, workoutDayType, workoutTitle } from "@/lib/engine/workout.js"
 
 export type Ev = {
@@ -36,6 +42,7 @@ const K = {
   lastSeen: "hc.lastseen.v1",
   gym: "hc.gym.v1",
   late: "hc.late.v1",
+  mistakes: "hc.mistakes.v1",
 }
 
 const isClient = typeof window !== "undefined"
@@ -61,6 +68,9 @@ let food = load<Record<string, { kcal: number; p: number; c: number; f: number }
 let gym = load<Record<string, Record<string, boolean>>>(K.gym, {})
 // البنود المؤدّاة قضاءً (خارج وقتها) — نصف إنجاز: "eventId:lineIdx"
 let late = load<Record<string, boolean>>(K.late, {})
+// أخطاء القرآن: مجمع (rv:جزء / hz:جزء:ربع / tb:جزء:نصف) ← قائمة أخطاء
+export type Mistake = { id: string; ayah: string; word: string; addedDate: string }
+let mistakes = load<Record<string, Mistake[]>>(K.mistakes, {})
 export const settings = Object.assign(
   { clientId: "", weight: 70, accounts: [] as string[], notify: false, push: false },
   load<{ clientId: string; weight: number; accounts: string[]; notify: boolean; push: boolean }>(
@@ -463,6 +473,69 @@ export function isLate(id: string, lineIdx: number): boolean {
 // عدد بنود البلوك المؤدّاة قضاءً
 export function lateCount(ev: Ev): number {
   return numberedIdx(ev.desc).filter((i) => isLate(ev.id, i)).length
+}
+
+// ── أخطاء القرآن: مجمع لكل مكان يُقرأ فيه (تسميع/حفظ-تكرار/تثبيت)، يتتبّع أخطاء الآيات عبر الزمن ──
+// أسطر بلوك «قرآن وسنة الضحى» الثابتة بالترتيب: [...quranTaskLines(st), سنة الضحى]
+const TATHBEET_LINES: Record<string, [number, number][]> = {
+  fajr: [[1, 0]],
+  dhuhr: [
+    [1, 2],
+    [4, 3],
+  ],
+  asr: [[1, 4]],
+  maghrib: [[5, 5]],
+  isha: [
+    [1, 6],
+    [4, 7],
+  ],
+}
+
+// مجمع الأخطاء الذي يخصّ سطرًا معينًا في وصف الحدث، أو null إن كان سطرًا بلا تتبّع (أذان/صلاة/أذكار)
+export function mistakePoolFor(ev: Ev, lineIdx: number): string | null {
+  if (ev.external || !ev.unit) return null
+  const st = quranStateFor(ev.unit)
+  if (ev.slot === "quran") {
+    const task = quranTaskLines(st)
+    if (lineIdx < task.length) return task[lineIdx].pool
+    if (lineIdx === task.length) return tathbeetPoolKey(st, 1) // سنة الضحى
+    return null
+  }
+  const arr = TATHBEET_LINES[ev.slot || ""]
+  if (!arr) return null
+  const hit = arr.find(([li]) => li === lineIdx)
+  return hit ? tathbeetPoolKey(st, hit[1]) : null
+}
+
+export function mistakesFor(poolKey: string): Mistake[] {
+  return mistakes[poolKey] || []
+}
+
+export function addMistake(poolKey: string, ayah: string, word: string) {
+  const list = mistakes[poolKey] || []
+  list.push({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    ayah: ayah.trim(),
+    word: word.trim(),
+    addedDate: currentUnit(),
+  })
+  mistakes[poolKey] = list
+  save(K.mistakes, mistakes)
+  notify()
+}
+
+export function removeMistake(poolKey: string, id: string) {
+  const rest = (mistakes[poolKey] || []).filter((m) => m.id !== id)
+  if (rest.length) mistakes[poolKey] = rest
+  else delete mistakes[poolKey]
+  save(K.mistakes, mistakes)
+  notify()
+}
+
+// أخطاء قديمة (من قبل اليوم) لم تُحذف بعد — تركها عند التأشير يعني نصف إنجاز
+export function hasOldMistakes(poolKey: string): boolean {
+  const today = currentUnit()
+  return (mistakes[poolKey] || []).some((m) => m.addedDate < today)
 }
 
 // ── مهام العمل (الإضافة الوحيدة المسموحة) ──
