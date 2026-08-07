@@ -85,15 +85,15 @@ check('gapless+contiguous 31/7→28/8', gapless, true);
 check('rest الجمعة أصدقاء', byUnit.get('2026-07-31').find((e) => e.slot === 'rest').title, 'أصدقاء');
 check('rest السبت أصدقاء', byUnit.get('2026-08-01').find((e) => e.slot === 'rest').title, 'أصدقاء');
 check('rest الأحد زوجة', byUnit.get('2026-08-02').find((e) => e.slot === 'rest').title, 'زوجة');
-// دورة التمرين متتابعة لا علاقة لها بأيام الأسبوع، بدأت الجمعة ٧/٨ (يوم التمرين الأول):
+// دورة التمرين متتابعة لا علاقة لها بأيام الأسبوع، تبدأ السبت ٨/٨ (يوم التمرين الأول):
 // تمرين/تطوير بالتناوب والأنواع تدور أ←ب←جري
-check('7/8 تمرين أ (بداية الدورة)', byUnit.get('2026-08-07').find((e) => e.slot === 'train').title, 'تمرين — اليوم الأول');
-check('8/8 تطوير', byUnit.get('2026-08-08').find((e) => e.slot === 'train').title, 'تطوير');
-check('9/8 تمرين ب', byUnit.get('2026-08-09').find((e) => e.slot === 'train').title, 'تمرين — اليوم الثاني');
-check('11/8 جري', byUnit.get('2026-08-11').find((e) => e.slot === 'train').title, 'تمرين — اليوم الثالث (جري)');
-check('12/8 تطوير', byUnit.get('2026-08-12').find((e) => e.slot === 'train').title, 'تطوير');
-check('13/8 (خميس!) تمرين أ — الدورة تتجاهل الأسبوع', byUnit.get('2026-08-13').find((e) => e.slot === 'train').title, 'تمرين — اليوم الأول');
-check('قبل البداية تطوير', byUnit.get('2026-08-06').find((e) => e.slot === 'train').title, 'تطوير');
+check('8/8 تمرين أ (بداية الدورة)', byUnit.get('2026-08-08').find((e) => e.slot === 'train').title, 'تمرين — اليوم الأول');
+check('9/8 تطوير', byUnit.get('2026-08-09').find((e) => e.slot === 'train').title, 'تطوير');
+check('10/8 تمرين ب', byUnit.get('2026-08-10').find((e) => e.slot === 'train').title, 'تمرين — اليوم الثاني');
+check('12/8 جري', byUnit.get('2026-08-12').find((e) => e.slot === 'train').title, 'تمرين — اليوم الثالث (جري)');
+check('13/8 تطوير', byUnit.get('2026-08-13').find((e) => e.slot === 'train').title, 'تطوير');
+check('14/8 (جمعة!) تمرين أ — الدورة تتجاهل الأسبوع', byUnit.get('2026-08-14').find((e) => e.slot === 'train').title, 'تمرين — اليوم الأول');
+check('قبل البداية تطوير', byUnit.get('2026-08-07').find((e) => e.slot === 'train').title, 'تطوير');
 check('دعاء الجمعة موجود', !!byUnit.get('2026-08-07').find((e) => e.slot === 'duaa'), true);
 check('دعاء السبت غائب', !!byUnit.get('2026-08-08').find((e) => e.slot === 'duaa'), false);
 check('نهار الجمعة أسرة', byUnit.get('2026-08-07').find((e) => e.slot === 'work1').title, 'أسرة');
@@ -104,68 +104,68 @@ check('صلة رحم في أسرة الجمعة', byUnit.get('2026-08-07').find(
 check('لا صلة رحم في أسرة السبت', byUnit.get('2026-08-08').find((e) => e.slot === 'work1').desc.includes('صلة رحم'), false);
 check('نومة المغرب صارت «لعب أو نوم»', byUnit.get('2026-08-09').find((e) => e.slot === 'sleep1').title, 'لعب أو نوم');
 
-// ── آلة حالة القرآن (البذرة الجديدة: ٧ أغسطس — مراجعة جزء ١، حفظ ربع ١ من جزء ١٠) ──
+// ── آلة حالة القرآن (البذرة الجديدة: ٨ أغسطس — مراجعة جزء ١، حفظ ربع ١ من جزء ١٠) ──
 const q = (d) => quranStateFor(d);
-check('7/8 البذرة: مراجعة 1 حفظ ربع1', JSON.stringify(q('2026-08-07')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
-check('قبل البذرة = البذرة', JSON.stringify(q('2026-08-06')), JSON.stringify(q('2026-08-07')));
-check('8/8 تكرار ربع1', JSON.stringify(q('2026-08-08')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'تكرار' }));
-check('12/8 review=6 تكرار ربع3', JSON.stringify(q('2026-08-12')), JSON.stringify({ reviewJuz: 6, hifzJuz: 10, hifzQuarter: 3, hifzMode: 'تكرار' }));
-check('14/8 review يلف إلى 1', JSON.stringify(q('2026-08-14')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 4, hifzMode: 'تكرار' }));
-// ٢٢ أغسطس تكرار الربع ٨ ← ٢٣ أغسطس: جزء ١١، والدورة تتسع إلى ٨
-check('22/8 تكرار ربع8', JSON.stringify(q('2026-08-22')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 8, hifzMode: 'تكرار' }));
-check('23/8 انتقال جزء الحفظ', JSON.stringify(q('2026-08-23')), JSON.stringify({ reviewJuz: 3, hifzJuz: 11, hifzQuarter: 1, hifzMode: 'حفظ' }));
+check('8/8 البذرة: مراجعة 1 حفظ ربع1', JSON.stringify(q('2026-08-08')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
+check('قبل البذرة = البذرة', JSON.stringify(q('2026-08-07')), JSON.stringify(q('2026-08-08')));
+check('9/8 تكرار ربع1', JSON.stringify(q('2026-08-09')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'تكرار' }));
+check('13/8 review=6 تكرار ربع3', JSON.stringify(q('2026-08-13')), JSON.stringify({ reviewJuz: 6, hifzJuz: 10, hifzQuarter: 3, hifzMode: 'تكرار' }));
+check('15/8 review يلف إلى 1', JSON.stringify(q('2026-08-15')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 4, hifzMode: 'تكرار' }));
+// ٢٣ أغسطس تكرار الربع ٨ ← ٢٤ أغسطس: جزء ١١، والدورة تتسع إلى ٨
+check('23/8 تكرار ربع8', JSON.stringify(q('2026-08-23')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 8, hifzMode: 'تكرار' }));
+check('24/8 انتقال جزء الحفظ', JSON.stringify(q('2026-08-24')), JSON.stringify({ reviewJuz: 3, hifzJuz: 11, hifzQuarter: 1, hifzMode: 'حفظ' }));
 // التثبيت: قبل الانتقال [٨،٩] وبعده [٩،١٠]
-const fajr22 = buildUnit('2026-08-22').find((e) => e.slot === 'fajr');
-check('تثبيت 22/8 = جزء ٨', fajr22.desc.includes('سنة الفجر — الجزء ٨'), true);
 const fajr23 = buildUnit('2026-08-23').find((e) => e.slot === 'fajr');
-check('تثبيت 23/8 = جزء ٩', fajr23.desc.includes('سنة الفجر — الجزء ٩'), true);
-const isha23 = buildUnit('2026-08-23').find((e) => e.slot === 'isha');
-check('عشاء 23/8 على الجزء ١٠', isha23.desc.includes('الجزء ١٠'), true);
+check('تثبيت 23/8 = جزء ٨', fajr23.desc.includes('سنة الفجر — الجزء ٨'), true);
+const fajr24 = buildUnit('2026-08-24').find((e) => e.slot === 'fajr');
+check('تثبيت 24/8 = جزء ٩', fajr24.desc.includes('سنة الفجر — الجزء ٩'), true);
+const isha24 = buildUnit('2026-08-24').find((e) => e.slot === 'isha');
+check('عشاء 24/8 على الجزء ١٠', isha24.desc.includes('الجزء ١٠'), true);
 
-// ── تقدّم التمرين عبر الشهر (البداية الجديدة ٧/٨ = يوم التمرين الأول) ──
+// ── تقدّم التمرين عبر الشهر (البداية الجديدة ٨/٨ = يوم التمرين الأول) ──
 const trainOn = (d) => byUnit.get(d).find((e) => e.slot === 'train').desc;
-check('7/8 بريس 40×6', trainOn('2026-08-07').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
-check('9/8 بريس 40×7', trainOn('2026-08-09').includes('× ٧ عدات @ ٤٠ كجم'), true);
-check('15/8 بريس 40×9', trainOn('2026-08-15').includes('× ٩ عدات @ ٤٠ كجم'), true);
-check('19/8 بريس 45×6 (زيادة الوزن)', trainOn('2026-08-19').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٥ كجم'), true);
-check('27/8 بريس 45×9', trainOn('2026-08-27').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٩ عدات @ ٤٥ كجم'), true);
-check('19/8 سحب أفقي 55', trainOn('2026-08-19').includes('السحب الأفقي — ٤ جلسات × ٦ عدات @ ٥٥ كجم'), true);
-check('7/8 بلانك 40', trainOn('2026-08-07').includes('بلانك — جلستان × ٤٠ ث'), true);
-check('9/8 بلانك 42.5', trainOn('2026-08-09').includes('٤٢٫٥ ث'), true);
-check('27/8 بلانك 57.5', trainOn('2026-08-27').includes('٥٧٫٥ ث'), true);
-check('7/8 كتف خلفي 10×8', trainOn('2026-08-07').includes('كتف خلفي — ٢ جلسات × ٨ عدات @ ١٠ كجم'), true);
-check('19/8 كتف جانبي 12.5×8', trainOn('2026-08-19').includes('كتف جانبي — ٢ جلسات × ٨ عدات @ ١٢٫٥ كجم'), true);
+check('8/8 بريس 40×6', trainOn('2026-08-08').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
+check('10/8 بريس 40×7', trainOn('2026-08-10').includes('× ٧ عدات @ ٤٠ كجم'), true);
+check('16/8 بريس 40×9', trainOn('2026-08-16').includes('× ٩ عدات @ ٤٠ كجم'), true);
+check('20/8 بريس 45×6 (زيادة الوزن)', trainOn('2026-08-20').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٥ كجم'), true);
+check('28/8 بريس 45×9', trainOn('2026-08-28').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٩ عدات @ ٤٥ كجم'), true);
+check('20/8 سحب أفقي 55', trainOn('2026-08-20').includes('السحب الأفقي — ٤ جلسات × ٦ عدات @ ٥٥ كجم'), true);
+check('8/8 بلانك 40', trainOn('2026-08-08').includes('بلانك — جلستان × ٤٠ ث'), true);
+check('10/8 بلانك 42.5', trainOn('2026-08-10').includes('٤٢٫٥ ث'), true);
+check('28/8 بلانك 57.5', trainOn('2026-08-28').includes('٥٧٫٥ ث'), true);
+check('8/8 كتف خلفي 10×8', trainOn('2026-08-08').includes('كتف خلفي — ٢ جلسات × ٨ عدات @ ١٠ كجم'), true);
+check('20/8 كتف جانبي 12.5×8', trainOn('2026-08-20').includes('كتف جانبي — ٢ جلسات × ٨ عدات @ ١٢٫٥ كجم'), true);
 
 // ── التقدّم المشروط بالإنجاز: اليوم الفائت تُعاد مهمته ولا يتقدم شيء ──
 const { setQuranCompletion, clearQuranCache } = await import('../lib/engine/quran.js');
 const { setWorkoutCompletion, workoutDesc } = await import('../lib/engine/workout.js');
 
-// فوات ٧ أغسطس كاملًا (يوم البذرة): ٨ أغسطس يعيد نفس الحالة تمامًا
-setQuranCompletion((d) => (d === '2026-08-07' ? { review: false, hifz: false } : { review: true, hifz: true }));
-check('فوات ٧/٨ → ٨/٨ يعيد نفس المهمة', JSON.stringify(q('2026-08-08')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
-check('ثم ٩/٨ يتقدم طبيعيًا', JSON.stringify(q('2026-08-09')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'تكرار' }));
+// فوات ٨ أغسطس كاملًا (يوم البذرة): ٩ أغسطس يعيد نفس الحالة تمامًا
+setQuranCompletion((d) => (d === '2026-08-08' ? { review: false, hifz: false } : { review: true, hifz: true }));
+check('فوات ٨/٨ → ٩/٨ يعيد نفس المهمة', JSON.stringify(q('2026-08-09')), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
+check('ثم ١٠/٨ يتقدم طبيعيًا', JSON.stringify(q('2026-08-10')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'تكرار' }));
 // إنجاز جزئي: التسميع أُنجز والحفظ فات — يتقدم مسار دون الآخر
-setQuranCompletion((d) => (d === '2026-08-07' ? { review: true, hifz: false } : { review: true, hifz: true }));
-check('إنجاز التسميع وحده يقدّمه وحده', JSON.stringify(q('2026-08-08')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
+setQuranCompletion((d) => (d === '2026-08-08' ? { review: true, hifz: false } : { review: true, hifz: true }));
+check('إنجاز التسميع وحده يقدّمه وحده', JSON.stringify(q('2026-08-09')), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
 setQuranCompletion(null);
 clearQuranCache();
 
-// فوات تمرين ٧/٨ (يوم التمرين الأول) كاملًا: ٩/٨ يعرض أهداف ٧/٨ نفسها (بريس ٦ لا ٧)
-setWorkoutCompletion((d) => d !== '2026-08-07');
-check('فوات يوم١ → يوم٢ بريس ٤٠×٦', workoutDesc('2026-08-09').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
+// فوات تمرين ٨/٨ (يوم التمرين الأول) كاملًا: ١٠/٨ يعرض أهداف ٨/٨ نفسها (بريس ٦ لا ٧)
+setWorkoutCompletion((d) => d !== '2026-08-08');
+check('فوات يوم١ → يوم٢ بريس ٤٠×٦', workoutDesc('2026-08-10').includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
 setWorkoutCompletion(null);
-check('بعد الاسترجاع: يوم٢ بريس ٤٠×٧', workoutDesc('2026-08-09').includes('× ٧ عدات @ ٤٠ كجم'), true);
+check('بعد الاسترجاع: يوم٢ بريس ٤٠×٧', workoutDesc('2026-08-10').includes('× ٧ عدات @ ٤٠ كجم'), true);
 
 // ── تجميد تمرين واحد لا يؤثر في البقية ──
-setWorkoutCompletion((d, k) => !(d === '2026-08-07' && k === 'press'));
-const d9 = workoutDesc('2026-08-09');
-check('البريس وحده تجمّد (٦ عدات)', d9.includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
-check('السحب الأفقي تقدّم رغم ذلك (٧ عدات)', d9.includes('السحب الأفقي — ٤ جلسات × ٧ عدات @ ٥٠ كجم'), true);
+setWorkoutCompletion((d, k) => !(d === '2026-08-08' && k === 'press'));
+const d10 = workoutDesc('2026-08-10');
+check('البريس وحده تجمّد (٦ عدات)', d10.includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
+check('السحب الأفقي تقدّم رغم ذلك (٧ عدات)', d10.includes('السحب الأفقي — ٤ جلسات × ٧ عدات @ ٥٠ كجم'), true);
 setWorkoutCompletion(null);
 
 // ── الخطة المُهيكلة للواجهة التفاعلية ──
 const { workoutPlan } = await import('../lib/engine/workout.js');
-const plan1 = workoutPlan('2026-08-07');
+const plan1 = workoutPlan('2026-08-08');
 check('خطة اليوم الأول ٨ بنود', plan1.items.length, 8);
 check('أول بند البريس', plan1.items[0].key, 'press');
 check('البريس ٤ جلسات', plan1.items[0].sets, 4);
@@ -174,40 +174,40 @@ check('باي+تراي سوبر ست', plan1.items[6].kind, 'superset');
 check('السوبر ست طرفان', plan1.items[6].parts.length, 2);
 check('البلانك hold', plan1.items[7].kind, 'hold');
 check('راحة البريس ١٢٠', plan1.items[0].rest, 120);
-const plan2 = workoutPlan('2026-08-09');
+const plan2 = workoutPlan('2026-08-10');
 check('خطة اليوم الثاني ٩ بنود', plan2.items.length, 9);
 check('اليوم الثاني فيه فراشة', plan2.items[1].key, 'fly');
 check('اليوم الثاني كتف أمامي فشل', plan2.items.find((i) => i.key === 'frontdelt').kind, 'failure');
 check('اليوم الثاني هامر+تراي', plan2.items.find((i) => i.kind === 'superset').key, 'hammer+tri');
-check('يوم الجري', workoutPlan('2026-08-11').type, 3);
-check('يوم تطوير بلا خطة', workoutPlan('2026-08-08'), null);
+check('يوم الجري', workoutPlan('2026-08-12').type, 3);
+check('يوم تطوير بلا خطة', workoutPlan('2026-08-09'), null);
 
 // ── مجمعات أخطاء القرآن (متابعة الأخطاء عبر ثلاثة أماكن) ──────────────
 const { quranTaskLines, tathbeetPoolKey, reviewPoolKey, hifzPoolKey } = await import('../lib/engine/quran.js');
-// يوم حفظ (7/8): بندان فقط، بند الحفظ بلا مجمع أخطاء (لا تتبّع يوم الحفظ نفسه)
-const tl7 = quranTaskLines(q('2026-08-07'));
-check('يوم حفظ: بندان', tl7.length, 2);
-check('يوم حفظ: مجمع التسميع', tl7[0].pool, 'rv:1');
-check('يوم حفظ: بند الحفظ بلا مجمع', tl7[1].pool, null);
-// يوم تكرار الربع الأول (8/8): بندان، تكرار بمجمعه، بلا مراجعة أرباع سابقة (لا يوجد ربع قبل 1)
-const tl8 = quranTaskLines(q('2026-08-08'));
-check('تكرار ربع1: بندان (لا مراجعة سابقة)', tl8.length, 2);
-check('تكرار ربع1: نص «× ٥ مرات»', tl8[1].text.includes('× ٥ مرات'), true);
-check('تكرار ربع1: مجمع hz:10:1', tl8[1].pool, 'hz:10:1');
-// يوم تكرار الربع الثامن (22/8): ٩ بنود — تسميع + تكرار + مراجعة الأرباع ١..٧، كل بند بمجمعه الخاص
-const tl22 = quranTaskLines(q('2026-08-22'));
-check('تكرار ربع8: ٩ بنود (تسميع + تكرار + مراجعة ١..٧)', tl22.length, 9);
-check('تكرار ربع8: مجمع الربع الحالي', tl22[1].pool, 'hz:10:8');
-check('تكرار ربع8: مجمع مراجعة الربع1', tl22[2].pool, 'hz:10:1');
-check('تكرار ربع8: مجمع مراجعة الربع7', tl22[8].pool, 'hz:10:7');
+// يوم حفظ (8/8): بندان فقط، بند الحفظ بلا مجمع أخطاء (لا تتبّع يوم الحفظ نفسه)
+const tlH = quranTaskLines(q('2026-08-08'));
+check('يوم حفظ: بندان', tlH.length, 2);
+check('يوم حفظ: مجمع التسميع', tlH[0].pool, 'rv:1');
+check('يوم حفظ: بند الحفظ بلا مجمع', tlH[1].pool, null);
+// يوم تكرار الربع الأول (9/8): بندان، تكرار بمجمعه، بلا مراجعة أرباع سابقة (لا يوجد ربع قبل 1)
+const tlR1 = quranTaskLines(q('2026-08-09'));
+check('تكرار ربع1: بندان (لا مراجعة سابقة)', tlR1.length, 2);
+check('تكرار ربع1: نص «× ٥ مرات»', tlR1[1].text.includes('× ٥ مرات'), true);
+check('تكرار ربع1: مجمع hz:10:1', tlR1[1].pool, 'hz:10:1');
+// يوم تكرار الربع الثامن (23/8): ٩ بنود — تسميع + تكرار + مراجعة الأرباع ١..٧، كل بند بمجمعه الخاص
+const tlR8 = quranTaskLines(q('2026-08-23'));
+check('تكرار ربع8: ٩ بنود (تسميع + تكرار + مراجعة ١..٧)', tlR8.length, 9);
+check('تكرار ربع8: مجمع الربع الحالي', tlR8[1].pool, 'hz:10:8');
+check('تكرار ربع8: مجمع مراجعة الربع1', tlR8[2].pool, 'hz:10:1');
+check('تكرار ربع8: مجمع مراجعة الربع7', tlR8[8].pool, 'hz:10:7');
 // نفس الربع يحمل نفس المجمع سواء في يوم تكراره أو حين يُراجَع لاحقًا ضمن تكرار ربع أعلى
-check('استمرارية المجمع: hz:10:1 من تكرار الربع1 ومن مراجعة تكرار الربع8', hifzPoolKey(10, 1), tl22[2].pool);
+check('استمرارية المجمع: hz:10:1 من تكرار الربع1 ومن مراجعة تكرار الربع8', hifzPoolKey(10, 1), tlR8[2].pool);
 // مساعد مفاتيح التثبيت: يطابق الترتيب [فجر،ضحى،ظهرقبلية،ظهربعدية،عصر،مغرب،عشاءقبلية،عشاءبعدية]
-const st22 = q('2026-08-22'); // hifzJuz=10 → تثبيت [8,9]
-check('تثبيت فجر = tb:8:1', tathbeetPoolKey(st22, 0), 'tb:8:1');
-check('تثبيت ضحى = tb:8:2', tathbeetPoolKey(st22, 1), 'tb:8:2');
-check('تثبيت عصر = tb:9:1 (يبدأ الجزء الثاني)', tathbeetPoolKey(st22, 4), 'tb:9:1');
-check('تثبيت عشاء بعدية = tb:9:4', tathbeetPoolKey(st22, 7), 'tb:9:4');
+const stR8 = q('2026-08-23'); // hifzJuz=10 → تثبيت [8,9]
+check('تثبيت فجر = tb:8:1', tathbeetPoolKey(stR8, 0), 'tb:8:1');
+check('تثبيت ضحى = tb:8:2', tathbeetPoolKey(stR8, 1), 'tb:8:2');
+check('تثبيت عصر = tb:9:1 (يبدأ الجزء الثاني)', tathbeetPoolKey(stR8, 4), 'tb:9:1');
+check('تثبيت عشاء بعدية = tb:9:4', tathbeetPoolKey(stR8, 7), 'tb:9:4');
 check('reviewPoolKey/hifzPoolKey تطابق بناء الأسطر', reviewPoolKey(5), 'rv:5');
 check('hifzPoolKey', hifzPoolKey(11, 3), 'hz:11:3');
 
