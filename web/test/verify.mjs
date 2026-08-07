@@ -81,10 +81,10 @@ for (let d = '2026-07-31'; d <= '2026-08-28'; d = addDays(d, 1)) {
 }
 check('gapless+contiguous 31/7→28/8', gapless, true);
 
-// أسماء الراحة والتمرين حسب اليوم
-check('rest الجمعة', byUnit.get('2026-07-31').find((e) => e.slot === 'rest').title, 'راحة');
-check('rest السبت', byUnit.get('2026-08-01').find((e) => e.slot === 'rest').title, 'راحة');
-check('rest الأحد', byUnit.get('2026-08-02').find((e) => e.slot === 'rest').title, 'زوجة');
+// أسماء الليل والنهار حسب اليوم: زوجة (أحد–خميس) / أصدقاء (جمعة وسبت)
+check('rest الجمعة أصدقاء', byUnit.get('2026-07-31').find((e) => e.slot === 'rest').title, 'أصدقاء');
+check('rest السبت أصدقاء', byUnit.get('2026-08-01').find((e) => e.slot === 'rest').title, 'أصدقاء');
+check('rest الأحد زوجة', byUnit.get('2026-08-02').find((e) => e.slot === 'rest').title, 'زوجة');
 // دورة التمرين متتابعة لا علاقة لها بأيام الأسبوع، بدأت الجمعة ٧/٨ (يوم التمرين الأول):
 // تمرين/تطوير بالتناوب والأنواع تدور أ←ب←جري
 check('7/8 تمرين أ (بداية الدورة)', byUnit.get('2026-08-07').find((e) => e.slot === 'train').title, 'تمرين — اليوم الأول');
@@ -96,9 +96,13 @@ check('13/8 (خميس!) تمرين أ — الدورة تتجاهل الأسبو
 check('قبل البداية تطوير', byUnit.get('2026-08-06').find((e) => e.slot === 'train').title, 'تطوير');
 check('دعاء الجمعة موجود', !!byUnit.get('2026-08-07').find((e) => e.slot === 'duaa'), true);
 check('دعاء السبت غائب', !!byUnit.get('2026-08-08').find((e) => e.slot === 'duaa'), false);
-check('نهار الجمعة عائلة', byUnit.get('2026-08-07').find((e) => e.slot === 'work1').title, 'عائلة');
-check('نهار الجمعة عائلة (٣)', byUnit.get('2026-08-07').find((e) => e.slot === 'work3').title, 'عائلة');
-check('نهار السبت عمل', byUnit.get('2026-08-08').find((e) => e.slot === 'work1').title, 'عمل');
+check('نهار الجمعة أسرة', byUnit.get('2026-08-07').find((e) => e.slot === 'work1').title, 'أسرة');
+check('نهار الجمعة أسرة (٣)', byUnit.get('2026-08-07').find((e) => e.slot === 'work3').title, 'أسرة');
+check('نهار السبت أسرة', byUnit.get('2026-08-08').find((e) => e.slot === 'work1').title, 'أسرة');
+check('نهار الأحد عمل', byUnit.get('2026-08-09').find((e) => e.slot === 'work1').title, 'عمل');
+check('صلة رحم في أسرة الجمعة', byUnit.get('2026-08-07').find((e) => e.slot === 'work1').desc.includes('صلة رحم'), true);
+check('لا صلة رحم في أسرة السبت', byUnit.get('2026-08-08').find((e) => e.slot === 'work1').desc.includes('صلة رحم'), false);
+check('نومة المغرب صارت «لعب أو نوم»', byUnit.get('2026-08-09').find((e) => e.slot === 'sleep1').title, 'لعب أو نوم');
 
 // ── آلة حالة القرآن (البذرة الجديدة: ٧ أغسطس — مراجعة جزء ١، حفظ ربع ١ من جزء ١٠) ──
 const q = (d) => quranStateFor(d);

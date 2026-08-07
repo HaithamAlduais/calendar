@@ -96,7 +96,9 @@ function ishaDesc(t) {
 
 const QIYAM_DESC = ['١. صلاة الوتر', '٢. دعاء شامل', '٣. توبة', '٤. استغفار'].join('\n');
 const FAMILY_DESC = '١. وجبة (متى تيسّر)\n٢. وقت مع الأسرة';
-const FAMILY_DAY_DESC = '١. وجبة (متى تيسّر)\n٢. وقت مع العائلة';
+// نهارا الجمعة والسبت «أسرة» — والجمعة وحدها فيها صلة رحم
+const ASRA_DAY_FRI = '١. وجبة (متى تيسّر)\n٢. وقت مع الأسرة\n٣. صلة رحم';
+const ASRA_DAY_SAT = '١. وجبة (متى تيسّر)\n٢. وقت مع الأسرة';
 const DUAA_DESC = 'ساعة استجابة الدعاء قبل مغرب الجمعة — تفرّغ للدعاء.';
 const WORK_DESC = 'مهام اليوم — تُكتب هنا (حرّر الوصف وأضف سطرًا لكل مهمة).';
 
@@ -124,14 +126,17 @@ export function buildUnit(dIso) {
 
   const day = dow(dIso); // 0=الأحد … 5=الجمعة، 6=السبت
   const friday = day === 5;
-  const restName = day === 5 || day === 6 ? 'راحة' : 'زوجة';
+  const saturday = day === 6;
+  // ليل الجمعة والسبت «أصدقاء»، وبقية الليالي «زوجة»
+  const restName = friday || saturday ? 'أصدقاء' : 'زوجة';
 
   // كل سنن الوحدة (من الفجر إلى العشاء) على تثبيت يومها نفسه
   const st = quranStateFor(dIso);
   const t = tathbeetLabels(st);
 
   const trainType = workoutDayType(dIso);
-  const workTitle = friday ? 'عائلة' : 'عمل'; // نهار الجمعة «عائلة» لا «عمل»
+  // نهارا الجمعة والسبت «أسرة» لا «عمل»
+  const workTitle = friday || saturday ? 'أسرة' : 'عمل';
 
   const ev = [];
   const push = (slot, title, start, end, colorId, desc = '', transparent = false) => {
@@ -153,7 +158,7 @@ export function buildUnit(dIso) {
   push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
   push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
   push('nap', 'نوم', SR + 90, napEnd, 8);
-  push('work1', workTitle, napEnd, DH, 6, friday ? FAMILY_DAY_DESC : WORK_DESC);
+  push('work1', workTitle, napEnd, DH, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
   push('dhuhr', 'الظهر', DH, DH + 45, 9, dhuhrDesc(t, friday));
   push('work2', workTitle, DH + 45, AS, 6);
   push('asr', 'العصر', AS, AS + 45, 9, asrDesc(t));
@@ -165,7 +170,7 @@ export function buildUnit(dIso) {
   }
   // ── الليل: من المغرب إلى فجر الغد ──
   push('maghrib', 'المغرب', M, M + 30, 9, maghribDesc(t));
-  push('sleep1', 'نوم', M + 30, ISH, 8);
+  push('sleep1', 'لعب أو نوم', M + 30, ISH, 8);
   push('isha', 'العشاء', ISH, ISH + 45, 9, ishaDesc(t));
   push('family', 'أسرة', ISH + 45, third1, 6, FAMILY_DESC);
   push('rest', restName, third1, qiyamStart, 8, '', true);

@@ -201,9 +201,9 @@ export function DayPanel({
           </Section>
 
           <Section title="ساعات اليوم">
-            <Row label={dow(d) === 5 ? "عائلة" : "عمل"} value={fmtDur(sum(["work1", "work2", "work3"]))} />
+            <Row label={dow(d) === 5 || dow(d) === 6 ? "أسرة (النهار)" : "عمل"} value={fmtDur(sum(["work1", "work2", "work3"]))} />
             <Row label="نوم" value={fmtDur(sum(["sleep1", "sleep2", "nap"]))} />
-            <Row label={dow(d) === 5 || dow(d) === 6 ? "راحة" : "زوجة"} value={fmtDur(sum(["rest"]))} />
+            <Row label={dow(d) === 5 || dow(d) === 6 ? "أصدقاء" : "زوجة"} value={fmtDur(sum(["rest"]))} />
             <Row label="أسرة" value={fmtDur(sum(["family"]))} />
           </Section>
 
