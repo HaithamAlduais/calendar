@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { checklistLines, dotColor, fmt12, fmtDateLong, dateOf, timeOf } from "@/lib/format"
-import { MistakeTracker } from "@/components/mistake-tracker"
 import { WorkoutSheet } from "@/components/workout-sheet"
 import { shareEventImage } from "@/lib/share"
 import {
@@ -144,6 +143,7 @@ export function EventSheet({
                       {l.text}
                     </p>
                   )
+                // مجمع الأخطاء يُستخدم هنا لقاعدة نصف الإنجاز فقط — إدخال الأخطاء صار في صفحة الإحصاءات
                 const pool = mistakePoolFor(ev, l.idx)
                 return (
                   <div key={l.idx} className="flex flex-col gap-1">
@@ -184,7 +184,6 @@ export function EventSheet({
                         </button>
                       )}
                     </label>
-                    {pool && <MistakeTracker poolKey={pool} />}
                   </div>
                 )
               })}

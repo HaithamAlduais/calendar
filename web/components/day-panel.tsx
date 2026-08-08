@@ -1,12 +1,15 @@
 "use client"
 
-import { MinusIcon, PlusIcon, RotateCcwIcon } from "lucide-react"
+import { useState } from "react"
+import { ChevronDownIcon, MinusIcon, PlusIcon, RotateCcwIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { MistakeTracker } from "@/components/mistake-tracker"
+import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
 import { quranStateFor } from "@/lib/engine/quran.js"
 import { strengthSnapshot } from "@/lib/engine/workout.js"
@@ -14,9 +17,11 @@ import { checklistLines, durMin, fmtDateLong, fmtDur, dow } from "@/lib/format"
 import {
   addFood,
   checksFor,
+  completedQuranPools,
   currentUnit,
   isLate,
   foodFor,
+  mistakesFor,
   resetFood,
   saveSettings,
   settings,
@@ -115,8 +120,10 @@ export function DayPanel({
   onClose: () => void
   events: Ev[]
 }) {
+  const [openPool, setOpenPool] = useState<string | null>(null)
   const d = currentUnit() // وحدة اليوم تبدأ بصلاة الفجر
   const dayEvents = events.filter((e) => e.unit === d)
+  const donePools = completedQuranPools(events, d) // ما أنجزته اليوم من مواضع القرآن
 
   // إنجاز اليوم
   const actionable = dayEvents.filter(
@@ -188,6 +195,44 @@ export function DayPanel({
             <Row label="التثبيت" value={`الجزءان ${arab(st.hifzJuz - 2)} و${arab(st.hifzJuz - 1)}`} />
             <Progress value={hifzPct} className="h-1.5" />
             <Row label="تقدّم جزء الحفظ" value={`${arab(hifzPct)}٪`} />
+          </Section>
+
+          {/* الأخطاء: تظهر مواضع اليوم التي أنجزتها فقط — اضغط الموضع لتسجيل أخطائه */}
+          <Section title="أخطاء القرآن">
+            {donePools.length === 0 ? (
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                أشّر ما أنجزته من التسميع والتكرار والسنن، ويظهر هنا لتسجيل أخطائه.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {donePools.map((p) => {
+                  const list = mistakesFor(p.pool)
+                  const isOpen = openPool === p.pool
+                  return (
+                    <div key={p.pool} className="flex flex-col">
+                      <button
+                        onClick={() => setOpenPool(isOpen ? null : p.pool)}
+                        className="hover:bg-muted flex items-start gap-2 rounded-md p-2 text-start text-sm"
+                      >
+                        <ChevronDownIcon
+                          className={cn("mt-0.5 size-4 flex-none transition-transform", !isOpen && "-rotate-90")}
+                        />
+                        <span className="flex-1 leading-relaxed">
+                          {p.text}
+                          <span className="text-muted-foreground/70 text-xs"> ({p.from})</span>
+                        </span>
+                        {list.length > 0 && (
+                          <span className="flex-none rounded bg-red-500/15 px-1.5 text-xs text-red-600 dark:text-red-400">
+                            {arab(list.length)}
+                          </span>
+                        )}
+                      </button>
+                      {isOpen && <MistakeTracker poolKey={p.pool} />}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </Section>
 
           <Section title="قوتك الآن">

@@ -29,8 +29,8 @@ export type Ev = {
   trainDate?: string // بلوك تمرين قضاء: تاريخ الجلسة الأصلية (أمس)
 }
 
-export const SCHEDULE_START = "2026-08-08" // بداية جديدة (السبت ٨ أغسطس) — نسينا ما قبلها
-const BLOCK_START = "2026-08-08" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
+export const SCHEDULE_START = "2026-08-09" // بداية جديدة (الأحد ٩ أغسطس) — نسينا ما قبلها
+const BLOCK_START = "2026-08-09" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
 
 const K = {
   done: "hc.done.v1",
@@ -510,6 +510,26 @@ export function mistakePoolFor(ev: Ev, lineIdx: number): string | null {
 
 export function mistakesFor(poolKey: string): Mistake[] {
   return mistakes[poolKey] || []
+}
+
+// ما أنجزته اليوم مما يُقرأ فيه القرآن — لإدخال أخطائه من صفحة الإحصاءات
+export type DonePool = { pool: string; text: string; from: string }
+export function completedQuranPools(events: Ev[], unit: string): DonePool[] {
+  const out: DonePool[] = []
+  const seen = new Set<string>()
+  for (const ev of events) {
+    if (ev.unit !== unit || ev.external) continue
+    const marked = new Set(checksFor(ev.id))
+    const lines = (ev.desc || "").split("\n")
+    for (const i of numberedIdx(ev.desc)) {
+      if (!marked.has(i)) continue // المُنجَز فقط
+      const pool = mistakePoolFor(ev, i)
+      if (!pool || seen.has(pool)) continue
+      seen.add(pool)
+      out.push({ pool, text: lines[i].replace(NUMBERED_RE, ""), from: ev.title })
+    }
+  }
+  return out
 }
 
 export function addMistake(poolKey: string, ayah: string, word: string) {

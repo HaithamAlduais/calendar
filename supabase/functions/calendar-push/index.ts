@@ -62,8 +62,8 @@ function fromEpochDay(e: number) {
 }
 const epochDayRiyadhNow = () => Math.floor((Date.now() + TZ * 3600e3) / DAYMS)
 
-// دورة التمرين المتتابعة (لا علاقة لها بأيام الأسبوع): تبدأ السبت ٨ أغسطس ٢٠٢٦
-const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 8) / DAYMS)
+// دورة التمرين المتتابعة (لا علاقة لها بأيام الأسبوع): تبدأ الأحد ٩ أغسطس ٢٠٢٦
+const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 9) / DAYMS)
 function trainTitle(epochDay: number): string {
   const off = epochDay - GYM_EPOCH
   if (off < 0 || off % 2 === 1) return "تطوير"
