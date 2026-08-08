@@ -159,8 +159,8 @@ export function buildUnit(dIso) {
   push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(t));
   push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
   push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
-  // «راحة أو تعويض»: تستقبل كل ما فات من أمس (انظر makeupMap)
-  push('nap', 'راحة أو تعويض', SR + 90, napEnd, 8);
+  // راحة الصباح بعد التمرين — تُحتسب ضمن ساعات الراحة، وتستقبل نصيبها من التعويض
+  push('nap', 'راحة', SR + 90, napEnd, 8);
   push('work1', workTitle, napEnd, DH, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
   push('dhuhr', 'الظهر', DH, DH + 45, 9, dhuhrDesc(t, friday));
   push('work2', midTitle, DH + 45, AS, 6);

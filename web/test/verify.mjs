@@ -46,14 +46,14 @@ check('u30 يبدأ بالفجر', u30[0].slot, 'fajr');
 check('u30 ينتهي بالقيام حتى فجر الغد', u30[u30.length - 1].slot, 'qiyam');
 check('u30 quran', `${T(bySlot.quran.start)}-${T(bySlot.quran.end)}`, '04:39-05:35');
 check('u30 train', `${T(bySlot.train.start)}-${T(bySlot.train.end)}`, '05:35-06:50');
-check('u30 nap (نوم بعد التمرين)', `${T(bySlot.nap.start)}-${T(bySlot.nap.end)}`, '06:50-09:20');
+check('u30 راحة الصباح بعد التمرين', `${T(bySlot.nap.start)}-${T(bySlot.nap.end)}`, '06:50-09:20');
 check('u30 work1', `${T(bySlot.work1.start)}-${T(bySlot.work1.end)}`, '09:20-12:00');
 check('u30 dhuhr', `${T(bySlot.dhuhr.start)}-${T(bySlot.dhuhr.end)}`, '12:00-12:45');
 check('u30 work2 end (عصر)', T(bySlot.work2.end), '15:26');
 check('u30 work3 end (مغرب)', T(bySlot.work3.end), '18:39');
 check('u30 count', u30.length, 15);
 check('u30 rest name = راحة دائمًا', bySlot.rest.title, 'راحة');
-check('u30 بلوك التعويض', bySlot.nap.title, 'راحة أو تعويض');
+check('u30 راحة الصباح اسمها راحة', bySlot.nap.title, 'راحة');
 
 // ── صفر فجوات وصفر تداخل عبر النطاق كاملًا + تلاصق الوحدات ─────────
 const all = buildRange('2026-07-31', '2026-08-29');
@@ -88,7 +88,7 @@ check('gapless+contiguous 31/7→29/8', gapless, true);
 for (const d of ['2026-07-31', '2026-08-01', '2026-08-02']) {
   check(`rest ${d} = راحة`, byUnit.get(d).find((e) => e.slot === 'rest').title, 'راحة');
   check(`sleep1 ${d} = زوجة`, byUnit.get(d).find((e) => e.slot === 'sleep1').title, 'زوجة');
-  check(`nap ${d} = راحة أو تعويض`, byUnit.get(d).find((e) => e.slot === 'nap').title, 'راحة أو تعويض');
+  check(`nap ${d} = راحة`, byUnit.get(d).find((e) => e.slot === 'nap').title, 'راحة');
 }
 // دورة التمرين متتابعة لا علاقة لها بأيام الأسبوع، تبدأ السبت ٨/٨ (يوم التمرين الأول):
 // تمرين/تطوير بالتناوب والأنواع تدور أ←ب←جري
@@ -116,7 +116,7 @@ check('نهار الأحد عمل', sun('work1').title, 'عمل');
 check('الأحد بعد العصر عمل', sun('work3').title, 'عمل');
 check('صلة رحم في أسرة الجمعة', fri('work1').desc.includes('صلة رحم'), true);
 check('لا صلة رحم في أسرة السبت', sat('work1').desc.includes('صلة رحم'), false);
-check('التعويض نفسه في الجمعة والسبت', [fri('nap').title, sat('nap').title].join('|'), 'راحة أو تعويض|راحة أو تعويض');
+check('راحة الصباح نفسها في الجمعة والسبت', [fri('nap').title, sat('nap').title].join('|'), 'راحة|راحة');
 
 // ── آلة حالة القرآن (البذرة الجديدة: ٨ أغسطس — مراجعة جزء ١، حفظ ربع ١ من جزء ١٠) ──
 const q = (d) => quranStateFor(d);

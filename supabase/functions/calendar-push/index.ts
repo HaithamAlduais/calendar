@@ -87,7 +87,7 @@ function unitEvents(epochDay: number): { title: string; minute: number }[] {
   const late = friday ? "أسرة ودعاء" : weekend ? "أسرة وزوجة" : "عمل"
   const train = trainTitle(epochDay)
   const ev: [string, number][] = [
-    ["الفجر", F], ["قرآن وسنة الضحى", F + 45], [train, SR + 15], ["راحة أو تعويض", SR + 90],
+    ["الفجر", F], ["قرآن وسنة الضحى", F + 45], [train, SR + 15], ["راحة", SR + 90],
     [work, napEnd], ["الظهر", DH], [mid, DH + 45], ["العصر", AS], [late, AS + 45],
     ["المغرب", M], ["زوجة", M + 30], ["العشاء", ISH], ["أسرة", ISH + 45],
     ["راحة", t1], ["صلاة القيام", lastSixth],

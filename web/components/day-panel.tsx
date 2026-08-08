@@ -248,10 +248,9 @@ export function DayPanel({
               label={dow(d) === 5 || dow(d) === 6 ? "أسرة (النهار)" : "عمل"}
               value={fmtDur(sum(["work1", "work2", "work3"]))}
             />
-            <Row label="راحة أو تعويض" value={fmtDur(sum(["nap"]))} />
+            <Row label="راحة" value={fmtDur(sum(["nap", "rest"]))} />
             <Row label="زوجة (المغرب←العشاء)" value={fmtDur(sum(["sleep1"]))} />
             <Row label="أسرة (بعد العشاء)" value={fmtDur(sum(["family"]))} />
-            <Row label="راحة" value={fmtDur(sum(["rest"]))} />
             <Row label="قيام وسحور" value={fmtDur(sum(["qiyam"]))} />
           </Section>
 

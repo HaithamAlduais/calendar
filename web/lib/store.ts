@@ -275,8 +275,8 @@ export function isAutoDone(ev: Ev): boolean {
 }
 
 // ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى البلوك المستقبِل القادم ──
-// المستقبِلات بالترتيب الزمني: راحة أو تعويض، ثم بلوكات النهار، ثم زوجة وراحة الليل
-const WORK_SLOTS = ["nap", "work1", "work2", "work3", "sleep1", "rest"]
+// المستقبِلات بالترتيب الزمني: راحة الصباح، بلوكات العمل/الأسرة، زوجة، أسرة الليل، راحة الليل
+const WORK_SLOTS = ["nap", "work1", "work2", "work3", "sleep1", "family", "rest"]
 
 export type Makeup = {
   destId: string
@@ -321,18 +321,20 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
     map.set(destId, list)
   }
 
-  // ── تعويض الأمس: كل بنود أمس غير المنجزة إلى «راحة أو تعويض» (يوم واحد فقط) ──
-  const comp = sorted.find((e) => e.slot === "nap" && e.end > now)
+  // ── تعويض الأمس: بنود أمس غير المنجزة تُوزَّع بالتناوب على بلوكات اليوم المستقبِلة
+  //    (راحة ← عمل/أسرة ← زوجة…) واحدًا تلو الآخر — يوم واحد فقط ──
   const prevU = addDays(cu, -1)
-  if (comp && prevU >= SCHEDULE_START) {
+  if (prevU >= SCHEDULE_START) {
+    let turn = 0
     for (const ev of events) {
       if (ev.unit !== prevU || ev.external || ev.done || ev.slot === "train") continue
       const marked = new Set(checksFor(ev.id))
       const lines = (ev.desc || "").split("\n")
       for (const i of numberedIdx(ev.desc)) {
         if (marked.has(i)) continue
-        push(comp.id, {
-          destId: comp.id,
+        const dest = dests[turn++ % dests.length]
+        push(dest.id, {
+          destId: dest.id,
           srcId: ev.id,
           srcTitle: `${ev.title} — أمس`,
           srcStart: ev.start,
