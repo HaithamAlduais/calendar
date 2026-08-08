@@ -275,8 +275,8 @@ export function isAutoDone(ev: Ev): boolean {
 }
 
 // ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى البلوك المستقبِل القادم ──
-// المستقبِلات: بلوكات العمل/العائلة ثم الزوجة/الراحة المسائية
-const WORK_SLOTS = ["work1", "work2", "work3", "rest"]
+// المستقبِلات بالترتيب الزمني: راحة أو تعويض، ثم بلوكات النهار، ثم زوجة وراحة الليل
+const WORK_SLOTS = ["nap", "work1", "work2", "work3", "sleep1", "rest"]
 
 export type Makeup = {
   destId: string
@@ -303,15 +303,16 @@ export function isMissed(ev: Ev, now: string): boolean {
   return idx.some((i) => !marked.has(i))
 }
 
-// خريطة القضاء: بلوك العمل القادم ← البنود الفائتة المنقولة إليه
-// القضاء داخل اليوم الواحد فقط (وحدة فجر←فجر): ما فات يومه لا يُقضى
+// خريطة القضاء:
+//  • داخل اليوم: البند الفائت ينتقل إلى أول بلوك مستقبِل قادم (عمل/أسرة ثم زوجة/راحة)
+//  • من الأمس: كل ما لم يُنجز — أيًّا كان بلوكه، حتى مهام العمل — ينتقل إلى «راحة أو تعويض» وحده
 export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   const map = new Map<string, Makeup[]>()
   const cu = currentUnit()
   const sorted = events
     .filter((e) => e.unit === cu)
     .sort((a, b) => (a.start < b.start ? -1 : 1))
-  // البلوكات المستقبِلة (عمل/عائلة ثم زوجة/راحة) التي لم ينتهِ وقتها بعد، بالترتيب
+  // البلوكات المستقبِلة التي لم ينتهِ وقتها بعد، بالترتيب
   const dests = sorted.filter((e) => !e.external && WORK_SLOTS.includes(e.slot || "") && e.end > now)
   if (!dests.length) return map
   const push = (destId: string, m: Makeup) => {
@@ -320,19 +321,27 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
     map.set(destId, list)
   }
 
-  // ترحيل الحفظ من أمس (يوم واحد فقط): يُقيَّد ليوم أمس فيُعيد الجدول لمساره
+  // ── تعويض الأمس: كل بنود أمس غير المنجزة إلى «راحة أو تعويض» (يوم واحد فقط) ──
+  const comp = sorted.find((e) => e.slot === "nap" && e.end > now)
   const prevU = addDays(cu, -1)
-  if (prevU >= SCHEDULE_START && !done[`${prevU}#quran`] && !(checks[`${prevU}#quran`] || []).includes(1)) {
-    const st = quranStateFor(prevU)
-    push(dests[0].id, {
-      destId: dests[0].id,
-      srcId: `${prevU}#quran`,
-      srcTitle: "قرآن أمس",
-      srcStart: `${prevU}T00:00`,
-      idx: 1, // بند الحفظ في بلوك قرآن أمس
-      crossDay: true,
-      text: `تكرار الربع ${arab(st.hifzQuarter)} من الجزء ${arab(st.hifzJuz)} — قضاء أمس، ومع حفظ اليوم يعود الجدول لمساره`,
-    })
+  if (comp && prevU >= SCHEDULE_START) {
+    for (const ev of events) {
+      if (ev.unit !== prevU || ev.external || ev.done || ev.slot === "train") continue
+      const marked = new Set(checksFor(ev.id))
+      const lines = (ev.desc || "").split("\n")
+      for (const i of numberedIdx(ev.desc)) {
+        if (marked.has(i)) continue
+        push(comp.id, {
+          destId: comp.id,
+          srcId: ev.id,
+          srcTitle: `${ev.title} — أمس`,
+          srcStart: ev.start,
+          idx: i,
+          crossDay: true,
+          text: lines[i].replace(NUMBERED_RE, ""),
+        })
+      }
+    }
   }
 
   for (const ev of sorted) {

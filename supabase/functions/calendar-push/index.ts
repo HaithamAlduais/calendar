@@ -78,21 +78,20 @@ function unitEvents(epochDay: number): { title: string; minute: number }[] {
   const F = P1.fajr, SR = P1.sunrise, DH = P1.dhuhr, AS = P1.asr, M = P1.maghrib, ISH = P1.isha
   const F2 = P2.fajr + 1440
   const night = F2 - M
-  const t1 = M + Math.round(night / 3), t2 = M + Math.round((2 * night) / 3)
+  const t1 = M + Math.round(night / 3) // نهاية أسرة الليلية
+  const lastSixth = M + Math.round((5 * night) / 6) // بداية القيام
   const napEnd = SR + 90 + 150
   const dow = cur.dow, friday = dow === 5, weekend = dow === 5 || dow === 6
-  const rest = weekend ? "أصدقاء" : "زوجة" // ليل الجمعة والسبت أصدقاء
-  const work = weekend ? "أسرة" : "عمل" // نهارا الجمعة والسبت أسرة
+  const work = weekend ? "أسرة" : "عمل"
+  const mid = weekend ? "أسرة وزوجة" : "عمل"
+  const late = friday ? "أسرة ودعاء" : weekend ? "أسرة وزوجة" : "عمل"
   const train = trainTitle(epochDay)
   const ev: [string, number][] = [
-    ["الفجر", F], ["قرآن وسنة الضحى", F + 45], [train, SR + 15], ["نوم", SR + 90],
-    [work, napEnd], ["الظهر", DH], [work, DH + 45], ["العصر", AS], [work, AS + 45],
+    ["الفجر", F], ["قرآن وسنة الضحى", F + 45], [train, SR + 15], ["راحة أو تعويض", SR + 90],
+    [work, napEnd], ["الظهر", DH], [mid, DH + 45], ["العصر", AS], [late, AS + 45],
+    ["المغرب", M], ["زوجة", M + 30], ["العشاء", ISH], ["أسرة", ISH + 45],
+    ["راحة", t1], ["صلاة القيام", lastSixth],
   ]
-  if (friday) ev.push(["دعاء", M - 60])
-  ev.push(
-    ["المغرب", M], ["لعب أو نوم", M + 30], ["العشاء", ISH], ["أسرة", ISH + 45],
-    [rest, t1], ["صلاة القيام", t2 - 30], ["نوم", t2]
-  )
   const baseMin = epochDay * 1440 - TZ * 60 // منتصف ليل الرياض بدقائق يونكس
   return ev.map(([title, min]) => ({ title, minute: baseMin + min }))
 }

@@ -126,9 +126,7 @@ export function DayPanel({
   const donePools = completedQuranPools(events, d) // ما أنجزته اليوم من مواضع القرآن
 
   // إنجاز اليوم
-  const actionable = dayEvents.filter(
-    (e) => !["sleep1", "sleep2", "nap", "rest"].includes(e.slot || "")
-  )
+  const actionable = dayEvents.filter((e) => !["sleep1", "nap", "rest"].includes(e.slot || ""))
   // البند المؤدَّى قضاءً يُحتسب نصف إنجاز
   let score = 0
   let lateTotal = 0
@@ -246,10 +244,15 @@ export function DayPanel({
           </Section>
 
           <Section title="ساعات اليوم">
-            <Row label={dow(d) === 5 || dow(d) === 6 ? "أسرة (النهار)" : "عمل"} value={fmtDur(sum(["work1", "work2", "work3"]))} />
-            <Row label="نوم" value={fmtDur(sum(["sleep1", "sleep2", "nap"]))} />
-            <Row label={dow(d) === 5 || dow(d) === 6 ? "أصدقاء" : "زوجة"} value={fmtDur(sum(["rest"]))} />
-            <Row label="أسرة" value={fmtDur(sum(["family"]))} />
+            <Row
+              label={dow(d) === 5 || dow(d) === 6 ? "أسرة (النهار)" : "عمل"}
+              value={fmtDur(sum(["work1", "work2", "work3"]))}
+            />
+            <Row label="راحة أو تعويض" value={fmtDur(sum(["nap"]))} />
+            <Row label="زوجة (المغرب←العشاء)" value={fmtDur(sum(["sleep1"]))} />
+            <Row label="أسرة (بعد العشاء)" value={fmtDur(sum(["family"]))} />
+            <Row label="راحة" value={fmtDur(sum(["rest"]))} />
+            <Row label="قيام وسحور" value={fmtDur(sum(["qiyam"]))} />
           </Section>
 
           <Section title="التغذية">
