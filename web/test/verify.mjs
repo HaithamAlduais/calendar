@@ -108,10 +108,26 @@ check('الجمعة بعد العصر: أسرة ودعاء', fri('work3').title,
 check('وصف الجمعة فيه ساعة الاستجابة', fri('work3').desc.includes('ساعة استجابة الدعاء'), true);
 check('الجمعة يمتد إلى المغرب', fri('work3').end, fri('maghrib').start);
 check('نهار الجمعة الأول أسرة', fri('work1').title, 'أسرة');
-check('نهار الجمعة الأوسط أسرة وزوجة', fri('work2').title, 'أسرة وزوجة');
+check('نهار الجمعة الأوسط أسرة (زال «أسرة وزوجة»)', fri('work2').title, 'أسرة');
 check('نهار السبت الأول أسرة', sat('work1').title, 'أسرة');
-check('نهار السبت الأوسط أسرة وزوجة', sat('work2').title, 'أسرة وزوجة');
-check('نهار السبت بعد العصر أسرة وزوجة', sat('work3').title, 'أسرة وزوجة');
+check('نهار السبت الأوسط أسرة', sat('work2').title, 'أسرة');
+check('نهار السبت بعد العصر أسرة', sat('work3').title, 'أسرة');
+check('لا وجود لاسم «أسرة وزوجة» إطلاقًا', all.some((e) => e.title.includes('أسرة وزوجة')), false);
+
+// ── الوجبات ──────────────────────────────────────────────────────
+// أحد–خميس: وجبتان (١ في القيام سحورًا، و٢ بين أذان المغرب والإقامة)
+check('وجبة ١ في قيام الأحد', sun('qiyam').desc.includes('وجبة رقم ١ (سحور)'), true);
+check('وجبة ٢ في مغرب الأحد', sun('maghrib').desc.includes('بين الأذان والإقامة: وجبة رقم ٢'), true);
+check('لا وجبة في أسرة الليل', sun('family').desc.includes('وجبة'), false);
+check('لا وجبة ٣ في راحة الأحد', sun('rest').desc.includes('وجبة'), false);
+// الجمعة والسبت: ثلاث وجبات نهارية/ليلية ولا سحور
+for (const [nm, g] of [['الجمعة', fri], ['السبت', sat]]) {
+  check(`${nm}: وجبة ١ قبل الظهر`, g('work1').desc.includes('وجبة رقم ١'), true);
+  check(`${nm}: وجبة ٢ بعد الظهر`, g('work2').desc.includes('وجبة رقم ٢'), true);
+  check(`${nm}: وجبة ٣ في راحة ما بعد العشاء`, g('rest').desc.includes('وجبة رقم ٣'), true);
+  check(`${nm}: لا سحور في القيام`, g('qiyam').desc.includes('وجبة'), false);
+  check(`${nm}: المغرب شعر لا وجبة`, g('maghrib').desc.includes('كتابة شعر'), true);
+}
 check('نهار الأحد عمل', sun('work1').title, 'عمل');
 check('الأحد بعد العصر عمل', sun('work3').title, 'عمل');
 check('صلة رحم في أسرة الجمعة', fri('work1').desc.includes('صلة رحم'), true);

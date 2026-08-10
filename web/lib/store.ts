@@ -9,6 +9,7 @@ import {
   clearQuranCache,
   quranStateFor,
   quranTaskLines,
+  tathbeetLabels,
   tathbeetPoolKey,
 } from "@/lib/engine/quran.js"
 import { setWorkoutCompletion, workoutPlan, workoutDayType, workoutTitle } from "@/lib/engine/workout.js"
@@ -261,6 +262,48 @@ export function numberedIdx(desc?: string): number[] {
   return idx
 }
 
+// ── التثبيت متتابع: أنصاف الأحزاب الثمانية تُقرأ بالترتيب لا بحسب موضع السنّة ──
+// ترتيب السنن زمنيًا: [slot الحدث، فهرس السطر] — و-١ تعني آخر سطر (سنة الضحى في بلوك القرآن)
+const TATHBEET_SEQ: [string, number][] = [
+  ["fajr", 1],
+  ["quran", -1],
+  ["dhuhr", 1],
+  ["dhuhr", 5],
+  ["asr", 1],
+  ["maghrib", 6],
+  ["isha", 1],
+  ["isha", 5],
+]
+
+// خريطة الإزاحة لكل وحدة: رقم السنّة ← نصف الحزب المعروض فيها
+const shiftCache = new Map<string, number[]>()
+
+function tathbeetLineIdx(seqIdx: number, st: { hifzMode: string }): number {
+  const li = TATHBEET_SEQ[seqIdx][1]
+  return li === -1 ? quranTaskLines(st).length : li // سنة الضحى بعد بنود القرآن المتغيّرة
+}
+
+// نصف الحزب المعروض في السنّة i = i − (عدد السنن الفائتة قبلها)
+// فما فات لا يُتخطّى: الصلاة التالية تبدأ من حيث توقّف
+function computeShift(unitEvents: Ev[], st: { hifzMode: string }, now: string): number[] {
+  const out: number[] = []
+  let missed = 0
+  for (let i = 0; i < 8; i++) {
+    out[i] = i - missed
+    const [slot] = TATHBEET_SEQ[i]
+    const ev = unitEvents.find((e) => e.slot === slot)
+    if (!ev) continue
+    const line = tathbeetLineIdx(i, st)
+    if (ev.end <= now && !checksFor(ev.id).includes(line)) missed++ // فاتت ولم تُقرأ
+  }
+  return out
+}
+
+// نصف الحزب المعروض فعليًا في سنّة معيّنة (بعد الإزاحة)
+function shiftedPortion(unit: string, seqIdx: number): number {
+  return shiftCache.get(unit)?.[seqIdx] ?? seqIdx
+}
+
 // إنجاز تلقائي: البلوك يُعدّ منجزًا متى أُنجزت كل بنوده (أو كل جلسات تمرينه)
 export function isAutoDone(ev: Ev): boolean {
   if (ev.external) return false
@@ -408,9 +451,35 @@ function trainCarry(): { from: string; to: string } | null {
 export function allEvents(): Ev[] {
   const pulledEvents = getPulled().events
   const carry = trainCarry()
+  const now = nowStamp()
   const out: Ev[] = []
+  const byUnit = new Map<string, Ev[]>()
   for (const raw of buildRange(SCHEDULE_START, windowEnd()) as Ev[]) {
     const ev: Ev = { ...raw, done: !!done[raw.id] }
+    const list = byUnit.get(ev.unit!) || []
+    list.push(ev)
+    byUnit.set(ev.unit!, list)
+  }
+  // إزاحة التثبيت: ما فات من السنن لا يُتخطّى، فالصلاة التالية تبدأ من حيث توقّف
+  for (const [unit, evs] of byUnit) {
+    const st = quranStateFor(unit)
+    const labels = tathbeetLabels(st) as string[]
+    const shift = computeShift(evs, st, now)
+    shiftCache.set(unit, shift)
+    for (let i = 0; i < 8; i++) {
+      const [slot] = TATHBEET_SEQ[i]
+      const ev = evs.find((e) => e.slot === slot)
+      if (!ev) continue
+      const li = tathbeetLineIdx(i, st)
+      const lines = ev.desc.split("\n")
+      if (!lines[li]) continue
+      const cut = lines[li].indexOf(" — ") // ما قبل أول شرطة هو اسم السنّة
+      if (cut < 0) continue
+      lines[li] = `${lines[li].slice(0, cut + 3)}${labels[shift[i]]}`
+      ev.desc = lines.join("\n")
+    }
+  }
+  for (const ev of [...byUnit.values()].flat()) {
     // التمرين المُرحَّل يحل محل «تطوير» اليوم، والتطوير ينتقل مهمةً لبلوك العمل
     if (carry && ev.unit === carry.to && ev.slot === "train") {
       ev.trainDate = carry.from
@@ -448,7 +517,7 @@ export function allEvents(): Ev[] {
   return out
 }
 
-export const weekStartOf = (d: string) => addDays(d, -((dow(d) - 6 + 7) % 7)) // الأسبوع يبدأ السبت
+export const weekStartOf = (d: string) => addDays(d, -dow(d)) // الأسبوع يبدأ الأحد
 
 // ── الإنجاز ──
 export function toggleDone(id: string) {
@@ -489,34 +558,22 @@ export function lateCount(ev: Ev): number {
 // ── أخطاء القرآن: مجمع لكل مكان يُقرأ فيه (تسميع/حفظ-تكرار/تثبيت)، يتتبّع أخطاء الآيات عبر الزمن ──
 // أسطر بلوك «قرآن وسنة الضحى» الثابتة بالترتيب: [...quranTaskLines(st), سنة الضحى]
 // الفهارس بعد إدراج سطر «بين الأذان والإقامة» في كل صلاة (٧ أغسطس)
-const TATHBEET_LINES: Record<string, [number, number][]> = {
-  fajr: [[1, 0]],
-  dhuhr: [
-    [1, 2],
-    [5, 3],
-  ],
-  asr: [[1, 4]],
-  maghrib: [[6, 5]],
-  isha: [
-    [1, 6],
-    [5, 7],
-  ],
-}
-
 // مجمع الأخطاء الذي يخصّ سطرًا معينًا في وصف الحدث، أو null إن كان سطرًا بلا تتبّع (أذان/صلاة/أذكار)
+// مجمع السنّة يتبع نصف الحزب المعروض فيها فعلًا بعد الإزاحة، لا موضعها في اليوم
 export function mistakePoolFor(ev: Ev, lineIdx: number): string | null {
   if (ev.external || !ev.unit) return null
   const st = quranStateFor(ev.unit)
   if (ev.slot === "quran") {
     const task = quranTaskLines(st)
     if (lineIdx < task.length) return task[lineIdx].pool
-    if (lineIdx === task.length) return tathbeetPoolKey(st, 1) // سنة الضحى
+    if (lineIdx === task.length) return tathbeetPoolKey(st, shiftedPortion(ev.unit, 1)) // سنة الضحى
     return null
   }
-  const arr = TATHBEET_LINES[ev.slot || ""]
-  if (!arr) return null
-  const hit = arr.find(([li]) => li === lineIdx)
-  return hit ? tathbeetPoolKey(st, hit[1]) : null
+  const seqIdx = TATHBEET_SEQ.findIndex(
+    ([slot], i) => slot === ev.slot && tathbeetLineIdx(i, st) === lineIdx
+  )
+  if (seqIdx < 0) return null
+  return tathbeetPoolKey(st, shiftedPortion(ev.unit, seqIdx))
 }
 
 export function mistakesFor(poolKey: string): Mistake[] {

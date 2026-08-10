@@ -163,7 +163,11 @@ export function DayPanel({
   const sum = (slots: string[]) =>
     dayEvents.filter((e) => slots.includes(e.slot || "")).reduce((a, e) => a + durMin(e), 0)
 
-  // التغذية
+  // التغذية: وجبتان أيام الأحد–الخميس، وثلاث في الجمعة والسبت
+  const weekend = dow(d) === 5 || dow(d) === 6
+  const meals = weekend
+    ? ["١ قبل الظهر", "٢ بعد الظهر", "٣ بعد العشاء"]
+    : ["١ في القيام (سحور)", "٢ عند المغرب"]
   const w = settings.weight || 70
   const tgt = nutritionTargets(w)
   const eaten = foodFor(d)
@@ -280,6 +284,13 @@ export function DayPanel({
               </div>
             </div>
             <Row label="هدفك اليومي" value={`${arab(tgt.kcal)} سعرة • ب ${arab(tgt.protein)} • ك ${arab(tgt.carbs)} • د ${arab(tgt.fat)} غ`} />
+            <Row
+              label={`وجبات اليوم: ${arab(meals.length)}`}
+              value={meals.join(" • ")}
+            />
+            <p className="text-muted-foreground text-[11px] leading-relaxed">
+              سجّل سعرات كل وجبة وماكروزها هنا — يجب بلوغ الهدف ولو بوجبتين.
+            </p>
             <FoodStepper label="سعرات" value={eaten.kcal} target={tgt.kcal} unit="" step={100} onDelta={(x) => addFood(d, { kcal: x })} />
             <Progress value={Math.min(100, (eaten.kcal / tgt.kcal) * 100)} className="h-1.5" />
             <FoodStepper label="بروتين" value={eaten.p} target={tgt.protein} unit="غ" step={10} onDelta={(x) => addFood(d, { p: x })} />
