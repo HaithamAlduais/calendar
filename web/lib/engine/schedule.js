@@ -11,7 +11,7 @@ import { workoutDayType, workoutTitle, workoutDesc } from './workout.js';
 const PRAYER_NOTE =
   'ملاحظات: التركيز وتدوين ما قُرئ في كل ركعة (أو ما قرأ الإمام) • تنويع أذكار الركوع والسجود بين الركعات • الدعاء في كل سجدة.';
 
-const NAP_MINUTES = 150; // راحة الضحى — بعد فترة العمل الأولى
+const NAP_MINUTES = 150; // نومة الضحى — بعد فترة العمل الأولى
 const QIYAM_MINUTES = 45; // القيام: آخر ٤٥ دقيقة من الثلث الثاني من الليل
 
 // الألوان (لوحة Google Calendar): 10 ريحان أخضر، 9 توت أزرق، 6 يوسفي برتقالي، 8 غرافيت رمادي
@@ -129,7 +129,7 @@ export function buildUnit(dIso) {
   const third1 = M + Math.round(night / 3); // نهاية «أسرة» الليلية
   const third2 = M + Math.round((2 * night) / 3); // نهاية الثلث الثاني: يليه نوم
   const qiyamStart = third2 - QIYAM_MINUTES; // آخر ٤٥ دقيقة من الثلث الثاني
-  // راحة الضحى انتقلت إلى ما بعد فترة العمل الأولى: يُقسم ما قبل الظهر نصفين حولها
+  // نومة الضحى بعد فترة العمل الأولى: يُقسم ما قبل الظهر نصفين حولها
   const trainEnd = SR + 90;
   const avail = Math.max(0, DH - trainEnd - NAP_MINUTES);
   const work1End = trainEnd + Math.round(avail / 2);
@@ -170,9 +170,9 @@ export function buildUnit(dIso) {
   push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(t));
   push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
   push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
-  // العمل الأول ثم راحة الضحى ثم العمل الثاني حتى الظهر
+  // العمل الأول ثم نومة الضحى ثم العمل الثاني حتى الظهر
   push('work1', workTitle, trainEnd, work1End, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
-  push('nap', 'راحة', work1End, napEnd, 8);
+  push('nap', 'نوم', work1End, napEnd, 8); // نومة الضحى بين فترتي العمل
   push('work2', midTitle, napEnd, DH, 6);
   push('dhuhr', 'الظهر', DH, DH + 45, 9, dhuhrDesc(t, friday));
   push('work3', midTitle, DH + 45, AS, 6, weekend ? MEAL2_WEEKEND : '');
