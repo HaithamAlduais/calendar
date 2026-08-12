@@ -9,7 +9,7 @@ import { currentUnit, makeupMap, nowStamp, type Ev } from "@/lib/store"
 import { EventChip } from "@/components/event-chip"
 
 // شطر الليل من الوحدة: من المغرب إلى فجر الغد
-const NIGHT_SLOTS = new Set(["maghrib", "sleep1", "isha", "family", "rest", "qiyam"])
+const NIGHT_SLOTS = new Set(["maghrib", "sleep1", "isha", "family", "rest", "qiyam", "sleep2"])
 
 function Section({
   label,

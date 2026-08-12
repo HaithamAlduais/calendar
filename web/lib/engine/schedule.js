@@ -11,7 +11,8 @@ import { workoutDayType, workoutTitle, workoutDesc } from './workout.js';
 const PRAYER_NOTE =
   'ملاحظات: التركيز وتدوين ما قُرئ في كل ركعة (أو ما قرأ الإمام) • تنويع أذكار الركوع والسجود بين الركعات • الدعاء في كل سجدة.';
 
-const NAP_MINUTES = 150; // نوم ما بعد التمرين (كان القيلولة: ساعتان ونصف)
+const NAP_MINUTES = 150; // راحة الضحى — بعد فترة العمل الأولى
+const QIYAM_MINUTES = 45; // القيام: آخر ٤٥ دقيقة من الثلث الثاني من الليل
 
 // الألوان (لوحة Google Calendar): 10 ريحان أخضر، 9 توت أزرق، 6 يوسفي برتقالي، 8 غرافيت رمادي
 export const COLOR_HEX = {
@@ -126,8 +127,13 @@ export function buildUnit(dIso) {
 
   const night = F2 - M;
   const third1 = M + Math.round(night / 3); // نهاية «أسرة» الليلية
-  const lastSixth = M + Math.round((5 * night) / 6); // بداية القيام: السدس الأخير من الليل
-  const napEnd = SR + 90 + NAP_MINUTES;
+  const third2 = M + Math.round((2 * night) / 3); // نهاية الثلث الثاني: يليه نوم
+  const qiyamStart = third2 - QIYAM_MINUTES; // آخر ٤٥ دقيقة من الثلث الثاني
+  // راحة الضحى انتقلت إلى ما بعد فترة العمل الأولى: يُقسم ما قبل الظهر نصفين حولها
+  const trainEnd = SR + 90;
+  const avail = Math.max(0, DH - trainEnd - NAP_MINUTES);
+  const work1End = trainEnd + Math.round(avail / 2);
+  const napEnd = Math.min(DH, work1End + NAP_MINUTES);
 
   const day = dow(dIso); // 0=الأحد … 5=الجمعة، 6=السبت
   const friday = day === 5;
@@ -164,20 +170,22 @@ export function buildUnit(dIso) {
   push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(t));
   push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
   push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
-  // راحة الصباح بعد التمرين — تُحتسب ضمن ساعات الراحة، وتستقبل نصيبها من التعويض
-  push('nap', 'راحة', SR + 90, napEnd, 8);
-  push('work1', workTitle, napEnd, DH, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
+  // العمل الأول ثم راحة الضحى ثم العمل الثاني حتى الظهر
+  push('work1', workTitle, trainEnd, work1End, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
+  push('nap', 'راحة', work1End, napEnd, 8);
+  push('work2', midTitle, napEnd, DH, 6);
   push('dhuhr', 'الظهر', DH, DH + 45, 9, dhuhrDesc(t, friday));
-  push('work2', midTitle, DH + 45, AS, 6, weekend ? MEAL2_WEEKEND : '');
+  push('work3', midTitle, DH + 45, AS, 6, weekend ? MEAL2_WEEKEND : '');
   push('asr', 'العصر', AS, AS + 45, 9, asrDesc(t));
-  push('work3', lateTitle, AS + 45, M, 6, friday ? ASRA_DUAA_DESC : '');
+  push('work4', lateTitle, AS + 45, M, 6, friday ? ASRA_DUAA_DESC : '');
   // ── الليل: من المغرب إلى فجر الغد ──
   push('maghrib', 'المغرب', M, M + 30, 9, maghribDesc(t, weekend));
-  push('sleep1', 'زوجة', M + 30, ISH, 6); // من المغرب إلى العشاء
+  push('sleep1', 'نوم', M + 30, ISH, 8); // من المغرب إلى العشاء
   push('isha', 'العشاء', ISH, ISH + 45, 9, ishaDesc(t));
   push('family', 'أسرة', ISH + 45, third1, 6, FAMILY_DESC);
-  push('rest', 'راحة', third1, lastSixth, 8, weekend ? MEAL3_WEEKEND : '', !weekend);
-  push('qiyam', 'صلاة القيام', lastSixth, F2, 9, weekend ? QIYAM_DESC_WEEKEND : QIYAM_DESC);
+  push('rest', 'راحة', third1, qiyamStart, 8, weekend ? MEAL3_WEEKEND : '', !weekend);
+  push('qiyam', 'صلاة القيام', qiyamStart, third2, 9, weekend ? QIYAM_DESC_WEEKEND : QIYAM_DESC);
+  push('sleep2', 'نوم', third2, F2, 8); // الثلث الأخير من الليل
   return ev;
 }
 

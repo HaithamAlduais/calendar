@@ -126,7 +126,10 @@ export function DayPanel({
   const donePools = completedQuranPools(events, d) // ما أنجزته اليوم من مواضع القرآن
 
   // إنجاز اليوم
-  const actionable = dayEvents.filter((e) => !["sleep1", "nap", "rest"].includes(e.slot || ""))
+  // البلوكات التي لها بنود فعلًا (أو عُلّمت منجزة) — النوم والراحة الفارغة لا تُحتسب
+  const actionable = dayEvents.filter(
+    (e) => checklistLines(e.desc).some((l) => l.item) || e.done
+  )
   // البند المؤدَّى قضاءً يُحتسب نصف إنجاز
   let score = 0
   let lateTotal = 0
@@ -249,13 +252,13 @@ export function DayPanel({
 
           <Section title="ساعات اليوم">
             <Row
-              label={dow(d) === 5 || dow(d) === 6 ? "أسرة (النهار)" : "عمل"}
-              value={fmtDur(sum(["work1", "work2", "work3"]))}
+              label={weekend ? "أسرة (النهار)" : "عمل"}
+              value={fmtDur(sum(["work1", "work2", "work3", "work4"]))}
             />
             <Row label="راحة" value={fmtDur(sum(["nap", "rest"]))} />
-            <Row label="زوجة (المغرب←العشاء)" value={fmtDur(sum(["sleep1"]))} />
+            <Row label="نوم" value={fmtDur(sum(["sleep1", "sleep2"]))} />
             <Row label="أسرة (بعد العشاء)" value={fmtDur(sum(["family"]))} />
-            <Row label="قيام وسحور" value={fmtDur(sum(["qiyam"]))} />
+            <Row label="قيام" value={fmtDur(sum(["qiyam"]))} />
           </Section>
 
           <Section title="التغذية">
