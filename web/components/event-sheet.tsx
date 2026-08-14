@@ -6,6 +6,7 @@ import {
   CircleAlertIcon,
   ClockAlertIcon,
   DumbbellIcon,
+  FastForwardIcon,
   PlusIcon,
   Share2Icon,
   Trash2Icon,
@@ -23,6 +24,7 @@ import { shareEventImage } from "@/lib/share"
 import {
   addTask,
   checksFor,
+  earlyMap,
   hasOldMistakes,
   isAutoDone,
   isLate,
@@ -35,9 +37,11 @@ import {
   removeTask,
   sessionProgress,
   setsDoneCount,
+  TASK_SLOTS,
   tasksFor,
   toggleCheck,
   toggleDone,
+  type Early,
   type Ev,
   type Makeup,
 } from "@/lib/store"
@@ -61,17 +65,30 @@ export function EventSheet({
   const items = lines.filter((l) => l.item)
   const checked = new Set(checksFor(ev.id))
   const doneItems = items.filter((l) => checked.has(l.idx)).length
-  const isWorkTasks = ev.slot === "work1" && !ev.external && ev.title === "عمل"
+  // المهام اليدوية تُضاف في بلوكات العمل والأسرة والراحة
+  const isTaskHost = !ev.external && TASK_SLOTS.includes(ev.slot || "")
   const isWorkout = ev.slot === "train" && !ev.external && ev.title.startsWith("تمرين")
   const auto = isAutoDone(ev) // اكتمل ببنوده فلا حاجة لزر الإنجاز
   // زر الحذف لمهامك اليدوية فقط — بنود Google المدموجة تُدار من تقويم Google نفسه
-  const manualTaskCount = isWorkTasks ? tasksFor(ev.unit!).length : 0
+  const myTasks = isTaskHost ? tasksFor(ev.unit!, ev.slot!) : []
+  // مهامك أُضيفت بعد بنود البلوك الثابتة بترتيبها، فنطابقها بنصّها لنعرف أي سطر يُحذف
+  const taskOfLine = new Map<number, number>()
+  if (myTasks.length) {
+    let t = 0
+    const src = (ev.desc || "").split("\n")
+    for (const li of numberedIdx(ev.desc)) {
+      if (t < myTasks.length && (src[li] || "").replace(/^[٠-٩]+\.\s/, "") === myTasks[t])
+        taskOfLine.set(li, t++)
+    }
+  }
 
   // القضاء: البلوك الفائت مقفل وبنوده تظهر في بلوك العمل القادم
   const now = nowStamp()
   const missed = isMissed(ev, now)
   const map = makeupMap(events, now)
   const makeups: Makeup[] = map.get(ev.id) || []
+  // التقديم: بنود بلوكات لاحقة من الوحدة نفسها يمكن أداؤها هنا
+  const earlies: Early[] = earlyMap(events, now).get(ev.id) || []
   const pendingHere = missed ? numberedIdx(ev.desc).filter((i) => !checked.has(i)) : []
   let destTitle = ""
   if (missed && pendingHere.length) {
@@ -86,7 +103,7 @@ export function EventSheet({
   const submitTask = () => {
     const t = taskText.trim()
     if (!t) return
-    addTask(ev.unit!, t)
+    addTask(ev.unit!, ev.slot!, t)
     setTaskText("")
   }
 
@@ -170,12 +187,11 @@ export function EventSheet({
                         </span>
                       )}
                       <span className="leading-relaxed">{l.text}</span>
-                      {isWorkTasks && l.idx < manualTaskCount && (
+                      {taskOfLine.has(l.idx) && (
                         <button
                           onClick={(e2) => {
                             e2.preventDefault()
-                            // في بلوك المهام كل سطر = مهمة، ففهرس السطر هو فهرس المهمة
-                            removeTask(ev.unit!, l.idx)
+                            removeTask(ev.unit!, ev.slot!, taskOfLine.get(l.idx)!)
                           }}
                           className="text-muted-foreground hover:text-destructive ms-auto"
                           aria-label="حذف المهمة"
@@ -242,13 +258,63 @@ export function EventSheet({
             </div>
           )}
 
-          {isWorkTasks && (
+          {/* تقديم: بنود بلوكات لاحقة من الوحدة نفسها — أداؤها هنا إنجاز كامل */}
+          {earlies.length > 0 && !missed && (
+            <div className="rounded-lg border border-sky-500/40 bg-sky-500/5 p-2">
+              <div className="mb-1 flex items-center gap-1.5 px-1 text-sm font-medium text-sky-600 dark:text-sky-400">
+                <FastForwardIcon className="size-4" />
+                تقديم — {arab(earlies.length)} بند من بلوكات لاحقة
+              </div>
+              <div className="flex flex-col gap-1">
+                {earlies.map((m) => {
+                  if (m.kind === "train") {
+                    const trainEv = events.find((e2) => e2.id === m.srcId)
+                    return (
+                      <button
+                        key={m.srcId}
+                        onClick={() => trainEv && onOpen?.(trainEv)}
+                        className="hover:bg-muted flex items-center gap-3 rounded-md border border-sky-500/30 p-2 text-start text-sm"
+                      >
+                        <DumbbellIcon className="size-4 flex-none text-sky-600" />
+                        <span className="leading-relaxed">{m.text}</span>
+                      </button>
+                    )
+                  }
+                  const on = checksFor(m.srcId).includes(m.idx)
+                  return (
+                    <label
+                      key={`${m.srcId}:${m.idx}`}
+                      className={cn(
+                        "hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm",
+                        on && "text-muted-foreground line-through"
+                      )}
+                    >
+                      <Checkbox
+                        checked={on}
+                        onCheckedChange={() => toggleCheck(m.srcId, m.idx, false)}
+                        className="mt-0.5"
+                      />
+                      <span className="leading-relaxed">
+                        {m.text}
+                        <span className="text-muted-foreground/70 me-1 text-xs"> ({m.srcTitle})</span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-muted-foreground px-1 pt-1 text-[11px]">
+                هذه بنود بلوكات لم يحن وقتها بعد — أداؤها الآن يؤشّرها في بلوكها ويُحتسب إنجازًا كاملًا.
+              </p>
+            </div>
+          )}
+
+          {isTaskHost && (
             <div className="flex gap-2">
               <Input
                 value={taskText}
                 onChange={(e2) => setTaskText(e2.target.value)}
                 onKeyDown={(e2) => e2.key === "Enter" && submitTask()}
-                placeholder="أضف مهمة عمل…"
+                placeholder={`أضف مهمة في «${ev.title}»…`}
               />
               <Button size="icon" onClick={submitTask} aria-label="إضافة">
                 <PlusIcon />

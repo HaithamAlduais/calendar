@@ -95,7 +95,7 @@ export function WeekView({
     <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 sm:grid sm:grid-cols-7 sm:gap-1 sm:overflow-visible sm:px-3">
       {days.map((d) => {
         const isCur = d === cu
-        // عمود اليوم = وحدته كاملة من الفجر إلى فجر الغد، بالترتيب
+        // عمود اليوم = وحدته كاملة من مغربه إلى مغرب الغد: ليلته ثم نهار الغد
         const unitEvs = events
           .filter((e) => e.unit === d)
           .sort((a, b) => (a.start < b.start ? -1 : 1))
@@ -126,8 +126,8 @@ export function WeekView({
               <div className="text-muted-foreground/60 py-8 text-center text-xs">لا أحداث</div>
             ) : (
               <div className="flex flex-col gap-2">
-                <Section label="من الفجر إلى المغرب" icon="☀️" night={false} chips={dayPart} isCur={isCur} now={now} mk={mk} onOpen={onOpen} />
-                <Section label="من المغرب إلى الفجر" icon="🌙" night chips={nightPart} isCur={isCur} now={now} mk={mk} onOpen={onOpen} />
+                <Section label="ليلتك — من المغرب إلى الفجر" icon="🌙" night chips={nightPart} isCur={isCur} now={now} mk={mk} onOpen={onOpen} />
+                <Section label="نهارك — من الفجر إلى المغرب" icon="☀️" night={false} chips={dayPart} isCur={isCur} now={now} mk={mk} onOpen={onOpen} />
               </div>
             )}
           </div>

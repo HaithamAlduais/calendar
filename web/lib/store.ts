@@ -33,17 +33,18 @@ export type Ev = {
 export const SCHEDULE_START = "2026-08-14" // بداية جديدة (الجمعة ١٤ أغسطس) — نسينا ما قبلها
 const BLOCK_START = "2026-08-14" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
 
+// بداية جديدة مع تحوّل الوحدة إلى المغرب: مفاتيح جديدة تبدأ فارغة (الإعدادات وحدها تبقى)
 const K = {
-  done: "hc.done.v1",
-  checks: "hc.checks.v1",
-  tasks: "hc.tasks.v1",
-  food: "hc.food.v1",
+  done: "hc.done.v2",
+  checks: "hc.checks.v2",
+  tasks: "hc.tasks.v2", // صار لكل بلوك مهامه: تاريخ ← slot ← مهام
+  food: "hc.food.v2",
   settings: "hc.settings.v2",
-  pulled: "hc.pulled.v1",
-  lastSeen: "hc.lastseen.v1",
-  gym: "hc.gym.v1",
-  late: "hc.late.v1",
-  mistakes: "hc.mistakes.v1",
+  pulled: "hc.pulled.v2",
+  lastSeen: "hc.lastseen.v2",
+  gym: "hc.gym.v2",
+  late: "hc.late.v2",
+  mistakes: "hc.mistakes.v2",
 }
 
 const isClient = typeof window !== "undefined"
@@ -63,7 +64,8 @@ function save(key: string, val: unknown) {
 
 let done = load<Record<string, boolean>>(K.done, {})
 let checks = load<Record<string, number[]>>(K.checks, {})
-let tasks = load<Record<string, string[]>>(K.tasks, {})
+// مهام يدوية لكل بلوك مستقبِل: تاريخ الوحدة ← slot ← قائمة المهام
+let tasks = load<Record<string, Record<string, string[]>>>(K.tasks, {})
 let food = load<Record<string, { kcal: number; p: number; c: number; f: number }>>(K.food, {})
 // سجل التمرين: تاريخ ← مفتاح خلية ("exKey:setIdx" أو "exKey:setIdx:partKey") ← منجَز
 let gym = load<Record<string, Record<string, boolean>>>(K.gym, {})
@@ -107,14 +109,15 @@ export function nowStamp(): string {
   return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}T${p(n.getHours())}:${p(n.getMinutes())}`
 }
 
-// اليوم عند هيثم يبدأ بصلاة الفجر لا بمنتصف الليل:
-// قبل فجر اليوم ما زلنا في وحدة الأمس (ليلها)، ومن الفجر تبدأ وحدة اليوم
+// اليوم عند هيثم يبدأ بصلاة المغرب لا بمنتصف الليل:
+// قبل مغرب اليوم ما زلنا في وحدة الأمس (نهارها)، ومن المغرب تبدأ وحدة اليوم
 export function currentUnit(): string {
   const t = todayIso()
-  const fajr = prayerTimes(t).fajr as number
+  const mg = prayerTimes(t).maghrib as number
   const p = (x: number) => String(x).padStart(2, "0")
-  const fajrStamp = `${t}T${p(Math.floor(fajr / 60))}:${p(fajr % 60)}`
-  return nowStamp() >= fajrStamp ? t : addDays(t, -1)
+  const mgStamp = `${t}T${p(Math.floor(mg / 60))}:${p(mg % 60)}`
+  const u = nowStamp() >= mgStamp ? t : addDays(t, -1)
+  return u < SCHEDULE_START ? SCHEDULE_START : u // قبل مغرب يوم البداية: أول وحدة هي الجارية
 }
 
 // ── التقدّم مشروط بالإنجاز الفعلي ──
@@ -263,16 +266,17 @@ export function numberedIdx(desc?: string): number[] {
 }
 
 // ── التثبيت متتابع: أنصاف الأحزاب الثمانية تُقرأ بالترتيب لا بحسب موضع السنّة ──
-// ترتيب السنن زمنيًا: [slot الحدث، فهرس السطر] — و-١ تعني آخر سطر (سنة الضحى في بلوك القرآن)
+// ترتيب السنن زمنيًا في الوحدة (تبدأ بالمغرب): [slot الحدث، فهرس السطر]
+// و-١ تعني آخر سطر (سنة الضحى في بلوك القرآن)
 const TATHBEET_SEQ: [string, number][] = [
+  ["maghrib", 6],
+  ["isha", 1],
+  ["isha", 5],
   ["fajr", 1],
   ["quran", -1],
   ["dhuhr", 1],
   ["dhuhr", 5],
   ["asr", 1],
-  ["maghrib", 6],
-  ["isha", 1],
-  ["isha", 5],
 ]
 
 // خريطة الإزاحة لكل وحدة: رقم السنّة ← نصف الحزب المعروض فيها
@@ -320,6 +324,8 @@ export function isAutoDone(ev: Ev): boolean {
 // ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى البلوك المستقبِل القادم ──
 // المستقبِلات بالترتيب الزمني: بلوكات العمل/الأسرة ثم أسرة الليل وراحته — والنوم لا يستقبل شيئًا
 const WORK_SLOTS = ["work1", "work2", "work3", "family", "rest"]
+// البلوكات التي تقبل مهامك اليدوية — عمل وأسرة وراحة
+export const TASK_SLOTS = WORK_SLOTS
 
 export type Makeup = {
   destId: string
@@ -430,6 +436,69 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   return map
 }
 
+// ── التقديم: أداء بنود بلوك قادم في بلوك مستقبِل سابق له من الوحدة نفسها ──
+// مثاله: أداء تمرين الصباح داخل «راحة» الليلة، أو إنجاز مهمة عمل الغد الآن.
+// وهو عكس القضاء: في وقته من يومه فيُحتسب إنجازًا كاملًا لا نصفًا.
+export type Early = {
+  destId: string
+  srcId: string
+  srcTitle: string
+  srcStart: string
+  idx: number
+  text: string
+  kind?: "line" | "train"
+}
+
+// مصادر التقديم: التمرين وبلوكات العمل/الأسرة/الراحة — أما الصلوات والقرآن فلكلٍّ وقته
+const EARLY_SRC_SLOTS = [...WORK_SLOTS, "train"]
+
+export function earlyMap(events: Ev[], now: string): Map<string, Early[]> {
+  const map = new Map<string, Early[]>()
+  const cu = currentUnit()
+  const sorted = events
+    .filter((e) => e.unit === cu && !e.external)
+    .sort((a, b) => (a.start < b.start ? -1 : 1))
+  // البلوكات المستقبِلة الجارية أو القادمة — كلٌّ يعرض ما بعده مما يمكن تقديمه
+  const dests = sorted.filter((e) => WORK_SLOTS.includes(e.slot || "") && e.end > now)
+  for (const dest of dests) {
+    const list: Early[] = []
+    for (const src of sorted) {
+      if (src.id === dest.id || src.start < dest.end) continue // اللاحق فقط
+      if (!EARLY_SRC_SLOTS.includes(src.slot || "") || src.done) continue
+      if (src.slot === "train") {
+        const td = src.trainDate ?? src.unit!
+        const p = sessionProgress(td)
+        if (p.total > 0 && p.done < p.total)
+          list.push({
+            destId: dest.id,
+            srcId: src.id,
+            srcTitle: src.title,
+            srcStart: src.start,
+            idx: -1,
+            kind: "train",
+            text: `${src.title} — ${arab(p.done)}/${arab(p.total)} جلسة، قدّمه الآن`,
+          })
+        continue
+      }
+      const marked = new Set(checksFor(src.id))
+      const lines = (src.desc || "").split("\n")
+      for (const i of numberedIdx(src.desc)) {
+        if (marked.has(i)) continue
+        list.push({
+          destId: dest.id,
+          srcId: src.id,
+          srcTitle: src.title,
+          srcStart: src.start,
+          idx: i,
+          text: lines[i].replace(NUMBERED_RE, ""),
+        })
+      }
+    }
+    if (list.length) map.set(dest.id, list)
+  }
+  return map
+}
+
 // هل جلسة تمرين اليوم d مكتملة؟
 function sessionCompleteFor(d: string): boolean {
   const p = sessionProgress(d)
@@ -486,14 +555,20 @@ export function allEvents(): Ev[] {
       ev.title = `تمرين — قضاء ${workoutTitle(carry.from).replace("تمرين — ", "")}`
       ev.desc = ""
     }
-    if (ev.slot === "work1" && ev.title === "عمل") {
-      const list = (tasks[ev.unit!] || []).slice()
-      if (carry && ev.unit === carry.to)
-        list.push("تطوير — انتقل من بلوك الصباح (قضاء التمرين مكانه)")
-      ev.desc = list.length ? list.map((t, i) => `${arab(i + 1)}. ${t}`).join("\n") : ""
-    } else if (ev.slot === "work1" && carry && ev.unit === carry.to) {
-      // يوم عائلة: أضف التطوير بعد بنودها
-      const base = ev.desc ? ev.desc.split("\n") : []
+    // مهامك اليدوية تُضاف بعد بنود البلوك الثابتة (وبلوك العمل الفارغ تصير هي بنوده)
+    if (WORK_SLOTS.includes(ev.slot || "")) {
+      const list = tasksFor(ev.unit!, ev.slot!)
+      if (list.length) {
+        const base = ev.slot === "work1" && ev.title === "عمل" ? [] : ev.desc ? ev.desc.split("\n") : []
+        let n = base.filter((l) => NUMBERED_RE.test(l)).length
+        ev.desc = [...base, ...list.map((t) => `${arab(++n)}. ${t}`)].join("\n")
+      } else if (ev.slot === "work1" && ev.title === "عمل" && !carry) {
+        ev.desc = "" // لا مهام اليوم: يبقى البلوك فارغًا بلا بنود
+      }
+    }
+    // التطوير المُزاح (حلّ محلّه قضاء تمرين أمس) ينتقل مهمةً إلى بلوك الصباح
+    if (ev.slot === "work1" && carry && ev.unit === carry.to) {
+      const base = ev.title === "عمل" && !tasksFor(ev.unit!, "work1").length ? [] : ev.desc ? ev.desc.split("\n") : []
       let n = base.filter((l) => NUMBERED_RE.test(l)).length
       ev.desc = [...base, `${arab(++n)}. تطوير — انتقل من بلوك الصباح (قضاء التمرين مكانه)`].join("\n")
     }
@@ -627,19 +702,25 @@ export function hasOldMistakes(poolKey: string): boolean {
   return (mistakes[poolKey] || []).some((m) => m.addedDate < today)
 }
 
-// ── مهام العمل (الإضافة الوحيدة المسموحة) ──
-export function tasksFor(date: string): string[] {
-  return tasks[date] || []
+// ── المهام اليدوية: تُضاف في بلوكات العمل والأسرة والراحة (الإضافة الوحيدة المسموحة) ──
+export function tasksFor(date: string, slot: string): string[] {
+  return tasks[date]?.[slot] || []
 }
-export function addTask(date: string, text: string) {
-  tasks[date] = [...(tasks[date] || []), text]
+export function addTask(date: string, slot: string, text: string) {
+  const day = { ...(tasks[date] || {}) }
+  day[slot] = [...(day[slot] || []), text]
+  tasks[date] = day
   save(K.tasks, tasks)
   notify()
 }
-export function removeTask(date: string, idx: number) {
-  tasks[date] = (tasks[date] || []).filter((_, i) => i !== idx)
-  if (!tasks[date].length) delete tasks[date]
-  delete checks[`${date}#work1`] // الفهارس تغيّرت
+export function removeTask(date: string, slot: string, idx: number) {
+  const day = { ...(tasks[date] || {}) }
+  const rest = (day[slot] || []).filter((_, i) => i !== idx)
+  if (rest.length) day[slot] = rest
+  else delete day[slot]
+  if (Object.keys(day).length) tasks[date] = day
+  else delete tasks[date]
+  delete checks[`${date}#${slot}`] // الفهارس تغيّرت
   save(K.tasks, tasks)
   save(K.checks, checks)
   notify()
