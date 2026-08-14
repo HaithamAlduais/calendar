@@ -1,5 +1,5 @@
 // إشعارات تقويم هيثم — /subscribe /unsubscribe /tick /test
-// v6: دورة التمرين من السبت ٨ أغسطس ٢٠٢٦، وتسميات أسرة/أصدقاء/لعب أو نوم
+// v7: بداية جديدة من السبت ١٥ أغسطس ٢٠٢٦ — الوحدة فجر←فجر الغد وتبكير الجمعة ساعة
 // نسخة خادمية مطابقة لمحرك التطبيق (web/lib/engine) — أي تعديل هناك يُنقل هنا
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import * as webpush from "jsr:@negrel/webpush"
@@ -62,8 +62,8 @@ function fromEpochDay(e: number) {
 }
 const epochDayRiyadhNow = () => Math.floor((Date.now() + TZ * 3600e3) / DAYMS)
 
-// دورة التمرين المتتابعة (لا علاقة لها بأيام الأسبوع): تبدأ الأحد ٩ أغسطس ٢٠٢٦
-const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 14) / DAYMS)
+// دورة التمرين المتتابعة (لا علاقة لها بأيام الأسبوع): تبدأ السبت ١٥ أغسطس ٢٠٢٦
+const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 15) / DAYMS)
 function trainTitle(epochDay: number): string {
   const off = epochDay - GYM_EPOCH
   if (off < 0 || off % 2 === 1) return "تطوير"

@@ -30,21 +30,21 @@ export type Ev = {
   trainDate?: string // بلوك تمرين قضاء: تاريخ الجلسة الأصلية (أمس)
 }
 
-export const SCHEDULE_START = "2026-08-14" // بداية جديدة (الجمعة ١٤ أغسطس) — نسينا ما قبلها
-const BLOCK_START = "2026-08-14" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
+export const SCHEDULE_START = "2026-08-15" // بداية جديدة (السبت ١٥ أغسطس) — نسينا ما قبلها
+const BLOCK_START = "2026-08-15" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
 
-// بداية جديدة مع تحوّل الوحدة إلى المغرب: مفاتيح جديدة تبدأ فارغة (الإعدادات وحدها تبقى)
+// كل بداية جديدة ترفع أرقام المفاتيح فتبدأ الحالة فارغة (الإعدادات وحدها تبقى)
 const K = {
-  done: "hc.done.v2",
-  checks: "hc.checks.v2",
-  tasks: "hc.tasks.v2", // صار لكل بلوك مهامه: تاريخ ← slot ← مهام
-  food: "hc.food.v2",
+  done: "hc.done.v3",
+  checks: "hc.checks.v3",
+  tasks: "hc.tasks.v3", // لكل بلوك مهامه: تاريخ ← slot ← مهام
+  food: "hc.food.v3",
   settings: "hc.settings.v2",
-  pulled: "hc.pulled.v2",
-  lastSeen: "hc.lastseen.v2",
-  gym: "hc.gym.v2",
-  late: "hc.late.v2",
-  mistakes: "hc.mistakes.v2",
+  pulled: "hc.pulled.v3",
+  lastSeen: "hc.lastseen.v3",
+  gym: "hc.gym.v3",
+  late: "hc.late.v3",
+  mistakes: "hc.mistakes.v3",
 }
 
 const isClient = typeof window !== "undefined"
