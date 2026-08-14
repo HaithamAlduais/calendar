@@ -4,7 +4,7 @@ import { CircleAlertIcon, CircleDotIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
-import { barColor, checklistLines, fmt12, timeOf } from "@/lib/format"
+import { barColor, checklistLines, durMin, fmt12, fmtDur, timeOf } from "@/lib/format"
 import { checksFor, isMissed, lateCount, sessionProgress, type Ev } from "@/lib/store"
 
 export function EventChip({
@@ -64,6 +64,7 @@ export function EventChip({
         <span>
           {fmt12(timeOf(ev.start))} – {fmt12(timeOf(ev.end))}
         </span>
+        <span className="opacity-70">{fmtDur(durMin(ev))}</span>
         {total > 0 && (
           <span
             className={cn(
