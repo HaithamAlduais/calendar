@@ -109,15 +109,15 @@ export function nowStamp(): string {
   return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}T${p(n.getHours())}:${p(n.getMinutes())}`
 }
 
-// اليوم عند هيثم يبدأ بصلاة المغرب لا بمنتصف الليل:
-// قبل مغرب اليوم ما زلنا في وحدة الأمس (نهارها)، ومن المغرب تبدأ وحدة اليوم
+// اليوم عند هيثم يبدأ بصلاة الفجر لا بمنتصف الليل:
+// قبل فجر اليوم ما زلنا في وحدة الأمس (ليلها)، ومن الفجر تبدأ وحدة اليوم
 export function currentUnit(): string {
   const t = todayIso()
-  const mg = prayerTimes(t).maghrib as number
+  const fajr = prayerTimes(t).fajr as number
   const p = (x: number) => String(x).padStart(2, "0")
-  const mgStamp = `${t}T${p(Math.floor(mg / 60))}:${p(mg % 60)}`
-  const u = nowStamp() >= mgStamp ? t : addDays(t, -1)
-  return u < SCHEDULE_START ? SCHEDULE_START : u // قبل مغرب يوم البداية: أول وحدة هي الجارية
+  const fajrStamp = `${t}T${p(Math.floor(fajr / 60))}:${p(fajr % 60)}`
+  const u = nowStamp() >= fajrStamp ? t : addDays(t, -1)
+  return u < SCHEDULE_START ? SCHEDULE_START : u // قبل أول وحدة: أول وحدة هي الجارية
 }
 
 // ── التقدّم مشروط بالإنجاز الفعلي ──
@@ -266,17 +266,16 @@ export function numberedIdx(desc?: string): number[] {
 }
 
 // ── التثبيت متتابع: أنصاف الأحزاب الثمانية تُقرأ بالترتيب لا بحسب موضع السنّة ──
-// ترتيب السنن زمنيًا في الوحدة (تبدأ بالمغرب): [slot الحدث، فهرس السطر]
-// و-١ تعني آخر سطر (سنة الضحى في بلوك القرآن)
+// ترتيب السنن زمنيًا: [slot الحدث، فهرس السطر] — و-١ تعني آخر سطر (سنة الضحى في بلوك القرآن)
 const TATHBEET_SEQ: [string, number][] = [
-  ["maghrib", 6],
-  ["isha", 1],
-  ["isha", 5],
   ["fajr", 1],
   ["quran", -1],
   ["dhuhr", 1],
   ["dhuhr", 5],
   ["asr", 1],
+  ["maghrib", 6],
+  ["isha", 1],
+  ["isha", 5],
 ]
 
 // خريطة الإزاحة لكل وحدة: رقم السنّة ← نصف الحزب المعروض فيها
@@ -437,7 +436,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
 }
 
 // ── التقديم: أداء بنود بلوك قادم في بلوك مستقبِل سابق له من الوحدة نفسها ──
-// مثاله: أداء تمرين الصباح داخل «راحة» الليلة، أو إنجاز مهمة عمل الغد الآن.
+// مثاله: إنجاز مهام عمل ما بعد العصر في بلوك الصباح، أو مهام «راحة» الليلة الآن.
 // وهو عكس القضاء: في وقته من يومه فيُحتسب إنجازًا كاملًا لا نصفًا.
 export type Early = {
   destId: string

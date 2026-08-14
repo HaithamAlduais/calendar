@@ -1,8 +1,8 @@
-// باني وحدة اليوم — من مغرب اليوم إلى مغرب الغد، أحداث متلاصقة بصفر فجوات
-// اليوم يبدأ بالمغرب (١٤ أغسطس ٢٠٢٦): فليلُ الوحدة من اليوم نفسه، ونهارُها من الغد
-//  • الليل: المغرب ← نوم ← العشاء ← أسرة ← راحة ← قيام ← نوم الثلث الأخير
-//  • النهار: الفجر ← قرآن وسنة الضحى ← تمرين ← عمل متصل ← نومة الضحى ← الظهر ← عمل ← العصر ← عمل
-//  • قواعد الليل تتبع يوم الوحدة نفسه، وقواعد النهار تتبع يوم الغد (الجمعة/السبت أسرة)
+// باني وحدة اليوم — من مغرب أمس إلى مغرب اليوم، أحداث متلاصقة بصفر فجوات
+// التصميم المعتمد (بتعديلات ٣١ يوليو ٢٠٢٦):
+//  • النوم بعد التمرين/التطوير بدل القيلولة، والعمل متصل من الاستيقاظ حتى المغرب
+//  • ما تبقى من الثلث الأول من الليل بعد العشاء = «أسرة»
+//  • الراحة تنتهي ببداية القيام (آخر ٣٠ دقيقة من الثلث الثاني) — واسمها «زوجة» من الأحد للخميس و«راحة» الجمعة والسبت
 import { addDays, dow, minToDateTime, arab } from './dates.js';
 import { prayerTimes } from './prayers.js';
 import { quranStateFor, quranTaskLines, tathbeetLabels } from './quran.js';
@@ -11,7 +11,7 @@ import { workoutDayType, workoutTitle, workoutDesc } from './workout.js';
 const PRAYER_NOTE =
   'ملاحظات: التركيز وتدوين ما قُرئ في كل ركعة (أو ما قرأ الإمام) • تنويع أذكار الركوع والسجود بين الركعات • الدعاء في كل سجدة.';
 
-// مجموع نوم الوحدة المستهدف: نومة الضحى تكمّل ما نقص من نوم الليل
+// مجموع نوم اليوم المستهدف: نومة الضحى تكمّل ما نقص من نوم الليل
 const SLEEP_TARGET = 395; // ٦ س ٣٥ د
 const NAP_MIN = 45; // حدّا نومة الضحى
 const NAP_MAX = 240;
@@ -33,7 +33,7 @@ const KAHF_LINE = 'بين الأذان والإقامة: قراءة سورة ا�
 function fajrDesc(t) {
   return [
     '١. ترديد الأذان ودعاء ما بعد الأذان',
-    `٢. سنة الفجر — ${t[3]}`,
+    `٢. سنة الفجر — ${t[0]}`,
     `٣. ${POETRY_LINE}`,
     '٤. صلاة الفجر',
     '٥. أذكار الصلاة',
@@ -45,18 +45,18 @@ function fajrDesc(t) {
 
 function quranDesc(st, t) {
   const rows = quranTaskLines(st).map((l) => l.text);
-  rows.push(`سنة الضحى — ${t[4]}`);
+  rows.push(`سنة الضحى — ${t[1]}`);
   return rows.map((r, i) => `${arab(i + 1)}. ${r}`).join('\n');
 }
 
 function dhuhrDesc(t, friday) {
   return [
     '١. ترديد الأذان',
-    `٢. سنة الظهر القبلية — ${t[5]}`,
+    `٢. سنة الظهر القبلية — ${t[2]}`,
     `٣. ${friday ? KAHF_LINE : POETRY_LINE}`,
     `٤. ${friday ? 'صلاة الجمعة' : 'صلاة الظهر'}`,
     '٥. أذكار الصلاة',
-    `٦. سنة الظهر البعدية — ${t[6]}`,
+    `٦. سنة الظهر البعدية — ${t[3]}`,
     PRAYER_NOTE,
   ].join('\n');
 }
@@ -64,7 +64,7 @@ function dhuhrDesc(t, friday) {
 function asrDesc(t) {
   return [
     '١. ترديد الأذان',
-    `٢. سنة العصر — ${t[7]}`,
+    `٢. سنة العصر — ${t[4]}`,
     `٣. ${POETRY_LINE}`,
     '٤. صلاة العصر',
     '٥. أذكار الصلاة',
@@ -73,16 +73,16 @@ function asrDesc(t) {
   ].join('\n');
 }
 
-function maghribDesc(t, nightWeekend) {
-  // لا سنة قبلية للمغرب — وبين الأذان والإقامة وجبة رقم ٢ (وفي ليلتي الجمعة والسبت شعر، فالوجبة نهارًا)
+function maghribDesc(t, weekend) {
+  // لا سنة قبلية للمغرب — وبين الأذان والإقامة وجبة رقم ٢ (وفي الجمعة والسبت شعر، فالوجبة نهارًا)
   return [
     '١. ترديد الأذان ودعاء ما بعد الأذان',
-    `٢. ${nightWeekend ? POETRY_LINE : 'بين الأذان والإقامة: وجبة رقم ٢'}`,
+    `٢. ${weekend ? POETRY_LINE : 'بين الأذان والإقامة: وجبة رقم ٢'}`,
     '٣. صلاة المغرب',
     '٤. أذكار الصلاة',
     '٥. أذكار المساء',
     '٦. سبحان الله وبحمده (١٠٠ مرة)',
-    `٧. سنة المغرب — ${t[0]}`,
+    `٧. سنة المغرب — ${t[5]}`,
     PRAYER_NOTE,
   ].join('\n');
 }
@@ -90,78 +90,75 @@ function maghribDesc(t, nightWeekend) {
 function ishaDesc(t) {
   return [
     '١. ترديد الأذان',
-    `٢. سنة العشاء القبلية — ${t[1]}`,
+    `٢. سنة العشاء القبلية — ${t[6]}`,
     `٣. ${POETRY_LINE}`,
     '٤. صلاة العشاء',
     '٥. أذكار الصلاة',
-    `٦. سنة العشاء البعدية — ${t[2]}`,
+    `٦. سنة العشاء البعدية — ${t[7]}`,
     PRAYER_NOTE,
   ].join('\n');
 }
 
-// القيام: وجبة رقم ١ (السحور) إذا كان نهار الوحدة يوم عمل، وتُحذف إن كان جمعة أو سبتًا (وجباتهما نهارية)
+// القيام: وجبة رقم ١ (السحور) أيام الأحد–الخميس، وفي الجمعة والسبت تنتقل إلى نهارهما
 const QIYAM_BASE = ['١. صلاة الوتر', '٢. دعاء شامل', '٣. توبة', '٤. استغفار'];
 const QIYAM_DESC = [...QIYAM_BASE, '٥. وجبة رقم ١ (سحور)'].join('\n');
-const QIYAM_DESC_NO_MEAL = QIYAM_BASE.join('\n');
+const QIYAM_DESC_WEEKEND = QIYAM_BASE.join('\n');
 const FAMILY_DESC = '١. وقت مع الأسرة';
 // نهارا الجمعة والسبت «أسرة»: وجبة ١ قبل الظهر، ووجبة ٢ بعده، والجمعة وحدها فيها صلة رحم
 const ASRA_DAY_FRI = '١. وجبة رقم ١\n٢. وقت مع الأسرة\n٣. صلة رحم';
 const ASRA_DAY_SAT = '١. وجبة رقم ١\n٢. وقت مع الأسرة';
 const MEAL2_WEEKEND = '١. وجبة رقم ٢'; // الظهر←العصر، وتنتقل للعصر إن فاتت
-const MEAL3_WEEKEND = '١. وجبة رقم ٣'; // راحة ما بعد العشاء في ليلتي الجمعة والسبت
+const MEAL3_WEEKEND = '١. وجبة رقم ٣'; // راحة ما بعد العشاء
 // الجمعة بعد العصر: أسرة وساعة استجابة الدعاء قبل المغرب في بلوك واحد
 const ASRA_DUAA_DESC = '١. وقت مع الأسرة\n٢. ساعة استجابة الدعاء قبل المغرب — تفرّغ للدعاء';
 const WORK_DESC = 'مهام اليوم — تُكتب هنا (حرّر الوصف وأضف سطرًا لكل مهمة).';
 
-// وحدة اليوم dIso: من مغرب dIso إلى مغرب الغد — ١٦ حدثًا
-// ليلها من dIso نفسه، ونهارها من الغد: فالعمود يعرض ليلتك ثم نهارك القادم
+// وحدة اليوم dIso: من فجر اليوم إلى فجر الغد — ١٦ حدثًا (١٧ يوم الجمعة بساعة الدعاء)
+// أول اليوم صلاة الفجر، نهاره حتى المغرب، ثم ليله (المغرب ← فجر الغد) في العمود نفسه
 export function buildUnit(dIso) {
   const nextIso = addDays(dIso, 1);
-  const P1 = prayerTimes(dIso); // مغرب الوحدة وعشاؤها
-  const P2 = prayerTimes(nextIso); // نهار الوحدة كاملًا (فجر الغد ← مغربه)
+  const P1 = prayerTimes(dIso); // مواقيت اليوم كاملة
+  const P2 = prayerTimes(nextIso); // فجر الغد (نهاية الوحدة)
 
-  // كل الأزمنة دقائق منسوبة إلى منتصف ليل dIso (وأزمنة الغد تتجاوز 1440)
+  // كل الأزمنة دقائق منسوبة إلى منتصف ليل dIso (قد تتجاوز 1440)
+  const F = P1.fajr;
+  const SR = P1.sunrise;
+  const DH = P1.dhuhr;
+  const AS = P1.asr;
   const M = P1.maghrib;
   const ISH = P1.isha;
-  const F = P2.fajr + 1440;
-  const SR = P2.sunrise + 1440;
-  const DH = P2.dhuhr + 1440;
-  const AS = P2.asr + 1440;
-  const M2 = P2.maghrib + 1440; // نهاية الوحدة = بداية وحدة الغد
+  const F2 = P2.fajr + 1440;
 
-  const night = F - M;
+  const night = F2 - M;
   const third1 = M + Math.round(night / 3); // نهاية «أسرة» الليلية
   const third2 = M + Math.round((2 * night) / 3); // نهاية الثلث الثاني: يليه نوم
   const qiyamStart = third2 - QIYAM_MINUTES; // آخر ٤٥ دقيقة من الثلث الثاني
-
-  // قواعد الليل تتبع يوم الوحدة، وقواعد النهار تتبع الغد (0=الأحد … 5=الجمعة، 6=السبت)
-  const nightDay = dow(dIso);
-  const dayDay = dow(nextIso);
-  const nightWeekend = nightDay === 5 || nightDay === 6; // ليلتا الجمعة والسبت: وجبة ٣ ولا سحور
-  const friday = dayDay === 5; // نهار الجمعة
-  const saturday = dayDay === 6;
-  const dayWeekend = friday || saturday; // نهار أسرة بثلاث وجبات
+  const day = dow(dIso); // 0=الأحد … 5=الجمعة، 6=السبت
+  const friday = day === 5;
+  const saturday = day === 6;
+  const weekend = friday || saturday;
 
   // العمل متصل بعد التمرين، ثم نومة الضحى ملاصقة لبلوك الظهر.
   // النومة تكمّل نوم الليل حتى مجموع ثابت: فإن قلّ ليلُك طالت نومتك وقصر عملك
   // ويوم الجمعة يبدأ بلوك الظهر مبكرًا بساعة (تبكير الجمعة) فتنتهي النومة قبله
   const dhuhrStart = friday ? DH - 60 : DH;
   const trainEnd = SR + 90;
-  const nightSleep = ISH - (M + 30) + (F - third2);
+  const nightSleep = ISH - (M + 30) + (F2 - third2);
   const napLen = Math.max(
     NAP_MIN,
     Math.min(NAP_MAX, SLEEP_TARGET - nightSleep, dhuhrStart - trainEnd - WORK_MIN)
   );
   const napStart = dhuhrStart - napLen;
 
-  // كل سنن الوحدة (من المغرب إلى عصر الغد) على تثبيت الوحدة نفسها
+  // كل سنن الوحدة (من الفجر إلى العشاء) على تثبيت يومها نفسه
   const st = quranStateFor(dIso);
   const t = tathbeetLabels(st);
 
   const trainType = workoutDayType(dIso);
-  // نهارا الجمعة والسبت للأهل، وبعد عصر الجمعة «أسرة ودعاء» (ساعة الاستجابة داخله)
-  const workTitle = dayWeekend ? 'أسرة' : 'عمل';
-  const midTitle = dayWeekend ? 'أسرة' : 'عمل';
+  // نهارا الجمعة والسبت للأهل: الأول «أسرة»، وما بعده يجمع «أسرة وزوجة»،
+  // وبعد عصر الجمعة «أسرة ودعاء» (ساعة الاستجابة داخله)
+  const workTitle = weekend ? 'أسرة' : 'عمل';
+  const midTitle = weekend ? 'أسرة' : 'عمل';
   const lateTitle = friday ? 'أسرة ودعاء' : saturday ? 'أسرة' : 'عمل';
 
   const ev = [];
@@ -179,25 +176,25 @@ export function buildUnit(dIso) {
     });
   };
 
-  // ── الليل: من مغرب اليوم إلى فجر الغد ──
-  push('maghrib', 'المغرب', M, M + 30, 9, maghribDesc(t, nightWeekend));
-  push('sleep1', 'نوم', M + 30, ISH, 8); // من المغرب إلى العشاء
-  push('isha', 'العشاء', ISH, ISH + 45, 9, ishaDesc(t));
-  push('family', 'أسرة', ISH + 45, third1, 6, FAMILY_DESC);
-  push('rest', 'راحة', third1, qiyamStart, 8, nightWeekend ? MEAL3_WEEKEND : '', !nightWeekend);
-  push('qiyam', 'صلاة القيام', qiyamStart, third2, 9, dayWeekend ? QIYAM_DESC_NO_MEAL : QIYAM_DESC);
-  push('sleep2', 'نوم', third2, F, 8); // الثلث الأخير من الليل
-  // ── النهار: من فجر الغد إلى مغربه ──
+  // ── النهار: من الفجر إلى المغرب ──
   push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(t));
   push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
   push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
-  // العمل متصل من نهاية التمرين حتى نومة الضحى، والنومة ملاصقة لبلوك الظهر
+  // العمل متصل من نهاية التمرين حتى نومة الضحى، والنومة ملاصقة للظهر
   push('work1', workTitle, trainEnd, napStart, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
   push('nap', 'نوم', napStart, dhuhrStart, 8);
   push('dhuhr', friday ? 'الجمعة' : 'الظهر', dhuhrStart, DH + 45, 9, dhuhrDesc(t, friday));
-  push('work2', midTitle, DH + 45, AS, 6, dayWeekend ? MEAL2_WEEKEND : '');
+  push('work2', midTitle, DH + 45, AS, 6, weekend ? MEAL2_WEEKEND : '');
   push('asr', 'العصر', AS, AS + 45, 9, asrDesc(t));
-  push('work3', lateTitle, AS + 45, M2, 6, friday ? ASRA_DUAA_DESC : '');
+  push('work3', lateTitle, AS + 45, M, 6, friday ? ASRA_DUAA_DESC : '');
+  // ── الليل: من المغرب إلى فجر الغد ──
+  push('maghrib', 'المغرب', M, M + 30, 9, maghribDesc(t, weekend));
+  push('sleep1', 'نوم', M + 30, ISH, 8); // من المغرب إلى العشاء
+  push('isha', 'العشاء', ISH, ISH + 45, 9, ishaDesc(t));
+  push('family', 'أسرة', ISH + 45, third1, 6, FAMILY_DESC);
+  push('rest', 'راحة', third1, qiyamStart, 8, weekend ? MEAL3_WEEKEND : '', !weekend);
+  push('qiyam', 'صلاة القيام', qiyamStart, third2, 9, weekend ? QIYAM_DESC_WEEKEND : QIYAM_DESC);
+  push('sleep2', 'نوم', third2, F2, 8); // الثلث الأخير من الليل
   return ev;
 }
 

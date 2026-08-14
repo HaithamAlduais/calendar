@@ -78,9 +78,7 @@ export function DayPopup() {
             <MoonIcon className="size-5 text-emerald-600" />
             بدأ يوم {fmtDateLong(cur)}
           </DialogTitle>
-          <DialogDescription>
-            يومك يبدأ بصلاة المغرب: ليلتك ثم نهار الغد — هذا حصاد أمس وخطة اليوم.
-          </DialogDescription>
+          <DialogDescription>يومك يبدأ بصلاة الفجر — هذا حصاد أمس وخطة اليوم.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">

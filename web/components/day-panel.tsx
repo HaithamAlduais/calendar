@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { MistakeTracker } from "@/components/mistake-tracker"
 import { cn } from "@/lib/utils"
-import { addDays, arab } from "@/lib/engine/dates.js"
+import { arab } from "@/lib/engine/dates.js"
 import { quranStateFor } from "@/lib/engine/quran.js"
 import { strengthSnapshot } from "@/lib/engine/workout.js"
 import { checklistLines, durMin, fmtDateLong, fmtDur, dow } from "@/lib/format"
@@ -121,7 +121,7 @@ export function DayPanel({
   events: Ev[]
 }) {
   const [openPool, setOpenPool] = useState<string | null>(null)
-  const d = currentUnit() // وحدة اليوم تبدأ بصلاة المغرب
+  const d = currentUnit() // وحدة اليوم تبدأ بصلاة الفجر
   const dayEvents = events.filter((e) => e.unit === d)
   const donePools = completedQuranPools(events, d) // ما أنجزته اليوم من مواضع القرآن
 
@@ -166,14 +166,11 @@ export function DayPanel({
   const sum = (slots: string[]) =>
     dayEvents.filter((e) => slots.includes(e.slot || "")).reduce((a, e) => a + durMin(e), 0)
 
-  // التغذية: ليل الوحدة من يومها، ونهارها من الغد — فوجباتها تُجمع من الشطرين بالترتيب
-  const nightWeekend = dow(d) === 5 || dow(d) === 6 // ليلتا الجمعة والسبت: وجبة ٣ بعد العشاء
-  const dd = dow(addDays(d, 1))
-  const weekend = dd === 5 || dd === 6 // نهار الجمعة والسبت: أسرة بوجبتين نهاريتين
-  const meals = [
-    ...(nightWeekend ? ["٣ في الراحة بعد العشاء"] : ["٢ عند المغرب"]),
-    ...(weekend ? ["١ قبل الظهر", "٢ بعد الظهر"] : ["١ في القيام (سحور)"]),
-  ]
+  // التغذية: وجبتان أيام الأحد–الخميس، وثلاث في الجمعة والسبت
+  const weekend = dow(d) === 5 || dow(d) === 6
+  const meals = weekend
+    ? ["١ قبل الظهر", "٢ بعد الظهر", "٣ بعد العشاء"]
+    : ["١ في القيام (سحور)", "٢ عند المغرب"]
   const w = settings.weight || 70
   const tgt = nutritionTargets(w)
   const eaten = foodFor(d)
@@ -183,9 +180,7 @@ export function DayPanel({
       <SheetContent side="right" className="w-[320px] overflow-y-auto sm:w-[360px]">
         <SheetHeader>
           <SheetTitle>لوحة يوم {fmtDateLong(d)}</SheetTitle>
-          <p className="text-muted-foreground text-xs">
-            اليوم يبدأ بمغرب اليوم وينتهي بمغرب الغد — ليلته منه ونهاره من الغد
-          </p>
+          <p className="text-muted-foreground text-xs">اليوم يبدأ بصلاة الفجر وينتهي بفجر الغد</p>
         </SheetHeader>
         <div className="flex flex-col gap-4 px-4 pb-8">
           <Section title={`إنجاز اليوم ${arab(pct)}٪`}>
