@@ -11,7 +11,11 @@ import { workoutDayType, workoutTitle, workoutDesc } from './workout.js';
 const PRAYER_NOTE =
   'ملاحظات: التركيز وتدوين ما قُرئ في كل ركعة (أو ما قرأ الإمام) • تنويع أذكار الركوع والسجود بين الركعات • الدعاء في كل سجدة.';
 
-const NAP_MINUTES = 150; // نومة الضحى — بعد فترة العمل الأولى
+// مجموع نوم اليوم المستهدف: نومة الضحى تكمّل ما نقص من نوم الليل
+const SLEEP_TARGET = 395; // ٦ س ٣٥ د
+const NAP_MIN = 45; // حدّا نومة الضحى
+const NAP_MAX = 240;
+const WORK_MIN = 45; // أقل فترة عمل صباحية
 const QIYAM_MINUTES = 45; // القيام: آخر ٤٥ دقيقة من الثلث الثاني من الليل
 
 // الألوان (لوحة Google Calendar): 10 ريحان أخضر، 9 توت أزرق، 6 يوسفي برتقالي، 8 غرافيت رمادي
@@ -129,11 +133,15 @@ export function buildUnit(dIso) {
   const third1 = M + Math.round(night / 3); // نهاية «أسرة» الليلية
   const third2 = M + Math.round((2 * night) / 3); // نهاية الثلث الثاني: يليه نوم
   const qiyamStart = third2 - QIYAM_MINUTES; // آخر ٤٥ دقيقة من الثلث الثاني
-  // نومة الضحى بعد فترة العمل الأولى: يُقسم ما قبل الظهر نصفين حولها
+  // العمل متصل بعد التمرين، ثم نومة الضحى ملاصقة للظهر.
+  // النومة تكمّل نوم الليل حتى مجموع ثابت: فإن قلّ ليلُك طالت نومتك وقصر عملك
   const trainEnd = SR + 90;
-  const avail = Math.max(0, DH - trainEnd - NAP_MINUTES);
-  const work1End = trainEnd + Math.round(avail / 2);
-  const napEnd = Math.min(DH, work1End + NAP_MINUTES);
+  const nightSleep = ISH - (M + 30) + (F2 - third2);
+  const napLen = Math.max(
+    NAP_MIN,
+    Math.min(NAP_MAX, SLEEP_TARGET - nightSleep, DH - trainEnd - WORK_MIN)
+  );
+  const napStart = DH - napLen;
 
   const day = dow(dIso); // 0=الأحد … 5=الجمعة، 6=السبت
   const friday = day === 5;
@@ -170,14 +178,13 @@ export function buildUnit(dIso) {
   push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(t));
   push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
   push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
-  // العمل الأول ثم نومة الضحى ثم العمل الثاني حتى الظهر
-  push('work1', workTitle, trainEnd, work1End, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
-  push('nap', 'نوم', work1End, napEnd, 8); // نومة الضحى بين فترتي العمل
-  push('work2', midTitle, napEnd, DH, 6);
+  // العمل متصل من نهاية التمرين حتى نومة الضحى، والنومة ملاصقة للظهر
+  push('work1', workTitle, trainEnd, napStart, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
+  push('nap', 'نوم', napStart, DH, 8);
   push('dhuhr', 'الظهر', DH, DH + 45, 9, dhuhrDesc(t, friday));
-  push('work3', midTitle, DH + 45, AS, 6, weekend ? MEAL2_WEEKEND : '');
+  push('work2', midTitle, DH + 45, AS, 6, weekend ? MEAL2_WEEKEND : '');
   push('asr', 'العصر', AS, AS + 45, 9, asrDesc(t));
-  push('work4', lateTitle, AS + 45, M, 6, friday ? ASRA_DUAA_DESC : '');
+  push('work3', lateTitle, AS + 45, M, 6, friday ? ASRA_DUAA_DESC : '');
   // ── الليل: من المغرب إلى فجر الغد ──
   push('maghrib', 'المغرب', M, M + 30, 9, maghribDesc(t, weekend));
   push('sleep1', 'نوم', M + 30, ISH, 8); // من المغرب إلى العشاء

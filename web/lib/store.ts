@@ -30,8 +30,8 @@ export type Ev = {
   trainDate?: string // بلوك تمرين قضاء: تاريخ الجلسة الأصلية (أمس)
 }
 
-export const SCHEDULE_START = "2026-08-13" // بداية جديدة (الخميس ١٣ أغسطس) — نسينا ما قبلها
-const BLOCK_START = "2026-08-13" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
+export const SCHEDULE_START = "2026-08-14" // بداية جديدة (الجمعة ١٤ أغسطس) — نسينا ما قبلها
+const BLOCK_START = "2026-08-14" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
 
 const K = {
   done: "hc.done.v1",
@@ -244,7 +244,7 @@ function windowEnd(): string {
 }
 
 // البلوكات التي تستقبل مهام Google: بلوكات العمل/الأسرة والراحة
-const GOOGLE_HOST_SLOTS = ["work1", "work2", "work3", "work4", "family", "rest"]
+const GOOGLE_HOST_SLOTS = ["work1", "work2", "work3", "family", "rest"]
 const NUMBERED_RE = /^[٠-٩]+\.\s/
 
 function fmt12Short(hhmm: string): string {
@@ -319,7 +319,7 @@ export function isAutoDone(ev: Ev): boolean {
 
 // ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى البلوك المستقبِل القادم ──
 // المستقبِلات بالترتيب الزمني: بلوكات العمل/الأسرة ثم أسرة الليل وراحته — والنوم لا يستقبل شيئًا
-const WORK_SLOTS = ["work1", "work2", "work3", "work4", "family", "rest"]
+const WORK_SLOTS = ["work1", "work2", "work3", "family", "rest"]
 
 export type Makeup = {
   destId: string

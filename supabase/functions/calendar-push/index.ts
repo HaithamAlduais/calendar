@@ -63,7 +63,7 @@ function fromEpochDay(e: number) {
 const epochDayRiyadhNow = () => Math.floor((Date.now() + TZ * 3600e3) / DAYMS)
 
 // دورة التمرين المتتابعة (لا علاقة لها بأيام الأسبوع): تبدأ الأحد ٩ أغسطس ٢٠٢٦
-const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 13) / DAYMS)
+const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 14) / DAYMS)
 function trainTitle(epochDay: number): string {
   const off = epochDay - GYM_EPOCH
   if (off < 0 || off % 2 === 1) return "تطوير"
@@ -80,17 +80,18 @@ function unitEvents(epochDay: number): { title: string; minute: number }[] {
   const night = F2 - M
   const t1 = M + Math.round(night / 3) // نهاية أسرة الليلية
   const t2 = M + Math.round((2 * night) / 3) // نهاية الثلث الثاني: يليه نوم
+  // العمل متصل بعد التمرين، ونومة الضحى ملاصقة للظهر وتكمّل نوم الليل حتى ٦ س ٣٥ د
   const trainEnd = SR + 90
-  const avail = Math.max(0, DH - trainEnd - 150)
-  const work1End = trainEnd + Math.round(avail / 2) // العمل الأول ثم راحة الضحى
-  const napEnd = Math.min(DH, work1End + 150)
+  const nightSleep = ISH - (M + 30) + (F2 - t2)
+  const napLen = Math.max(45, Math.min(240, 395 - nightSleep, DH - trainEnd - 45))
+  const napStart = DH - napLen
   const dow = cur.dow, friday = dow === 5, weekend = dow === 5 || dow === 6
   const work = weekend ? "أسرة" : "عمل"
   const late = friday ? "أسرة ودعاء" : weekend ? "أسرة" : "عمل"
   const train = trainTitle(epochDay)
   const ev: [string, number][] = [
     ["الفجر", F], ["قرآن وسنة الضحى", F + 45], [train, SR + 15], [work, trainEnd],
-    ["نوم", work1End], [work, napEnd], ["الظهر", DH], [work, DH + 45],
+    ["نوم", napStart], ["الظهر", DH], [work, DH + 45],
     ["العصر", AS], [late, AS + 45],
     ["المغرب", M], ["نوم", M + 30], ["العشاء", ISH], ["أسرة", ISH + 45],
     ["راحة", t1], ["صلاة القيام", t2 - 45], ["نوم", t2],
