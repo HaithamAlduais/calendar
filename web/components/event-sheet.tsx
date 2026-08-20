@@ -7,6 +7,7 @@ import {
   ClockAlertIcon,
   DumbbellIcon,
   FastForwardIcon,
+  ListChecksIcon,
   PlusIcon,
   Share2Icon,
   Trash2Icon,
@@ -24,6 +25,7 @@ import { shareEventImage } from "@/lib/share"
 import {
   addTask,
   checksFor,
+  dayTasks,
   earlyMap,
   hasOldMistakes,
   isAutoDone,
@@ -33,14 +35,13 @@ import {
   mistakePoolFor,
   nowStamp,
   numberedIdx,
-  planFor,
   removeTask,
-  sessionProgress,
-  setsDoneCount,
   TASK_SLOTS,
   tasksFor,
+  isDone,
   toggleCheck,
   toggleDone,
+  type DayTask,
   type Early,
   type Ev,
   type Makeup,
@@ -59,6 +60,7 @@ export function EventSheet({
   onOpen?: (ev: Ev) => void
 }) {
   const [taskText, setTaskText] = useState("")
+  const [openTrain, setOpenTrain] = useState<string | null>(null)
   if (!ev) return <Sheet open={false}>{null}</Sheet>
 
   const lines = checklistLines(ev.desc)
@@ -67,7 +69,6 @@ export function EventSheet({
   const doneItems = items.filter((l) => checked.has(l.idx)).length
   // المهام اليدوية تُضاف في بلوكات العمل والأسرة والراحة
   const isTaskHost = !ev.external && TASK_SLOTS.includes(ev.slot || "")
-  const isWorkout = ev.slot === "train" && !ev.external && ev.title.startsWith("تمرين")
   const auto = isAutoDone(ev) // اكتمل ببنوده فلا حاجة لزر الإنجاز
   // زر الحذف لمهامك اليدوية فقط — بنود Google المدموجة تُدار من تقويم Google نفسه
   const myTasks = isTaskHost ? tasksFor(ev.unit!, ev.slot!) : []
@@ -89,6 +90,10 @@ export function EventSheet({
   const makeups: Makeup[] = map.get(ev.id) || []
   // التقديم: بنود بلوكات لاحقة من الوحدة نفسها يمكن أداؤها هنا
   const earlies: Early[] = earlyMap(events, now).get(ev.id) || []
+  // مهمتا اليوم (القرآن والتمرين/التطوير) تظهران في كل بلوك مهام — والقرآن أصلًا داخل بلوكه
+  const today: DayTask[] = isTaskHost
+    ? dayTasks(events, ev.unit!).filter((g) => !(g.kind === "quran" && ev.slot === "quran"))
+    : []
   const pendingHere = missed ? numberedIdx(ev.desc).filter((i) => !checked.has(i)) : []
   let destTitle = ""
   if (missed && pendingHere.length) {
@@ -134,24 +139,20 @@ export function EventSheet({
                 فات وقت هذا البلوك
               </div>
               <p className="text-muted-foreground text-xs leading-relaxed">
-                {isWorkout
-                  ? "أكمل جلساته من هنا قضاءً — وإن لم يكتمل اليوم فسينتقل غدًا إلى بلوك التطوير (يوم واحد فقط ثم يُحذف)."
-                  : pendingHere.length === 0
-                    ? "لا بنود معلّقة."
-                    : destTitle
-                      ? `انتقل ${arab(pendingHere.length)} من بنوده غير المنجزة إلى «${destTitle}» — أشّرها هناك قضاءً، وستُحتسب نصف إنجاز ½.`
-                      : `انقضى يومه و${arab(pendingHere.length)} من بنوده لم تُنجز — لا يمكن قضاؤها الآن. اجعل غدك أفضل.`}
+                {pendingHere.length === 0
+                  ? "لا بنود معلّقة."
+                  : destTitle
+                    ? `انتقل ${arab(pendingHere.length)} من بنوده غير المنجزة إلى «${destTitle}» — أشّرها هناك قضاءً، وستُحتسب نصف إنجاز ½.`
+                    : `انقضى يومه و${arab(pendingHere.length)} من بنوده لم تُنجز — لا يمكن قضاؤها الآن. اجعل غدك أفضل.`}
               </p>
             </div>
           )}
 
-          {isWorkout && <WorkoutSheet date={ev.trainDate ?? ev.unit!} />}
-
-          {!isWorkout && items.length > 0 && (
+          {items.length > 0 && (
             <Progress value={(doneItems / items.length) * 100} className="h-1.5" />
           )}
 
-          {!isWorkout && lines.length > 0 && (
+          {lines.length > 0 && (
             <div className="flex flex-col gap-1">
               {lines.map((l) => {
                 if (!l.item || ev.external)
@@ -203,6 +204,71 @@ export function EventSheet({
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* مهام اليوم: القرآن والتمرين — تظهران في كل بلوك مهام حتى تُنجزا */}
+          {today.length > 0 && !missed && (
+            <div className="rounded-lg border border-emerald-600/40 bg-emerald-500/5 p-2">
+              <div className="mb-1 flex items-center gap-1.5 px-1 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                <ListChecksIcon className="size-4" />
+                مهام اليوم — {arab(today.length)}
+              </div>
+              <div className="flex flex-col gap-1">
+                {today.map((g) => {
+                  if (g.kind === "quran")
+                    return (
+                      <div key="quran" className="rounded-md border border-emerald-600/30 p-1">
+                        <div className="px-1 pb-1 text-xs font-medium">القرآن</div>
+                        {g.lines.map((l) => (
+                          <label
+                            key={l.idx}
+                            className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm"
+                          >
+                            <Checkbox
+                              checked={false}
+                              onCheckedChange={() => toggleCheck(g.srcId, l.idx, false)}
+                              className="mt-0.5"
+                            />
+                            <span className="leading-relaxed">{l.text}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )
+                  if (g.kind === "dev")
+                    return (
+                      <label
+                        key={g.id}
+                        className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm"
+                      >
+                        <Checkbox
+                          checked={isDone(g.id)}
+                          onCheckedChange={() => toggleDone(g.id)}
+                          className="mt-0.5"
+                        />
+                        <span className="leading-relaxed">{g.title}</span>
+                      </label>
+                    )
+                  return (
+                    <div key={g.date} className="flex flex-col gap-1">
+                      <button
+                        onClick={() => setOpenTrain(openTrain === g.date ? null : g.date)}
+                        className="hover:bg-muted flex items-center gap-3 rounded-md border border-emerald-600/30 p-2 text-start text-sm"
+                      >
+                        <DumbbellIcon className="size-4 flex-none text-emerald-600" />
+                        <span className="leading-relaxed">
+                          {g.title} — {arab(g.done)}/{arab(g.total)} جلسة
+                          {g.carried ? " (قضاء أمس)" : ""}
+                        </span>
+                      </button>
+                      {openTrain === g.date && <WorkoutSheet date={g.date} />}
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-muted-foreground px-1 pt-1 text-[11px]">
+                مهمتا يومك تظهران في كل بلوك مهام — أدّهما في أيّها شئت، وما تُنجزه يختفي من البقية.
+              </p>
             </div>
           )}
 
@@ -346,25 +412,7 @@ export function EventSheet({
             <Button
               variant="outline"
               className="flex-1 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
-              onClick={() => {
-                if (isWorkout) {
-                  const td = ev.trainDate ?? ev.unit!
-                  const plan = planFor(td)
-                  const lines = (plan?.items || []).map((it) => {
-                    const n = setsDoneCount(td, it)
-                    const detail =
-                      it.kind === "reps"
-                        ? ` — ${arab(it.reps!)} عدات @ ${it.weight == null ? "—" : `${arab(it.weight)} كجم`}`
-                        : it.kind === "hold"
-                          ? ` — ${arab(it.seconds!)} ث`
-                          : ""
-                    return `${n >= it.sets ? "✅" : "⬜"} ${it.name}${detail} (${arab(n)}/${arab(it.sets)})`
-                  })
-                  shareEventImage(ev, new Set(), { prog: sessionProgress(ev.trainDate ?? ev.unit!), lines })
-                } else {
-                  shareEventImage(ev, new Set(checksFor(ev.id)))
-                }
-              }}
+              onClick={() => shareEventImage(ev, new Set(checksFor(ev.id)))}
             >
               <Share2Icon />
               مشاركة واتساب

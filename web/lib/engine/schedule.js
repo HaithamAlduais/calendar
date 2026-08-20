@@ -6,7 +6,6 @@
 import { addDays, dow, minToDateTime, arab } from './dates.js';
 import { prayerTimes } from './prayers.js';
 import { quranStateFor, quranTaskLines, tathbeetLabels } from './quran.js';
-import { workoutDayType, workoutTitle, workoutDesc } from './workout.js';
 
 const PRAYER_NOTE =
   'ملاحظات: التركيز وتدوين ما قُرئ في كل ركعة (أو ما قرأ الإمام) • تنويع أذكار الركوع والسجود بين الركعات • الدعاء في كل سجدة.';
@@ -39,14 +38,14 @@ function fajrDesc(t) {
     '٥. أذكار الصلاة',
     '٦. أذكار الصباح',
     '٧. لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير (١٠٠ مرة)',
+    `٨. سنة الضحى — ${t[1]}`,
     PRAYER_NOTE,
   ].join('\n');
 }
 
-function quranDesc(st, t) {
-  const rows = quranTaskLines(st).map((l) => l.text);
-  rows.push(`سنة الضحى — ${t[1]}`);
-  return rows.map((r, i) => `${arab(i + 1)}. ${r}`).join('\n');
+// بلوك «مهام» الصباحي: بنود القرآن فقط — والتمرين/التطوير مهمة يومية عائمة تُعرض في كل بلوك مهام
+function quranDesc(st) {
+  return quranTaskLines(st).map((l, i) => `${arab(i + 1)}. ${l.text}`).join('\n');
 }
 
 function dhuhrDesc(t, friday) {
@@ -112,6 +111,7 @@ const MEAL3_WEEKEND = '١. وجبة رقم ٣'; // راحة ما بعد العش
 // الجمعة بعد العصر: أسرة وساعة استجابة الدعاء قبل المغرب في بلوك واحد
 const ASRA_DUAA_DESC = '١. وقت مع الأسرة\n٢. ساعة استجابة الدعاء قبل المغرب — تفرّغ للدعاء';
 const WORK_DESC = 'مهام اليوم — تُكتب هنا (حرّر الوصف وأضف سطرًا لكل مهمة).';
+export const TASKS_TITLE = 'مهام'; // كل بلوكات العمل صارت «مهام»
 
 // وحدة اليوم dIso: من فجر اليوم إلى فجر الغد — ١٦ حدثًا (١٧ يوم الجمعة بساعة الدعاء)
 // أول اليوم صلاة الفجر، نهاره حتى المغرب، ثم ليله (المغرب ← فجر الغد) في العمود نفسه
@@ -154,12 +154,11 @@ export function buildUnit(dIso) {
   const st = quranStateFor(dIso);
   const t = tathbeetLabels(st);
 
-  const trainType = workoutDayType(dIso);
   // نهارا الجمعة والسبت للأهل: الأول «أسرة»، وما بعده يجمع «أسرة وزوجة»،
   // وبعد عصر الجمعة «أسرة ودعاء» (ساعة الاستجابة داخله)
-  const workTitle = weekend ? 'أسرة' : 'عمل';
-  const midTitle = weekend ? 'أسرة' : 'عمل';
-  const lateTitle = friday ? 'أسرة ودعاء' : saturday ? 'أسرة' : 'عمل';
+  const workTitle = weekend ? 'أسرة' : TASKS_TITLE;
+  const midTitle = weekend ? 'أسرة' : TASKS_TITLE;
+  const lateTitle = friday ? 'أسرة ودعاء' : saturday ? 'أسرة' : TASKS_TITLE;
 
   const ev = [];
   const push = (slot, title, start, end, colorId, desc = '', transparent = false) => {
@@ -178,8 +177,8 @@ export function buildUnit(dIso) {
 
   // ── النهار: من الفجر إلى المغرب ──
   push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(t));
-  push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
-  push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
+  // بلوك مهام واحد بدل بلوكي القرآن والتمرين — ومهمتا اليوم (القرآن والتمرين) تُعرضان في كل بلوك مهام
+  push('quran', TASKS_TITLE, F + 45, trainEnd, 10, quranDesc(st));
   // النومة تلي التمرين مباشرة، ثم العمل متصل منها حتى بلوك الظهر
   push('nap', 'نوم', trainEnd, napEnd, 8);
   push('work1', workTitle, napEnd, dhuhrStart, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);

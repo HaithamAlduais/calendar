@@ -30,21 +30,21 @@ export type Ev = {
   trainDate?: string // بلوك تمرين قضاء: تاريخ الجلسة الأصلية (أمس)
 }
 
-export const SCHEDULE_START = "2026-08-15" // بداية جديدة (السبت ١٥ أغسطس) — نسينا ما قبلها
-const BLOCK_START = "2026-08-15" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
+export const SCHEDULE_START = "2026-08-21" // بداية جديدة (الجمعة ٢١ أغسطس) — نسينا ما قبلها
+const BLOCK_START = "2026-08-21" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
 
 // كل بداية جديدة ترفع أرقام المفاتيح فتبدأ الحالة فارغة (الإعدادات وحدها تبقى)
 const K = {
-  done: "hc.done.v3",
-  checks: "hc.checks.v3",
-  tasks: "hc.tasks.v3", // لكل بلوك مهامه: تاريخ ← slot ← مهام
-  food: "hc.food.v3",
+  done: "hc.done.v4",
+  checks: "hc.checks.v4",
+  tasks: "hc.tasks.v4", // لكل بلوك مهامه: تاريخ ← slot ← مهام
+  food: "hc.food.v4",
   settings: "hc.settings.v2",
-  pulled: "hc.pulled.v3",
-  lastSeen: "hc.lastseen.v3",
-  gym: "hc.gym.v3",
-  late: "hc.late.v3",
-  mistakes: "hc.mistakes.v3",
+  pulled: "hc.pulled.v4",
+  lastSeen: "hc.lastseen.v4",
+  gym: "hc.gym.v4",
+  late: "hc.late.v4",
+  mistakes: "hc.mistakes.v4",
 }
 
 const isClient = typeof window !== "undefined"
@@ -247,8 +247,9 @@ function windowEnd(): string {
 }
 
 // البلوكات التي تستقبل مهام Google: بلوكات العمل/الأسرة والراحة
-const GOOGLE_HOST_SLOTS = ["work1", "work2", "work3", "family", "rest"]
+const GOOGLE_HOST_SLOTS = ["quran", "work1", "work2", "work3", "family", "rest"]
 const NUMBERED_RE = /^[٠-٩]+\.\s/
+const NL = String.fromCharCode(10)
 
 function fmt12Short(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number)
@@ -269,7 +270,7 @@ export function numberedIdx(desc?: string): number[] {
 // ترتيب السنن زمنيًا: [slot الحدث، فهرس السطر] — و-١ تعني آخر سطر (سنة الضحى في بلوك القرآن)
 const TATHBEET_SEQ: [string, number][] = [
   ["fajr", 1],
-  ["quran", -1],
+  ["fajr", 7], // سنة الضحى انتقلت إلى بلوك الفجر
   ["dhuhr", 1],
   ["dhuhr", 5],
   ["asr", 1],
@@ -281,9 +282,8 @@ const TATHBEET_SEQ: [string, number][] = [
 // خريطة الإزاحة لكل وحدة: رقم السنّة ← نصف الحزب المعروض فيها
 const shiftCache = new Map<string, number[]>()
 
-function tathbeetLineIdx(seqIdx: number, st: { hifzMode: string }): number {
-  const li = TATHBEET_SEQ[seqIdx][1]
-  return li === -1 ? quranTaskLines(st).length : li // سنة الضحى بعد بنود القرآن المتغيّرة
+function tathbeetLineIdx(seqIdx: number): number {
+  return TATHBEET_SEQ[seqIdx][1]
 }
 
 // نصف الحزب المعروض في السنّة i = i − (عدد السنن الفائتة قبلها)
@@ -296,7 +296,7 @@ function computeShift(unitEvents: Ev[], st: { hifzMode: string }, now: string): 
     const [slot] = TATHBEET_SEQ[i]
     const ev = unitEvents.find((e) => e.slot === slot)
     if (!ev) continue
-    const line = tathbeetLineIdx(i, st)
+    const line = tathbeetLineIdx(i)
     if (ev.end <= now && !checksFor(ev.id).includes(line)) missed++ // فاتت ولم تُقرأ
   }
   return out
@@ -310,10 +310,6 @@ function shiftedPortion(unit: string, seqIdx: number): number {
 // إنجاز تلقائي: البلوك يُعدّ منجزًا متى أُنجزت كل بنوده (أو كل جلسات تمرينه)
 export function isAutoDone(ev: Ev): boolean {
   if (ev.external) return false
-  if (ev.slot === "train") {
-    const p = sessionProgress(ev.trainDate ?? ev.unit!)
-    return p.total > 0 && p.done >= p.total
-  }
   const idx = numberedIdx(ev.desc)
   if (!idx.length) return false
   const marked = new Set(checksFor(ev.id))
@@ -322,7 +318,7 @@ export function isAutoDone(ev: Ev): boolean {
 
 // ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى البلوك المستقبِل القادم ──
 // المستقبِلات بالترتيب الزمني: بلوكات العمل/الأسرة ثم أسرة الليل وراحته — والنوم لا يستقبل شيئًا
-const WORK_SLOTS = ["work1", "work2", "work3", "family", "rest"]
+const WORK_SLOTS = ["quran", "work1", "work2", "work3", "family", "rest"]
 // البلوكات التي تقبل مهامك اليدوية — عمل وأسرة وراحة
 export const TASK_SLOTS = WORK_SLOTS
 
@@ -341,10 +337,8 @@ export type Makeup = {
 // تعليمه ✅ يدويًا تصريحٌ بإنجازه كاملًا: يُغلق فلا يفوت ولا تُرحَّل بنوده
 export function isMissed(ev: Ev, now: string): boolean {
   if (ev.external || ev.done || ev.end > now) return false
-  if (ev.slot === "train") {
-    const p = sessionProgress(ev.trainDate ?? ev.unit!)
-    return p.total > 0 && p.done < p.total
-  }
+  // بلوك «مهام» الصباحي لا يفوت: مهمتاه متاحتان في كل بلوك مهام طوال اليوم
+  if (ev.slot === "quran") return false
   const idx = numberedIdx(ev.desc)
   if (!idx.length) return false
   const marked = new Set(checksFor(ev.id))
@@ -375,7 +369,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   if (prevU >= SCHEDULE_START) {
     let turn = 0
     for (const ev of events) {
-      if (ev.unit !== prevU || ev.external || ev.done || ev.slot === "train") continue
+      if (ev.unit !== prevU || ev.external || ev.done) continue
       const marked = new Set(checksFor(ev.id))
       const lines = (ev.desc || "").split("\n")
       for (const i of numberedIdx(ev.desc)) {
@@ -396,24 +390,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
 
   for (const ev of sorted) {
     if (ev.external || ev.done || ev.end > now) continue
-    // التمرين الفائت: بطاقة تُفتح من بلوك العمل وتُكمل جلساته قضاءً
-    if (ev.slot === "train") {
-      const td = ev.trainDate ?? ev.unit!
-      const p = sessionProgress(td)
-      if (p.total > 0 && p.done < p.total) {
-        const dest = dests.find((d) => d.start >= ev.end) || dests[0]
-        push(dest.id, {
-          destId: dest.id,
-          srcId: ev.id,
-          srcTitle: ev.title,
-          srcStart: ev.start,
-          idx: -1,
-          kind: "train",
-          text: `${ev.title} — ${arab(p.done)}/${arab(p.total)} جلسة، أكمله قضاءً`,
-        })
-      }
-      continue
-    }
+    if (ev.slot === "quran") continue // مهمتا اليوم عائمتان بإنجاز كامل، فلا تُقضيان
     const idx = numberedIdx(ev.desc)
     if (!idx.length) continue
     const marked = new Set(checksFor(ev.id))
@@ -449,7 +426,7 @@ export type Early = {
 }
 
 // مصادر التقديم: التمرين وبلوكات العمل/الأسرة/الراحة — أما الصلوات والقرآن فلكلٍّ وقته
-const EARLY_SRC_SLOTS = [...WORK_SLOTS, "train"]
+const EARLY_SRC_SLOTS = WORK_SLOTS
 
 export function earlyMap(events: Ev[], now: string): Map<string, Early[]> {
   const map = new Map<string, Early[]>()
@@ -463,22 +440,7 @@ export function earlyMap(events: Ev[], now: string): Map<string, Early[]> {
     const list: Early[] = []
     for (const src of sorted) {
       if (src.id === dest.id || src.start < dest.end) continue // اللاحق فقط
-      if (!EARLY_SRC_SLOTS.includes(src.slot || "") || src.done) continue
-      if (src.slot === "train") {
-        const td = src.trainDate ?? src.unit!
-        const p = sessionProgress(td)
-        if (p.total > 0 && p.done < p.total)
-          list.push({
-            destId: dest.id,
-            srcId: src.id,
-            srcTitle: src.title,
-            srcStart: src.start,
-            idx: -1,
-            kind: "train",
-            text: `${src.title} — ${arab(p.done)}/${arab(p.total)} جلسة، قدّمه الآن`,
-          })
-        continue
-      }
+      if (!EARLY_SRC_SLOTS.includes(src.slot || "") || src.done || src.slot === "quran") continue
       const marked = new Set(checksFor(src.id))
       const lines = (src.desc || "").split("\n")
       for (const i of numberedIdx(src.desc)) {
@@ -515,10 +477,53 @@ function trainCarry(): { from: string; to: string } | null {
   return { from: prevU, to: cu }
 }
 
+// ── مهمتا اليوم العائمتان: القرآن والتمرين/التطوير ──
+// تظهران في كل بلوك مهام (وأسرة وراحة) — تؤدّيهما في أيّها شئت، ومتى أُنجزت واحدة اختفت من البقية
+export type DayTask =
+  | { kind: "quran"; srcId: string; lines: { idx: number; text: string }[] }
+  | { kind: "train"; date: string; title: string; done: number; total: number; carried?: boolean }
+  | { kind: "dev"; id: string; title: string }
+
+export function dayTasks(events: Ev[], unit: string): DayTask[] {
+  const out: DayTask[] = []
+  const qEv = events.find((e) => e.unit === unit && e.slot === "quran")
+  if (qEv && !qEv.done) {
+    const n = quranTaskLines(quranStateFor(unit)).length // بنود القرآن وحدها دون مهامك اليدوية
+    const marked = new Set(checksFor(qEv.id))
+    const src = (qEv.desc || "").split(NL)
+    const pending = numberedIdx(qEv.desc)
+      .filter((k) => k < n && !marked.has(k))
+      .map((k) => ({ idx: k, text: src[k].replace(NUMBERED_RE, "") }))
+    if (pending.length) out.push({ kind: "quran", srcId: qEv.id, lines: pending })
+  }
+  // تمرين أمس غير المكتمل يُرحَّل يومًا واحدًا فيظهر إلى جانب مهمة اليوم
+  const carry = trainCarry()
+  if (carry && carry.to === unit) {
+    const p = sessionProgress(carry.from)
+    out.push({
+      kind: "train",
+      date: carry.from,
+      carried: true,
+      title: `قضاء ${workoutTitle(carry.from)}`,
+      done: p.done,
+      total: p.total,
+    })
+  }
+  const id = `${unit}#train`
+  if (!done[id]) {
+    if (workoutDayType(unit) === 0) out.push({ kind: "dev", id, title: "تطوير" })
+    else {
+      const p = sessionProgress(unit)
+      if (p.total === 0 || p.done < p.total)
+        out.push({ kind: "train", date: unit, title: workoutTitle(unit), done: p.done, total: p.total })
+    }
+  }
+  return out
+}
+
 // كل أحداث النافذة مع تراكب المهام وحالة الإنجاز، وأحداث Google مدموجة كمهام داخل بلوكاتها
 export function allEvents(): Ev[] {
   const pulledEvents = getPulled().events
-  const carry = trainCarry()
   const now = nowStamp()
   const out: Ev[] = []
   const byUnit = new Map<string, Ev[]>()
@@ -538,7 +543,7 @@ export function allEvents(): Ev[] {
       const [slot] = TATHBEET_SEQ[i]
       const ev = evs.find((e) => e.slot === slot)
       if (!ev) continue
-      const li = tathbeetLineIdx(i, st)
+      const li = tathbeetLineIdx(i)
       const lines = ev.desc.split("\n")
       if (!lines[li]) continue
       const cut = lines[li].indexOf(" — ") // ما قبل أول شرطة هو اسم السنّة
@@ -548,28 +553,16 @@ export function allEvents(): Ev[] {
     }
   }
   for (const ev of [...byUnit.values()].flat()) {
-    // التمرين المُرحَّل يحل محل «تطوير» اليوم، والتطوير ينتقل مهمةً لبلوك العمل
-    if (carry && ev.unit === carry.to && ev.slot === "train") {
-      ev.trainDate = carry.from
-      ev.title = `تمرين — قضاء ${workoutTitle(carry.from).replace("تمرين — ", "")}`
-      ev.desc = ""
-    }
     // مهامك اليدوية تُضاف بعد بنود البلوك الثابتة (وبلوك العمل الفارغ تصير هي بنوده)
     if (WORK_SLOTS.includes(ev.slot || "")) {
       const list = tasksFor(ev.unit!, ev.slot!)
       if (list.length) {
-        const base = ev.slot === "work1" && ev.title === "عمل" ? [] : ev.desc ? ev.desc.split("\n") : []
+        const base = ev.slot === "work1" ? [] : ev.desc ? ev.desc.split("\n") : []
         let n = base.filter((l) => NUMBERED_RE.test(l)).length
         ev.desc = [...base, ...list.map((t) => `${arab(++n)}. ${t}`)].join("\n")
-      } else if (ev.slot === "work1" && ev.title === "عمل" && !carry) {
-        ev.desc = "" // لا مهام اليوم: يبقى البلوك فارغًا بلا بنود
+      } else if (ev.slot === "work1") {
+        ev.desc = "" // بلوك المهام الأول: بنوده مهامك وحدها
       }
-    }
-    // التطوير المُزاح (حلّ محلّه قضاء تمرين أمس) ينتقل مهمةً إلى بلوك الصباح
-    if (ev.slot === "work1" && carry && ev.unit === carry.to) {
-      const base = ev.title === "عمل" && !tasksFor(ev.unit!, "work1").length ? [] : ev.desc ? ev.desc.split("\n") : []
-      let n = base.filter((l) => NUMBERED_RE.test(l)).length
-      ev.desc = [...base, `${arab(++n)}. تطوير — انتقل من بلوك الصباح (قضاء التمرين مكانه)`].join("\n")
     }
     // أحداث Google التي تبدأ داخل هذا البلوك تصير بنود مهام فيه (وما خارج هذه البلوكات يُهمل)
     if (GOOGLE_HOST_SLOTS.includes(ev.slot || "")) {
@@ -639,12 +632,10 @@ export function mistakePoolFor(ev: Ev, lineIdx: number): string | null {
   const st = quranStateFor(ev.unit)
   if (ev.slot === "quran") {
     const task = quranTaskLines(st)
-    if (lineIdx < task.length) return task[lineIdx].pool
-    if (lineIdx === task.length) return tathbeetPoolKey(st, shiftedPortion(ev.unit, 1)) // سنة الضحى
-    return null
+    return lineIdx < task.length ? task[lineIdx].pool : null // وما بعدها مهامك اليدوية
   }
   const seqIdx = TATHBEET_SEQ.findIndex(
-    ([slot], i) => slot === ev.slot && tathbeetLineIdx(i, st) === lineIdx
+    ([slot], i) => slot === ev.slot && tathbeetLineIdx(i) === lineIdx
   )
   if (seqIdx < 0) return null
   return tathbeetPoolKey(st, shiftedPortion(ev.unit, seqIdx))

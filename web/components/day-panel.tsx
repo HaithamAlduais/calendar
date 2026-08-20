@@ -252,8 +252,8 @@ export function DayPanel({
 
           <Section title="ساعات اليوم">
             <Row
-              label={weekend ? "أسرة (النهار)" : "عمل"}
-              value={fmtDur(sum(["work1", "work2", "work3"]))}
+              label={weekend ? "أسرة (النهار)" : "مهام"}
+              value={fmtDur(sum(["quran", "work1", "work2", "work3"]))}
             />
             <Row label="راحة" value={fmtDur(sum(["rest"]))} />
             <Row label="نوم" value={fmtDur(sum(["nap", "sleep1", "sleep2"]))} />

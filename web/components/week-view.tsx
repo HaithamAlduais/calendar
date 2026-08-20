@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { addDays, arab, parseIso } from "@/lib/engine/dates.js"
 import { dayName } from "@/lib/format"
-import { currentUnit, makeupMap, nowStamp, type Ev } from "@/lib/store"
+import { currentUnit, dayTasks, makeupMap, nowStamp, TASK_SLOTS, type Ev } from "@/lib/store"
 import { EventChip } from "@/components/event-chip"
 
 // شطر الليل من الوحدة: من المغرب إلى فجر الغد
@@ -19,6 +19,7 @@ function Section({
   isCur,
   now,
   mk,
+  dayCount,
   onOpen,
 }: {
   label: string
@@ -28,6 +29,7 @@ function Section({
   isCur: boolean
   now: string
   mk: Map<string, unknown[]>
+  dayCount: number
   onOpen: (ev: Ev) => void
 }) {
   if (!chips.length) return null
@@ -53,6 +55,7 @@ function Section({
               now={now}
               current={isCur && e.start <= now && e.end > now}
               makeupCount={mk.get(e.id)?.length || 0}
+              dayCount={TASK_SLOTS.includes(e.slot || "") && !e.external ? dayCount : 0}
               onOpen={onOpen}
             />
             {nowHere && (
@@ -99,6 +102,7 @@ export function WeekView({
         const unitEvs = events
           .filter((e) => e.unit === d)
           .sort((a, b) => (a.start < b.start ? -1 : 1))
+        const dayCount = dayTasks(unitEvs, d).length // مهمتا القرآن والتمرين ما لم تُنجزا
         const dayPart = unitEvs.filter((e) => !NIGHT_SLOTS.has(e.slot || ""))
         const nightPart = unitEvs.filter((e) => NIGHT_SLOTS.has(e.slot || ""))
         return (
@@ -126,8 +130,8 @@ export function WeekView({
               <div className="text-muted-foreground/60 py-8 text-center text-xs">لا أحداث</div>
             ) : (
               <div className="flex flex-col gap-2">
-                <Section label="نهارك — من الفجر إلى المغرب" icon="☀️" night={false} chips={dayPart} isCur={isCur} now={now} mk={mk} onOpen={onOpen} />
-                <Section label="ليلتك — من المغرب إلى الفجر" icon="🌙" night chips={nightPart} isCur={isCur} now={now} mk={mk} onOpen={onOpen} />
+                <Section label="نهارك — من الفجر إلى المغرب" icon="☀️" night={false} chips={dayPart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
+                <Section label="ليلتك — من المغرب إلى الفجر" icon="🌙" night chips={nightPart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
               </div>
             )}
           </div>

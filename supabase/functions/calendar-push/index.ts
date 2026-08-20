@@ -1,5 +1,5 @@
 // إشعارات تقويم هيثم — /subscribe /unsubscribe /tick /test
-// v7: بداية جديدة من السبت ١٥ أغسطس ٢٠٢٦ — الوحدة فجر←فجر الغد وتبكير الجمعة ساعة
+// v8: بلوك «مهام» واحد بدل القرآن والتمرين، وكل بلوكات العمل صارت «مهام»
 // نسخة خادمية مطابقة لمحرك التطبيق (web/lib/engine) — أي تعديل هناك يُنقل هنا
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import * as webpush from "jsr:@negrel/webpush"
@@ -62,8 +62,8 @@ function fromEpochDay(e: number) {
 }
 const epochDayRiyadhNow = () => Math.floor((Date.now() + TZ * 3600e3) / DAYMS)
 
-// دورة التمرين المتتابعة (لا علاقة لها بأيام الأسبوع): تبدأ السبت ١٥ أغسطس ٢٠٢٦
-const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 15) / DAYMS)
+// دورة التمرين المتتابعة (لا علاقة لها بأيام الأسبوع): تبدأ الجمعة ٢١ أغسطس ٢٠٢٦
+const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 21) / DAYMS)
 function trainTitle(epochDay: number): string {
   const off = epochDay - GYM_EPOCH
   if (off < 0 || off % 2 === 1) return "تطوير"
@@ -88,11 +88,10 @@ function unitEvents(epochDay: number): { title: string; minute: number }[] {
   const nightSleep = ISH - (M + 30) + (F2 - t2)
   const napLen = Math.max(45, Math.min(240, 395 - nightSleep, dhuhrStart - trainEnd - 45))
   const napEnd = trainEnd + napLen
-  const work = weekend ? "أسرة" : "عمل"
-  const late = friday ? "أسرة ودعاء" : weekend ? "أسرة" : "عمل"
-  const train = trainTitle(epochDay)
+  const work = weekend ? "أسرة" : "مهام"
+  const late = friday ? "أسرة ودعاء" : weekend ? "أسرة" : "مهام"
   const ev: [string, number][] = [
-    ["الفجر", F], ["قرآن وسنة الضحى", F + 45], [train, SR + 15], ["نوم", trainEnd],
+    ["الفجر", F], ["مهام", F + 45], ["نوم", trainEnd],
     [work, napEnd], [friday ? "الجمعة" : "الظهر", dhuhrStart], [work, DH + 45],
     ["العصر", AS], [late, AS + 45],
     ["المغرب", M], ["نوم", M + 30], ["العشاء", ISH], ["أسرة", ISH + 45],

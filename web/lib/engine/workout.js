@@ -3,7 +3,7 @@
 // تمرين ثم تطوير بالتناوب، والتمارين الثلاثة تدور: الأول (أ) ← الثاني (ب) ← الثالث (جري)
 import { addDays, daysBetween, arab } from './dates.js';
 
-export const GYM_START = '2026-08-15';
+export const GYM_START = '2026-08-21';
 
 // 0 = تطوير، 1/2/3 = أيام التمرين الثلاثة بالتناوب يومًا بعد يوم
 export function workoutDayType(dateIso) {

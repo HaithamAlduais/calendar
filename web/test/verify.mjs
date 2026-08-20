@@ -2,6 +2,7 @@
 import { prayerTimes, fmtTime } from '../lib/engine/prayers.js';
 import { buildUnit, buildRange } from '../lib/engine/schedule.js';
 import { quranStateFor, QURAN_SEED } from '../lib/engine/quran.js';
+import { workoutTitle, workoutDesc as wdesc } from '../lib/engine/workout.js';
 import { addDays, dow, daysBetween } from '../lib/engine/dates.js';
 
 // كل الفحوص المرتبطة بالبذرة (قرآن وتمرين) تُكتب بإزاحة عن يوم البداية لا بتواريخ ثابتة،
@@ -51,18 +52,21 @@ check('u30 اسم نوم الثلث الأخير', bySlot.sleep2.title, 'نوم'
 check('u30 fajr أول الوحدة', `${T(bySlot.fajr.start)}-${T(bySlot.fajr.end)}`, '03:54-04:39');
 check('u30 يبدأ بالفجر', u30[0].slot, 'fajr');
 check('u30 ينتهي بالنوم حتى فجر الغد', u30[u30.length - 1].slot, 'sleep2');
-check('u30 quran', `${T(bySlot.quran.start)}-${T(bySlot.quran.end)}`, '04:39-05:35');
-check('u30 train', `${T(bySlot.train.start)}-${T(bySlot.train.end)}`, '05:35-06:50');
+check('u30 بلوك مهام واحد (قرآن + تمرين)', `${T(bySlot.quran.start)}-${T(bySlot.quran.end)}`, '04:39-06:50');
+check('u30 اسمه مهام', bySlot.quran.title, 'مهام');
+check('u30 لا بلوك تمرين منفصل', !!bySlot.train, false);
+check('u30 سنة الضحى انتقلت للفجر', bySlot.fajr.desc.includes('٨. سنة الضحى'), true);
+check('u30 لا سنة ضحى في بلوك المهام', bySlot.quran.desc.includes('سنة الضحى'), false);
 // النومة تلي التمرين مباشرة، ثم العمل متصل منها إلى الظهر
 check('u30 النومة تلي التمرين مباشرة', `${T(bySlot.nap.start)}-${T(bySlot.nap.end)}`, '06:50-09:20');
-check('u30 النومة تبدأ بنهاية التمرين', bySlot.nap.start, bySlot.train.end);
+check('u30 النومة تبدأ بنهاية بلوك المهام', bySlot.nap.start, bySlot.quran.end);
 check('u30 عمل متصل من النومة إلى الظهر', `${T(bySlot.work1.start)}-${T(bySlot.work1.end)}`, '09:20-12:00');
 check('u30 العمل ينتهي ببداية الظهر', bySlot.work1.end, bySlot.dhuhr.start);
 check('u30 مدة نومة الضحى تكمّل ٦ س ٣٥ د', (new Date(bySlot.nap.end) - new Date(bySlot.nap.start)) / 60000, 150);
 check('u30 dhuhr', `${T(bySlot.dhuhr.start)}-${T(bySlot.dhuhr.end)}`, '12:00-12:45');
 check('u30 work2 end (عصر)', T(bySlot.work2.end), '15:26');
 check('u30 work3 end (مغرب)', T(bySlot.work3.end), '18:39');
-check('u30 count', u30.length, 16);
+check('u30 count', u30.length, 15);
 check('u30 rest name = راحة', bySlot.rest.title, 'راحة');
 check('u30 نومة الضحى اسمها نوم', bySlot.nap.title, 'نوم');
 
@@ -88,7 +92,7 @@ for (let d = '2026-07-31'; d <= '2026-08-31'; d = addDays(d, 1)) {
     console.log(`UNIT GAP: ${d} starts ${evs[0].start} after prev ends ${prevUnitEnd}`);
   }
   prevUnitEnd = evs[evs.length - 1].end;
-  check(`count ${d}`, evs.length, 16); // ١٦ حدثًا كل يوم بلا استثناء
+  check(`count ${d}`, evs.length, 15); // ١٥ حدثًا كل يوم بلا استثناء
   for (const e of evs) {
     if (e.end <= e.start) { gapless = false; console.log(`NEGATIVE ${d} ${e.slot}`); }
   }
@@ -103,7 +107,7 @@ for (const d of ['2026-07-31', '2026-08-01', '2026-08-02']) {
 }
 // دورة التمرين متتابعة لا علاقة لها بأيام الأسبوع، تبدأ يوم البذرة (يوم التمرين الأول):
 // تمرين/تطوير بالتناوب والأنواع تدور أ←ب←جري
-const trainTitleOn = (d) => byUnit.get(d).find((e) => e.slot === 'train').title;
+const trainTitleOn = (d) => workoutTitle(d);
 const TRAIN_NAMES = ['تمرين — اليوم الأول', 'تمرين — اليوم الثاني', 'تمرين — اليوم الثالث (جري)'];
 check('يوم البداية: تمرين أ', trainTitleOn(D(0)), TRAIN_NAMES[0]);
 check('+١ تطوير', trainTitleOn(D(1)), 'تطوير');
@@ -119,7 +123,7 @@ check(
   trainTitleOn(firstFri),
   offFri % 2 === 1 ? 'تطوير' : TRAIN_NAMES[(offFri / 2) % 3]
 );
-check('قبل البداية تطوير', byUnit.get(addDays(S, -3)).find((e) => e.slot === 'train').title, 'تطوير');
+check('قبل البداية تطوير', workoutTitle(addDays(S, -3)), 'تطوير');
 // فحوص مرتبطة بأيام الأسبوع نفسها (لا بالبذرة): ١٤/٨ جمعة، ١٥/٨ سبت، ١٦/٨ أحد
 const fri = (s) => byUnit.get('2026-08-14').find((e) => e.slot === s);
 const sat = (s) => byUnit.get('2026-08-15').find((e) => e.slot === s);
@@ -131,7 +135,7 @@ check('الجمعة يمتد إلى المغرب', fri('work3').end, fri('maghri
 // الجمعة: تبكير — بلوك الجمعة يبدأ قبل الزوال بساعة، والنومة تنتهي عنده
 check('الجمعة: بلوك الظهر اسمه الجمعة', fri('dhuhr').title, 'الجمعة');
 check('الجمعة: البلوك يبدأ قبل الزوال بساعة', (new Date(sun('dhuhr').start).getHours() * 60 + new Date(sun('dhuhr').start).getMinutes()) - (new Date(fri('dhuhr').start).getHours() * 60 + new Date(fri('dhuhr').start).getMinutes()), 60);
-check('الجمعة: النومة تلي التمرين', fri('nap').start, fri('train').end);
+check('الجمعة: النومة تلي بلوك المهام', fri('nap').start, fri('quran').end);
 check('الجمعة: العمل ينتهي ببداية الجمعة', fri('work1').end, fri('dhuhr').start);
 check('الجمعة: نهاية البلوك بعد الزوال بـ٤٥ د كبقية الأيام', `${T(fri('dhuhr').start)}-${T(fri('dhuhr').end)}`, '10:58-12:43');
 check('الجمعة: مدة البلوك ١٠٥ د', (new Date(fri('dhuhr').end) - new Date(fri('dhuhr').start)) / 60000, 105);
@@ -157,8 +161,8 @@ for (const [nm, g] of [['الجمعة', fri], ['السبت', sat]]) {
   check(`${nm}: لا سحور في القيام`, g('qiyam').desc.includes('وجبة'), false);
   check(`${nm}: المغرب شعر لا وجبة`, g('maghrib').desc.includes('كتابة شعر'), true);
 }
-check('نهار الأحد عمل', sun('work1').title, 'عمل');
-check('الأحد بعد العصر عمل', sun('work3').title, 'عمل');
+check('نهار الأحد مهام', sun('work1').title, 'مهام');
+check('الأحد بعد العصر مهام', sun('work3').title, 'مهام');
 check('صلة رحم في أسرة الجمعة', fri('work1').desc.includes('صلة رحم'), true);
 check('لا صلة رحم في أسرة السبت', sat('work1').desc.includes('صلة رحم'), false);
 check('نومة الضحى نفسها في الجمعة والسبت', [fri('nap').title, sat('nap').title].join('|'), 'نوم|نوم');
@@ -181,7 +185,7 @@ const isha24 = buildUnit(D(16)).find((e) => e.slot === 'isha');
 check('عشاء +١٦ على الجزء ١٠', isha24.desc.includes('الجزء ١٠'), true);
 
 // ── تقدّم التمرين عبر الشهر (يوم البذرة = يوم التمرين الأول) ──
-const trainOn = (d) => byUnit.get(d).find((e) => e.slot === 'train').desc;
+const trainOn = (d) => wdesc(d);
 check('+٠ بريس 40×6', trainOn(D(0)).includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
 check('+٢ بريس 40×7', trainOn(D(2)).includes('× ٧ عدات @ ٤٠ كجم'), true);
 check('+٨ بريس 40×9', trainOn(D(8)).includes('× ٩ عدات @ ٤٠ كجم'), true);

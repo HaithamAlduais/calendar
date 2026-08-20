@@ -5,30 +5,29 @@ import { CircleAlertIcon, CircleDotIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
 import { barColor, checklistLines, durMin, fmt12, fmtDur, timeOf } from "@/lib/format"
-import { checksFor, isMissed, lateCount, sessionProgress, type Ev } from "@/lib/store"
+import { checksFor, isMissed, lateCount, type Ev } from "@/lib/store"
 
 export function EventChip({
   ev,
   current,
   now,
   makeupCount = 0,
+  dayCount = 0,
   onOpen,
 }: {
   ev: Ev
   current: boolean
   now: string
   makeupCount?: number
+  dayCount?: number
   onOpen: (ev: Ev) => void
 }) {
-  // التمرين يعرض تقدّم الجلسات، وبقية البلوكات تعرض بنودها المؤشَّرة
-  const isWorkout = ev.slot === "train" && !ev.external && ev.title.startsWith("تمرين")
-  const sess = isWorkout ? sessionProgress(ev.trainDate ?? ev.unit!) : null
-  const lines = isWorkout ? [] : checklistLines(ev.desc).filter((l) => l.item)
+  const lines = checklistLines(ev.desc).filter((l) => l.item)
   const checked = new Set(checksFor(ev.id))
-  const total = isWorkout ? sess!.total : lines.length
-  const doneItems = isWorkout ? sess!.done : lines.filter((l) => checked.has(l.idx)).length
+  const total = lines.length
+  const doneItems = lines.filter((l) => checked.has(l.idx)).length
   const missed = isMissed(ev, now)
-  const lates = isWorkout ? 0 : lateCount(ev)
+  const lates = lateCount(ev)
   const halfDone = ev.done && lates > 0 // أُنجز لكن بعضه قضاءً
   const quiet = ev.slot?.startsWith("sleep") || ev.slot === "nap" || ev.slot === "rest"
 
@@ -77,6 +76,11 @@ export function EventChip({
           </span>
         )}
         {missed && <span className="text-red-600 dark:text-red-400">فات وقته</span>}
+        {dayCount > 0 && !missed && (
+          <span className="rounded bg-emerald-500/15 px-1 font-medium text-emerald-700 dark:text-emerald-400">
+            مهام اليوم {arab(dayCount)}
+          </span>
+        )}
         {makeupCount > 0 && !missed && (
           <span className="rounded bg-amber-500/15 px-1 font-medium text-amber-600 dark:text-amber-400">
             قضاء {arab(makeupCount)}
