@@ -138,9 +138,9 @@ export function buildUnit(dIso) {
   const saturday = day === 6;
   const weekend = friday || saturday;
 
-  // العمل متصل بعد التمرين، ثم نومة الضحى ملاصقة لبلوك الظهر.
+  // النومة ملاصقة للتمرين (ينام بعده مباشرة)، ثم العمل متصل منها إلى بلوك الظهر.
   // النومة تكمّل نوم الليل حتى مجموع ثابت: فإن قلّ ليلُك طالت نومتك وقصر عملك
-  // ويوم الجمعة يبدأ بلوك الظهر مبكرًا بساعة (تبكير الجمعة) فتنتهي النومة قبله
+  // ويوم الجمعة يبدأ بلوك الظهر مبكرًا بساعة (تبكير الجمعة) فيقصر العمل قبله
   const dhuhrStart = friday ? DH - 60 : DH;
   const trainEnd = SR + 90;
   const nightSleep = ISH - (M + 30) + (F2 - third2);
@@ -148,7 +148,7 @@ export function buildUnit(dIso) {
     NAP_MIN,
     Math.min(NAP_MAX, SLEEP_TARGET - nightSleep, dhuhrStart - trainEnd - WORK_MIN)
   );
-  const napStart = dhuhrStart - napLen;
+  const napEnd = trainEnd + napLen;
 
   // كل سنن الوحدة (من الفجر إلى العشاء) على تثبيت يومها نفسه
   const st = quranStateFor(dIso);
@@ -180,9 +180,9 @@ export function buildUnit(dIso) {
   push('fajr', 'الفجر', F, F + 45, 10, fajrDesc(t));
   push('quran', 'قرآن وسنة الضحى', F + 45, SR + 15, 10, quranDesc(st, t));
   push('train', workoutTitle(dIso), SR + 15, SR + 90, 10, trainType ? workoutDesc(dIso) : '');
-  // العمل متصل من نهاية التمرين حتى نومة الضحى، والنومة ملاصقة للظهر
-  push('work1', workTitle, trainEnd, napStart, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
-  push('nap', 'نوم', napStart, dhuhrStart, 8);
+  // النومة تلي التمرين مباشرة، ثم العمل متصل منها حتى بلوك الظهر
+  push('nap', 'نوم', trainEnd, napEnd, 8);
+  push('work1', workTitle, napEnd, dhuhrStart, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : WORK_DESC);
   push('dhuhr', friday ? 'الجمعة' : 'الظهر', dhuhrStart, DH + 45, 9, dhuhrDesc(t, friday));
   push('work2', midTitle, DH + 45, AS, 6, weekend ? MEAL2_WEEKEND : '');
   push('asr', 'العصر', AS, AS + 45, 9, asrDesc(t));

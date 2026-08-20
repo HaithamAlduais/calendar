@@ -53,10 +53,11 @@ check('u30 يبدأ بالفجر', u30[0].slot, 'fajr');
 check('u30 ينتهي بالنوم حتى فجر الغد', u30[u30.length - 1].slot, 'sleep2');
 check('u30 quran', `${T(bySlot.quran.start)}-${T(bySlot.quran.end)}`, '04:39-05:35');
 check('u30 train', `${T(bySlot.train.start)}-${T(bySlot.train.end)}`, '05:35-06:50');
-// العمل متصل بعد التمرين، والنومة ملاصقة للظهر
-check('u30 عمل متصل بعد التمرين', `${T(bySlot.work1.start)}-${T(bySlot.work1.end)}`, '06:50-09:30');
-check('u30 نومة الضحى ملاصقة للظهر', `${T(bySlot.nap.start)}-${T(bySlot.nap.end)}`, '09:30-12:00');
-check('u30 النومة تنتهي بالظهر', bySlot.nap.end, bySlot.dhuhr.start);
+// النومة تلي التمرين مباشرة، ثم العمل متصل منها إلى الظهر
+check('u30 النومة تلي التمرين مباشرة', `${T(bySlot.nap.start)}-${T(bySlot.nap.end)}`, '06:50-09:20');
+check('u30 النومة تبدأ بنهاية التمرين', bySlot.nap.start, bySlot.train.end);
+check('u30 عمل متصل من النومة إلى الظهر', `${T(bySlot.work1.start)}-${T(bySlot.work1.end)}`, '09:20-12:00');
+check('u30 العمل ينتهي ببداية الظهر', bySlot.work1.end, bySlot.dhuhr.start);
 check('u30 مدة نومة الضحى تكمّل ٦ س ٣٥ د', (new Date(bySlot.nap.end) - new Date(bySlot.nap.start)) / 60000, 150);
 check('u30 dhuhr', `${T(bySlot.dhuhr.start)}-${T(bySlot.dhuhr.end)}`, '12:00-12:45');
 check('u30 work2 end (عصر)', T(bySlot.work2.end), '15:26');
@@ -130,7 +131,8 @@ check('الجمعة يمتد إلى المغرب', fri('work3').end, fri('maghri
 // الجمعة: تبكير — بلوك الجمعة يبدأ قبل الزوال بساعة، والنومة تنتهي عنده
 check('الجمعة: بلوك الظهر اسمه الجمعة', fri('dhuhr').title, 'الجمعة');
 check('الجمعة: البلوك يبدأ قبل الزوال بساعة', (new Date(sun('dhuhr').start).getHours() * 60 + new Date(sun('dhuhr').start).getMinutes()) - (new Date(fri('dhuhr').start).getHours() * 60 + new Date(fri('dhuhr').start).getMinutes()), 60);
-check('الجمعة: النومة تنتهي ببداية الجمعة', fri('nap').end, fri('dhuhr').start);
+check('الجمعة: النومة تلي التمرين', fri('nap').start, fri('train').end);
+check('الجمعة: العمل ينتهي ببداية الجمعة', fri('work1').end, fri('dhuhr').start);
 check('الجمعة: نهاية البلوك بعد الزوال بـ٤٥ د كبقية الأيام', `${T(fri('dhuhr').start)}-${T(fri('dhuhr').end)}`, '10:58-12:43');
 check('الجمعة: مدة البلوك ١٠٥ د', (new Date(fri('dhuhr').end) - new Date(fri('dhuhr').start)) / 60000, 105);
 check('غير الجمعة: البلوك ٤٥ د يبدأ بالزوال', (new Date(sun('dhuhr').end) - new Date(sun('dhuhr').start)) / 60000, 45);

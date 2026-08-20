@@ -81,19 +81,19 @@ function unitEvents(epochDay: number): { title: string; minute: number }[] {
   const t1 = M + Math.round(night / 3) // نهاية أسرة الليلية
   const t2 = M + Math.round((2 * night) / 3) // نهاية الثلث الثاني: يليه نوم
   const dow = cur.dow, friday = dow === 5, weekend = dow === 5 || dow === 6
-  // العمل متصل بعد التمرين، ونومة الضحى ملاصقة لبلوك الظهر وتكمّل نوم الليل حتى ٦ س ٣٥ د
+  // النومة ملاصقة للتمرين، ثم العمل متصل منها إلى الظهر — والنومة تكمّل نوم الليل حتى ٦ س ٣٥ د
   // والجمعة يبدأ بلوك الظهر مبكرًا بساعة (تبكير الجمعة)
   const dhuhrStart = friday ? DH - 60 : DH
   const trainEnd = SR + 90
   const nightSleep = ISH - (M + 30) + (F2 - t2)
   const napLen = Math.max(45, Math.min(240, 395 - nightSleep, dhuhrStart - trainEnd - 45))
-  const napStart = dhuhrStart - napLen
+  const napEnd = trainEnd + napLen
   const work = weekend ? "أسرة" : "عمل"
   const late = friday ? "أسرة ودعاء" : weekend ? "أسرة" : "عمل"
   const train = trainTitle(epochDay)
   const ev: [string, number][] = [
-    ["الفجر", F], ["قرآن وسنة الضحى", F + 45], [train, SR + 15], [work, trainEnd],
-    ["نوم", napStart], [friday ? "الجمعة" : "الظهر", dhuhrStart], [work, DH + 45],
+    ["الفجر", F], ["قرآن وسنة الضحى", F + 45], [train, SR + 15], ["نوم", trainEnd],
+    [work, napEnd], [friday ? "الجمعة" : "الظهر", dhuhrStart], [work, DH + 45],
     ["العصر", AS], [late, AS + 45],
     ["المغرب", M], ["نوم", M + 30], ["العشاء", ISH], ["أسرة", ISH + 45],
     ["راحة", t1], ["صلاة القيام", t2 - 45], ["نوم", t2],
