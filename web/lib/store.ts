@@ -1,9 +1,8 @@
 "use client"
 
 // المخزن — يربط المحرك المُتحقَّق منه بالواجهة، وكل الحالة في localStorage
-import { buildRange } from "@/lib/engine/schedule.js"
+import { buildRange, unitStart } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
-import { prayerTimes } from "@/lib/engine/prayers.js"
 import {
   setQuranCompletion,
   clearQuranCache,
@@ -109,15 +108,17 @@ export function nowStamp(): string {
   return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}T${p(n.getHours())}:${p(n.getMinutes())}`
 }
 
-// اليوم عند هيثم يبدأ بصلاة الفجر لا بمنتصف الليل:
-// قبل فجر اليوم ما زلنا في وحدة الأمس (ليلها)، ومن الفجر تبدأ وحدة اليوم
+// اليوم عند هيثم يبدأ بنومة الثلث الأخير التي تسبق الفجر لا بمنتصف الليل ولا بالفجر:
+// قبل مطلع الثلث الأخير (نحو الواحدة ليلًا) ما زلنا في وحدة الأمس، ومن النومة تبدأ وحدة اليوم
+let cuCache = { at: "", val: "" } // تُستدعى في حلقات ساخنة — تُحسب مرة كل دقيقة
 export function currentUnit(): string {
+  const now = nowStamp()
+  if (cuCache.at === now) return cuCache.val
   const t = todayIso()
-  const fajr = prayerTimes(t).fajr as number
-  const p = (x: number) => String(x).padStart(2, "0")
-  const fajrStamp = `${t}T${p(Math.floor(fajr / 60))}:${p(fajr % 60)}`
-  const u = nowStamp() >= fajrStamp ? t : addDays(t, -1)
-  return u < SCHEDULE_START ? SCHEDULE_START : u // قبل أول وحدة: أول وحدة هي الجارية
+  const u = now >= unitStart(t) ? t : addDays(t, -1)
+  const val = u < SCHEDULE_START ? SCHEDULE_START : u // قبل أول وحدة: أول وحدة هي الجارية
+  cuCache = { at: now, val }
+  return val
 }
 
 // ── التقدّم مشروط بالإنجاز الفعلي ──

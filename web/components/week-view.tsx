@@ -8,8 +8,8 @@ import { dayName } from "@/lib/format"
 import { currentUnit, dayTasks, makeupMap, nowStamp, TASK_SLOTS, type Ev } from "@/lib/store"
 import { EventChip } from "@/components/event-chip"
 
-// شطر الليل من الوحدة: من المغرب إلى فجر الغد
-const NIGHT_SLOTS = new Set(["maghrib", "sleep1", "isha", "family", "rest", "qiyam", "sleep2"])
+// الوحدة ثلاثة أشطر بالترتيب: نومة الثلث الأخير التي تفتح اليوم، ثم النهار، ثم الليل حتى القيام
+const NIGHT_SLOTS = new Set(["maghrib", "sleep1", "isha", "family", "rest", "qiyam"])
 
 function Section({
   label,
@@ -103,7 +103,8 @@ export function WeekView({
           .filter((e) => e.unit === d)
           .sort((a, b) => (a.start < b.start ? -1 : 1))
         const dayCount = dayTasks(unitEvs, d).length // مهمتا القرآن والتمرين ما لم تُنجزا
-        const dayPart = unitEvs.filter((e) => !NIGHT_SLOTS.has(e.slot || ""))
+        const wakePart = unitEvs.filter((e) => e.slot === "sleep2")
+        const dayPart = unitEvs.filter((e) => e.slot !== "sleep2" && !NIGHT_SLOTS.has(e.slot || ""))
         const nightPart = unitEvs.filter((e) => NIGHT_SLOTS.has(e.slot || ""))
         return (
           <div
@@ -130,8 +131,9 @@ export function WeekView({
               <div className="text-muted-foreground/60 py-8 text-center text-xs">لا أحداث</div>
             ) : (
               <div className="flex flex-col gap-2">
+                <Section label="أول يومك — النوم الذي يصنعه" icon="🛌" night chips={wakePart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
                 <Section label="نهارك — من الفجر إلى المغرب" icon="☀️" night={false} chips={dayPart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
-                <Section label="ليلتك — من المغرب إلى الفجر" icon="🌙" night chips={nightPart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
+                <Section label="ليلتك — من المغرب إلى القيام" icon="🌙" night chips={nightPart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
               </div>
             )}
           </div>

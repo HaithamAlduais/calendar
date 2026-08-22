@@ -1,5 +1,5 @@
 // إشعارات تقويم هيثم — /subscribe /unsubscribe /tick /test
-// v8: بلوك «مهام» واحد بدل القرآن والتمرين، وكل بلوكات العمل صارت «مهام»
+// v9: الوحدة تبدأ بنومة الثلث الأخير وتنتهي بالقيام، وتسميات عائلة/أسرة/أصدقاء
 // نسخة خادمية مطابقة لمحرك التطبيق (web/lib/engine) — أي تعديل هناك يُنقل هنا
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import * as webpush from "jsr:@negrel/webpush"
@@ -73,10 +73,15 @@ function trainTitle(epochDay: number): string {
 
 // وحدة اليوم: من الفجر إلى فجر الغد (مطابقة لـ buildUnit)
 function unitEvents(epochDay: number): { title: string; minute: number }[] {
+  const prev = fromEpochDay(epochDay - 1)
   const cur = fromEpochDay(epochDay), next = fromEpochDay(epochDay + 1)
+  const P0 = prayerTimes(prev.y, prev.m, prev.d)
   const P1 = prayerTimes(cur.y, cur.m, cur.d), P2 = prayerTimes(next.y, next.m, next.d)
   const F = P1.fajr, SR = P1.sunrise, DH = P1.dhuhr, AS = P1.asr, M = P1.maghrib, ISH = P1.isha
   const F2 = P2.fajr + 1440
+  // أول الوحدة: مطلع الثلث الأخير من ليلة أمس — «أول مهمة في اليوم هي النوم»
+  const prevM = P0.maghrib - 1440
+  const wake = prevM + Math.round((2 * (F - prevM)) / 3)
   const night = F2 - M
   const t1 = M + Math.round(night / 3) // نهاية أسرة الليلية
   const t2 = M + Math.round((2 * night) / 3) // نهاية الثلث الثاني: يليه نوم
@@ -85,17 +90,21 @@ function unitEvents(epochDay: number): { title: string; minute: number }[] {
   // والجمعة يبدأ بلوك الظهر مبكرًا بساعة (تبكير الجمعة)
   const dhuhrStart = friday ? DH - 60 : DH
   const trainEnd = SR + 90
-  const nightSleep = ISH - (M + 30) + (F2 - t2)
+  const nightSleep = ISH - (M + 30) + (F - wake)
   const napLen = Math.max(45, Math.min(240, 395 - nightSleep, dhuhrStart - trainEnd - 45))
   const napEnd = trainEnd + napLen
-  const work = weekend ? "أسرة" : "مهام"
-  const late = friday ? "أسرة ودعاء" : weekend ? "أسرة" : "مهام"
+  const work = weekend ? "أسرة" : "مهام" // بلوك الصباح
+  const mid = weekend ? "عائلة" : "مهام"
+  const late = friday ? "عائلة ودعاء" : weekend ? "عائلة" : "مهام"
+  const eve = weekend ? "أسرة" : "عائلة" // ما بعد العشاء
+  const rest = weekend ? "أصدقاء" : "أسرة"
   const ev: [string, number][] = [
+    ["نوم", wake],
     ["الفجر", F], ["مهام", F + 45], ["نوم", trainEnd],
-    [work, napEnd], [friday ? "الجمعة" : "الظهر", dhuhrStart], [work, DH + 45],
+    [work, napEnd], [friday ? "الجمعة" : "الظهر", dhuhrStart], [mid, DH + 45],
     ["العصر", AS], [late, AS + 45],
-    ["المغرب", M], ["نوم", M + 30], ["العشاء", ISH], ["أسرة", ISH + 45],
-    ["راحة", t1], ["صلاة القيام", t2 - 45], ["نوم", t2],
+    ["المغرب", M], ["نوم", M + 30], ["العشاء", ISH], [eve, ISH + 45],
+    [rest, t1], ["صلاة القيام", t2 - 45],
   ]
   const baseMin = epochDay * 1440 - TZ * 60 // منتصف ليل الرياض بدقائق يونكس
   return ev.map(([title, min]) => ({ title, minute: baseMin + min }))

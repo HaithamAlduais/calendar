@@ -121,7 +121,7 @@ export function DayPanel({
   events: Ev[]
 }) {
   const [openPool, setOpenPool] = useState<string | null>(null)
-  const d = currentUnit() // وحدة اليوم تبدأ بصلاة الفجر
+  const d = currentUnit() // وحدة اليوم تبدأ بنومة الثلث الأخير
   const dayEvents = events.filter((e) => e.unit === d)
   const donePools = completedQuranPools(events, d) // ما أنجزته اليوم من مواضع القرآن
 
@@ -180,7 +180,7 @@ export function DayPanel({
       <SheetContent side="right" className="w-[320px] overflow-y-auto sm:w-[360px]">
         <SheetHeader>
           <SheetTitle>لوحة يوم {fmtDateLong(d)}</SheetTitle>
-          <p className="text-muted-foreground text-xs">اليوم يبدأ بصلاة الفجر وينتهي بفجر الغد</p>
+          <p className="text-muted-foreground text-xs">اليوم يبدأ بنومة الثلث الأخير وينتهي بنهاية قيام ليلته</p>
         </SheetHeader>
         <div className="flex flex-col gap-4 px-4 pb-8">
           <Section title={`إنجاز اليوم ${arab(pct)}٪`}>
@@ -255,9 +255,9 @@ export function DayPanel({
               label={weekend ? "أسرة (النهار)" : "مهام"}
               value={fmtDur(sum(["quran", "work1", "work2", "work3"]))}
             />
-            <Row label="راحة" value={fmtDur(sum(["rest"]))} />
+            <Row label={weekend ? "أصدقاء" : "أسرة"} value={fmtDur(sum(["rest"]))} />
             <Row label="نوم" value={fmtDur(sum(["nap", "sleep1", "sleep2"]))} />
-            <Row label="أسرة (بعد العشاء)" value={fmtDur(sum(["family"]))} />
+            <Row label={weekend ? "أسرة (بعد العشاء)" : "عائلة (بعد العشاء)"} value={fmtDur(sum(["family"]))} />
             <Row label="قيام" value={fmtDur(sum(["qiyam"]))} />
           </Section>
 

@@ -56,7 +56,12 @@ function asrTime(jDate, factor, t) {
 }
 
 // المواقيت بالدقائق من منتصف الليل بتوقيت الرياض، مقربة لأقرب دقيقة
+// ذاكرة مؤقتة: الوحدة الواحدة تستدعي ثلاثة أيام، والواجهة تستدعيها في كل رسم
+const ptCache = new Map();
+
 export function prayerTimes(dateIso) {
+  const hit = ptCache.get(dateIso);
+  if (hit) return hit;
   const { y, m, d } = parseIso(dateIso);
   const jDate = julian(y, m, d) - LNG / (15 * 24);
 
@@ -70,7 +75,7 @@ export function prayerTimes(dateIso) {
   const toMin = (t) => Math.round(fixHour(t + TZ - LNG / 15) * 60);
   // المغرب يقرَّب لأعلى (الأحوط، ومطابق للمرجع اليدوي في التقويم)
   const mag = Math.ceil(fixHour(maghrib + TZ - LNG / 15) * 60);
-  return {
+  const out = {
     fajr: toMin(fajr),
     sunrise: toMin(sunrise),
     dhuhr: toMin(dhuhr),
@@ -78,6 +83,8 @@ export function prayerTimes(dateIso) {
     maghrib: mag,
     isha: mag + 90, // أم القرى: المغرب + ٩٠ دقيقة (وفي رمضان ١٢٠ — يُعدَّل حينها)
   };
+  ptCache.set(dateIso, out);
+  return out;
 }
 
 export function fmtTime(min) {

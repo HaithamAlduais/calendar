@@ -11,3 +11,4 @@ web/out/
 # Claude Code local state
 .claude/worktrees/
 .claude/settings.local.json
+supabase/.temp/

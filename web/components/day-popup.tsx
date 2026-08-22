@@ -42,7 +42,7 @@ function StatusRow({ ok, label, note }: { ok: boolean; label: string; note?: str
   )
 }
 
-// نافذة بداية اليوم (تبدأ الوحدة بأذان المغرب): تقرير الأمس وحال اليوم المبني عليه
+// نافذة بداية اليوم (تبدأ الوحدة بنومة الثلث الأخير): تقرير الأمس وحال اليوم المبني عليه
 export function DayPopup() {
   const [info, setInfo] = useState<{ prev: string; cur: string } | null>(null)
 
@@ -78,7 +78,7 @@ export function DayPopup() {
             <MoonIcon className="size-5 text-emerald-600" />
             بدأ يوم {fmtDateLong(cur)}
           </DialogTitle>
-          <DialogDescription>يومك يبدأ بصلاة الفجر — هذا حصاد أمس وخطة اليوم.</DialogDescription>
+          <DialogDescription>يومك يبدأ بنومة الثلث الأخير — أوّل مهامك أن تنامها. هذا حصاد أمس وخطة اليوم.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
