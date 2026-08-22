@@ -21,7 +21,7 @@ import {
   getVersion,
   settings,
   subscribe,
-  todayIso,
+  currentUnit,
   weekStartOf,
   type Ev,
 } from "@/lib/store"
@@ -36,7 +36,7 @@ function weekLabel(ws: string): string {
 
 export default function Page() {
   const [mounted, setMounted] = useState(false)
-  const [weekStart, setWeekStart] = useState(() => weekStartOf(todayIso()))
+  const [weekStart, setWeekStart] = useState(() => weekStartOf(currentUnit()))
   const [openEv, setOpenEv] = useState<Ev | null>(null)
   const [panelOpen, setPanelOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -88,7 +88,7 @@ export default function Page() {
           {weekLabel(weekStart)}
         </span>
         <div className="ms-auto flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={() => setWeekStart(weekStartOf(todayIso()))}>
+          <Button variant="outline" size="sm" onClick={() => setWeekStart(weekStartOf(currentUnit()))}>
             اليوم
           </Button>
           <Button
