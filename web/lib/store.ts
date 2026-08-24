@@ -1,7 +1,7 @@
 "use client"
 
 // المخزن — يربط المحرك المُتحقَّق منه بالواجهة، وكل الحالة في localStorage
-import { buildRange, unitStart } from "@/lib/engine/schedule.js"
+import { buildRange, unitStart, setScheduleConfig, DEFAULT_TEMPLATES, DEFAULT_WEEK_PLAN } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { setPrayerConfig } from "@/lib/engine/prayers.js"
 import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
@@ -142,6 +142,9 @@ const DEFAULT_SETTINGS = {
     ["isha", "sunnahBefore"],
     ["isha", "sunnahAfter"],
   ] as [string, string][],
+  // قوالب الأيام وخطة الأسبوع — يحرّرها المستخدم من «قالب يومك»
+  templates: DEFAULT_TEMPLATES as typeof DEFAULT_TEMPLATES,
+  weekPlan: DEFAULT_WEEK_PLAN as string[],
   quran: DEFAULT_QURAN as typeof DEFAULT_QURAN,
   workout: DEFAULT_WORKOUT as typeof DEFAULT_WORKOUT,
 }
@@ -160,6 +163,7 @@ function applyEngineConfig() {
   setPrayerConfig({ lat, lng, tz, method, asrFactor })
   setQuranConfig({ ...settings.quran, wirdSlots: settings.wird.length })
   setWorkoutConfig(settings.workout)
+  setScheduleConfig({ templates: settings.templates, weekPlan: settings.weekPlan })
 }
 applyEngineConfig()
 
@@ -763,6 +767,78 @@ export function removeTask(date: string, slot: string, taskId: string) {
   save(K.late, late)
   notify()
 }
+
+// ── تحرير قالب اليوم ──
+// البلوك: نهايتُه مرساة (صلاة/ثلث ليل/مدة ثابتة/نومة توازن)، وبدايتُه نهايةُ سابقه
+export type Anchor = {
+  prayer?: string
+  nightFraction?: number
+  lastThirdPrev?: boolean
+  len?: number
+  balance?: { target: number; min: number; max: number; keepAfter: number }
+  offset?: number
+}
+export type Block = {
+  id: string
+  title: string
+  colorId: number
+  end: Anchor
+  sleep?: boolean
+  transparent?: boolean
+  gen?: string // بنود مولّدة (صلاة أو قرآن) — لا تُحذف
+  items?: Item[]
+}
+
+function editTemplates(fn: (t: Record<string, { start: Anchor; blocks: Block[] }>) => void) {
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  fn(next)
+  saveSettings({ templates: next })
+}
+
+export function updateBlock(tplId: string, blockId: string, patch: Partial<Block>) {
+  editTemplates((t) => {
+    const b = t[tplId]?.blocks.find((x) => x.id === blockId)
+    if (b) Object.assign(b, patch)
+  })
+}
+
+// بلوك جديد يُدرج قبل أوّل بلوك ينتهي بعده، فيبقى الترتيب الزمني سليمًا
+export function addBlock(tplId: string, title: string, end: Anchor) {
+  editTemplates((t) => {
+    const tpl = t[tplId]
+    if (!tpl) return
+    const block: Block = { id: `b${Date.now().toString(36)}`, title, colorId: 6, end, items: [] }
+    const order = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"]
+    const rank = (a: Anchor) =>
+      a.lastThirdPrev ? -1 : a.prayer ? order.indexOf(a.prayer) : a.nightFraction ? 10 : 99
+    const at = tpl.blocks.findIndex((b) => rank(b.end) > rank(end))
+    if (at < 0) tpl.blocks.push(block)
+    else tpl.blocks.splice(at, 0, block)
+  })
+}
+
+export function removeBlock(tplId: string, blockId: string) {
+  editTemplates((t) => {
+    const tpl = t[tplId]
+    if (tpl) tpl.blocks = tpl.blocks.filter((b) => b.id !== blockId)
+  })
+}
+
+// مدة كل بلوكات الصلاة دفعةً واحدة (وما له مدة ثابتة غير الصلوات لا يُمسّ)
+const PRAYER_BLOCKS = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
+export function setPrayerMinutes(minutes: number) {
+  editTemplates((t) => {
+    for (const tpl of Object.values(t))
+      for (const b of tpl.blocks)
+        if (PRAYER_BLOCKS.includes(b.id) && b.end.len != null) b.end.len = minutes
+  })
+}
+
+export function resetTemplates() {
+  saveSettings({ templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN })
+}
+
+export { DEFAULT_TEMPLATES }
 
 // ── «بداية جديدة»: تصفير ما تختاره والبدء من تاريخ جديد ──
 // كان هذا يتطلّب تعديل شيفرة ونشرًا في كل مرة — وصار زرًّا.

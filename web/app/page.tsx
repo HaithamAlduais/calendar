@@ -5,12 +5,14 @@ import {
   ActivityIcon,
   ArchiveIcon,
   CalendarSyncIcon,
+  LayoutGridIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { CabinetsDialog } from "@/components/cabinets-dialog"
+import { TemplateDialog } from "@/components/template-dialog"
 import { DayPanel } from "@/components/day-panel"
 import { DayPopup } from "@/components/day-popup"
 import { EventSheet } from "@/components/event-sheet"
@@ -43,6 +45,7 @@ export default function Page() {
   const [panelOpen, setPanelOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cabinetsOpen, setCabinetsOpen] = useState(false)
+  const [tplOpen, setTplOpen] = useState(false)
   const version = useSyncExternalStore(subscribe, getVersion, () => 0)
 
   useEffect(() => setMounted(true), [])
@@ -113,6 +116,14 @@ export default function Page() {
           <Button
             variant="ghost"
             size="icon"
+            aria-label="قالب يومك"
+            onClick={() => setTplOpen(true)}
+          >
+            <LayoutGridIcon />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             aria-label="الخزانات"
             onClick={() => setCabinetsOpen(true)}
           >
@@ -147,6 +158,7 @@ export default function Page() {
         onClose={() => setOpenEv(null)}
         onOpen={setOpenEv}
       />
+      <TemplateDialog open={tplOpen} onClose={() => setTplOpen(false)} />
       <CabinetsDialog open={cabinetsOpen} onClose={() => setCabinetsOpen(false)} events={events} />
       <DayPanel open={panelOpen} onClose={() => setPanelOpen(false)} events={events} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />

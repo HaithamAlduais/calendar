@@ -154,7 +154,8 @@ function makeTemplate({ day1, day2, day3, eve, rest, jumua, restFree }) {
 }
 
 const T = TASKS_TITLE;
-const TEMPLATES = {
+// القوالب الافتراضية — بيانات محضة يستبدلها المستخدم من الواجهة
+export const DEFAULT_TEMPLATES = {
   // أيام العمل: البلوكات الثلاثة «مهام»، وما بعد العشاء «عائلة»، والراحة «أسرة» (وقت الزوجة)
   weekday: makeTemplate({
     day1: { title: T, items: [] },
@@ -185,8 +186,25 @@ const TEMPLATES = {
 };
 
 // خطة الأسبوع: 0=الأحد … 5=الجمعة، 6=السبت
-const WEEK_PLAN = ['weekday', 'weekday', 'weekday', 'weekday', 'weekday', 'friday', 'saturday'];
-const templateFor = (dIso) => TEMPLATES[WEEK_PLAN[dow(dIso)]];
+export const DEFAULT_WEEK_PLAN = ['weekday', 'weekday', 'weekday', 'weekday', 'weekday', 'friday', 'saturday'];
+
+// القوالب وخطة الأسبوع من إعدادات المستخدم
+let cfg = { templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN };
+export function setScheduleConfig(next) {
+  cfg = {
+    templates: (next && next.templates) || DEFAULT_TEMPLATES,
+    weekPlan: (next && next.weekPlan) || DEFAULT_WEEK_PLAN,
+  };
+}
+export function scheduleConfig() {
+  return cfg;
+}
+
+// قالب اليوم: من خطة الأسبوع، وإن غاب فأول قالب موجود
+function templateFor(dIso) {
+  const ids = Object.keys(cfg.templates);
+  return cfg.templates[cfg.weekPlan[dow(dIso)]] || cfg.templates[ids[0]];
+}
 
 // بنود البلوك: إمّا ثابتة في القالب، وإمّا مولّدة (صلوات وقرآن) من حالة يومها
 function itemsFor(block, dIso) {
