@@ -147,6 +147,37 @@ const DEFAULT_WIRD: [string, string][] = [
   ["isha", "sunnahAfter"],
 ]
 
+// أنظمة المستخدم بأنواعها المفتوحة — فالافتراض بذرةٌ لا سقف: تُزاد التمارين وتُنقص
+// أيام الدورة ويُبدَّل موضع الحفظ، والنوع لا يمنع شيئًا من ذلك.
+export type Exercise = {
+  name: string
+  sets: number
+  lo: number
+  hi: number
+  w0: number | null
+  inc: number
+  rest: number
+}
+export type WorkoutDay = { title: string; header: string; items: unknown[] }
+export type WorkoutCfg = {
+  start: string
+  offTitle: string
+  restBetween: boolean
+  exercises: Record<string, Exercise>
+  days: WorkoutDay[]
+}
+export type Template = { name?: string; start: Anchor; blocks: Block[] }
+export type QuranCfg = {
+  mode: string
+  date: string
+  reviewJuz: number
+  hifzJuz: number
+  hifzQuarter: number
+  hifzMode: string
+  repeats: number
+  wirdSlots: number
+}
+
 // الموقع وطريقة الحساب من إعدادات المستخدم — والافتراض الرياض بمعايير أم القرى
 const DEFAULT_SETTINGS = {
   clientId: "",
@@ -167,10 +198,10 @@ const DEFAULT_SETTINGS = {
   // ورد التثبيت: السنن المشاركة بترتيبها الزمني [slot البلوك، معرّف البند]
   wird: DEFAULT_WIRD,
   // قوالب الأيام وخطة الأسبوع — يحرّرها المستخدم من «قالب يومك»
-  templates: DEFAULT_TEMPLATES as typeof DEFAULT_TEMPLATES,
+  templates: DEFAULT_TEMPLATES as unknown as Record<string, Template>,
   weekPlan: DEFAULT_WEEK_PLAN as string[],
-  quran: DEFAULT_QURAN as typeof DEFAULT_QURAN,
-  workout: DEFAULT_WORKOUT as typeof DEFAULT_WORKOUT,
+  quran: DEFAULT_QURAN as QuranCfg,
+  workout: DEFAULT_WORKOUT as unknown as WorkoutCfg,
   // بداية اليوم: أيّ بلوك يفتتح الوحدة وبأيّ مرساة — واحدة لكل القوالب، وإلا
   // تداخلت الوحدات. null = كما كُتب القالب (نومة الثلث الأخير في الجاهز).
   dayStart: null as { blockId?: string; anchor?: Anchor } | null,
@@ -195,7 +226,12 @@ function applyEngineConfig() {
   BLOCK_START = settings.startDate
   const { lat, lng, tz, method, asrFactor } = settings
   setPrayerConfig({ lat, lng, tz, method, asrFactor })
-  setQuranConfig({ ...settings.quran, wirdSlots: settings.wird.length })
+  setQuranConfig({
+    ...settings.quran,
+    enabled: settings.hifzEnabled,
+    wird: settings.wird, // مولّد البلوك يقرأ منها موضع كل سنّة، فلا يُفهرَس برقم
+    wirdSlots: settings.wird.length,
+  })
   setWorkoutConfig(settings.workout)
   setScheduleConfig({
     templates: settings.templates,
@@ -597,7 +633,7 @@ export function dayTasks(events: Ev[], unit: string): DayTask[] {
   }
   // تمرين أمس غير المكتمل يُرحَّل يومًا واحدًا فيظهر إلى جانب مهمة اليوم
   const carry = trainCarry()
-  if (carry && carry.to === unit) {
+  if (carry && carry.to === unit && settings.workoutEnabled) {
     const p = sessionProgress(carry.from)
     out.push({
       kind: "train",
@@ -609,8 +645,8 @@ export function dayTasks(events: Ev[], unit: string): DayTask[] {
     })
   }
   const id = `${unit}#train`
-  if (!done[id]) {
-    if (workoutDayType(unit) === 0) out.push({ kind: "dev", id, title: "تطوير" })
+  if (!done[id] && settings.workoutEnabled) {
+    if (workoutDayType(unit) === 0) out.push({ kind: "dev", id, title: settings.workout.offTitle })
     else {
       const p = sessionProgress(unit)
       if (p.total === 0 || p.done < p.total)
@@ -633,7 +669,8 @@ export function allEvents(): Ev[] {
     byUnit.set(ev.unit!, list)
   }
   // إزاحة التثبيت: ما فات من السنن لا يُتخطّى، فالصلاة التالية تبدأ من حيث توقّف
-  for (const [unit, evs] of byUnit) {
+  // (ومن أطفأ «الورد في السنن» بقيت سننُه بأسمائها بلا وردٍ ولا إزاحة)
+  for (const [unit, evs] of settings.wirdEnabled ? byUnit : []) {
     const st = quranStateFor(unit)
     const seq = wirdSeq()
     const labels = tathbeetLabels(st, seq.length) as string[]
@@ -890,32 +927,94 @@ export type Block = {
   items?: Item[]
 }
 
+// ── حراسة القالب ──
+// البلوك المرساةُ نهايتُه لا تُزحزحها طولُ ما قبله، فطولٌ زائد يجعل بلوكًا ينتهي
+// قبل أن يبدأ. وأخطر من ظهوره أنه يختفي: نومةٌ سالبة تدخل حساب نومة التوازن
+// فتنتفخ هذه لتبلغ الهدف، فيرى صاحبها يومًا معقولًا في ظاهره فاسدًا في باطنه.
+// فلا يُحفظ قالبٌ لا يصمد في مواسم السنة الأربعة.
+const SAMPLE_DAYS = ["2026-01-15", "2026-04-15", "2026-06-21", "2026-09-23", "2026-12-21"]
+const BROKEN = "هذه المدة تجعل بلوكًا ينتهي قبل أن يبدأ في بعض أيام السنة — جرّب أقلّ منها."
+
+function templatesSound(t: Record<string, { start: Anchor; blocks: Block[] }>): boolean {
+  for (const tpl of Object.values(t)) {
+    const rot = rotateTemplate(tpl, settings.dayStart)
+    for (const d of SAMPLE_DAYS) if (!isMonotone(d, rot)) return false
+  }
+  return true
+}
+
+// أطول مدة تحتملها صلاةٌ بعينها دون أن ينقلب اليوم — بحثٌ ثنائي، ليُقيَّد بها الإدخال
+export function maxPrayerMinutes(id: string, cap = 180): number {
+  const base = settings.templates
+  const try_ = (v: number) => {
+    const t = JSON.parse(JSON.stringify(base))
+    for (const tpl of Object.values(t) as { blocks: Block[] }[])
+      for (const b of tpl.blocks) {
+        const f = durationField(b)
+        if (f && b.id === id) b.end[f] = v
+      }
+    return templatesSound(t)
+  }
+  if (try_(cap)) return cap
+  let lo = 5,
+    hi = cap
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (try_(mid)) lo = mid
+    else hi = mid
+  }
+  return lo
+}
+
 function editTemplates(fn: (t: Record<string, { start: Anchor; blocks: Block[] }>) => void) {
   const next = JSON.parse(JSON.stringify(settings.templates))
   fn(next)
   saveSettings({ templates: next })
 }
 
-export function updateBlock(tplId: string, blockId: string, patch: Partial<Block>) {
-  editTemplates((t) => {
-    const b = t[tplId]?.blocks.find((x) => x.id === blockId)
-    if (b) Object.assign(b, patch)
-  })
+// يعيد رسالةً إن كان التعديل يقلب اليوم، ولا يحفظ حينها
+export function updateBlock(tplId: string, blockId: string, patch: Partial<Block>): string | null {
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  const b = next[tplId]?.blocks.find((x: Block) => x.id === blockId)
+  if (!b) return null
+  Object.assign(b, patch)
+  if (!templatesSound(next)) return BROKEN
+  saveSettings({ templates: next })
+  return null
 }
 
 // بلوك جديد يُدرج قبل أوّل بلوك ينتهي بعده، فيبقى الترتيب الزمني سليمًا
-export function addBlock(tplId: string, title: string, end: Anchor) {
-  editTemplates((t) => {
-    const tpl = t[tplId]
-    if (!tpl) return
-    const block: Block = { id: `b${Date.now().toString(36)}`, title, colorId: 6, end, items: [] }
-    const order = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"]
-    const rank = (a: Anchor) =>
-      a.lastThirdPrev ? -1 : a.prayer ? order.indexOf(a.prayer) : a.nightFraction ? 10 : 99
-    const at = tpl.blocks.findIndex((b) => rank(b.end) > rank(end))
-    if (at < 0) tpl.blocks.push(block)
-    else tpl.blocks.splice(at, 0, block)
-  })
+// البلوك الجديد يولد بلوك مهام ما لم يكن نومًا — وإلا لم يقبل مهمةً ولا قضاءً،
+// وكان يولد أعمى عن ذلك كلّه فلا سبيل إلى إبصاره.
+export function addBlock(
+  tplId: string,
+  title: string,
+  end: Anchor,
+  flags: { sleep?: boolean; task?: boolean } = {}
+): string | null {
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  const tpl = next[tplId]
+  if (!tpl) return null
+  const sleep = !!flags.sleep
+  const block: Block = {
+    id: `b${Date.now().toString(36)}`,
+    title,
+    colorId: sleep ? 8 : 6,
+    end,
+    sleep: sleep || undefined,
+    task: !sleep && flags.task !== false ? true : undefined,
+    items: [],
+  }
+  const order = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"]
+  const rank = (a: Anchor) =>
+    a.lastThirdPrev ? -1 : a.clock != null ? -0.5 : a.prayer ? order.indexOf(a.prayer) : a.nightFraction ? 10 : 99
+  const at = tpl.blocks.findIndex((b: Block) => rank(b.end) > rank(end))
+  if (at < 0) tpl.blocks.push(block)
+  else tpl.blocks.splice(at, 0, block)
+  if (!templatesSound(next))
+    return "هذا البلوك يجعل يومك ينقلب — غيّر وقت نهايته أو موضعه."
+  saveSettings({ templates: next })
+  return null
 }
 
 export function removeBlock(tplId: string, blockId: string) {
@@ -957,19 +1056,38 @@ export function prayerMinutesOf(
   return out
 }
 
-// رقمٌ واحد يعمّ الصلوات الخمس، أو خريطةٌ لكلٍّ مدتُه
-export function setPrayerMinutes(minutes: number | Record<string, number>) {
+// رقمٌ واحد يعمّ الصلوات الخمس، أو خريطةٌ لكلٍّ مدتُه.
+// يعيد رسالةً إن كانت المدة تفسد اليوم، ولا يحفظ شيئًا حينها.
+export function setPrayerMinutes(minutes: number | Record<string, number>): string | null {
   const map = typeof minutes === "number" ? null : minutes
-  editTemplates((t) => {
-    for (const tpl of Object.values(t))
-      for (const b of tpl.blocks) {
-        const f = durationField(b)
-        if (!f) continue
-        const v = map ? map[b.id] : (minutes as number)
-        if (v == null || !Number.isFinite(v)) continue
-        b.end[f] = Math.max(5, Math.round(v))
-      }
-  })
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  for (const tpl of Object.values(next) as { blocks: Block[] }[])
+    for (const b of tpl.blocks) {
+      const f = durationField(b)
+      if (!f) continue
+      const v = map ? map[b.id] : (minutes as number)
+      if (v == null || !Number.isFinite(v)) continue
+      b.end[f] = Math.max(5, Math.round(v))
+    }
+  if (!templatesSound(next)) return BROKEN
+  saveSettings({ templates: next })
+  return null
+}
+
+// السنن التي يصلح أن يُوزَّع عليها الورد — تُستخرج من أحداث يومٍ فعليّ لا من قائمة
+// مكتوبة، فمن غيّر قالبه أو سمّى صلواته بغير أسمائها وجد سننه كما هي عنده.
+export function wirdCandidates(): { slot: string; id: string; title: string }[] {
+  const out: { slot: string; id: string; title: string }[] = []
+  const unit = currentUnit()
+  for (const ev of allEvents()) {
+    if (ev.unit !== unit || ev.external) continue
+    for (const i of ev.items) {
+      if (!/^(sunnah|duha|sunnahBefore|sunnahAfter)$/.test(i.id)) continue
+      const cut = i.text.indexOf(" — ")
+      out.push({ slot: ev.slot!, id: i.id, title: cut < 0 ? i.text : i.text.slice(0, cut) })
+    }
+  }
+  return out
 }
 
 // ── بداية اليوم ──
@@ -1009,6 +1127,61 @@ export function setDayStart(next: { blockId?: string; anchor?: Anchor } | null):
         return "هذه البداية تجعل بعض بلوكاتك تنتهي قبل أن تبدأ في بعض أيام السنة — اختر غيرها."
   }
   saveSettings({ dayStart: next })
+  return null
+}
+
+// نقلُ بلوكٍ في الترتيب — ويُردّ إن جعل يومًا ينقلب
+export function moveBlock(tplId: string, blockId: string, dir: -1 | 1): string | null {
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  const blocks: Block[] = next[tplId]?.blocks
+  if (!blocks) return null
+  const i = blocks.findIndex((b) => b.id === blockId)
+  const j = i + dir
+  if (i < 0 || j < 0 || j >= blocks.length) return null
+  ;[blocks[i], blocks[j]] = [blocks[j], blocks[i]]
+  if (!templatesSound(next)) return "هذا الترتيب يجعل بلوكًا ينتهي قبل أن يبدأ — مراسي البلوكات لا تقبله."
+  saveSettings({ templates: next })
+  return null
+}
+
+// ── القوالب: إنشاءً ونسخًا وتسميةً وحذفًا ──
+// اسمُ القالب صار حقلًا فيه، فكان يُعرض معرّفُه (weekday) لا اسمُه.
+export function templateName(id: string): string {
+  const t = settings.templates[id] as { name?: string } | undefined
+  return t?.name || DEFAULT_TEMPLATE_NAMES[id] || id
+}
+
+const DEFAULT_TEMPLATE_NAMES: Record<string, string> = {
+  weekday: "أيام العمل",
+  friday: "الجمعة",
+  saturday: "السبت",
+}
+
+export function renameTemplate(id: string, name: string) {
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  if (!next[id]) return
+  next[id].name = name
+  saveSettings({ templates: next })
+}
+
+// النسخ أولى من الإنشاء من فراغ: يومٌ فارغ لا يصلح جدولًا
+export function duplicateTemplate(srcId: string, name: string): string {
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  let id = "tpl" + (Object.keys(next).length + 1)
+  while (next[id]) id += "x"
+  next[id] = { ...JSON.parse(JSON.stringify(next[srcId])), name }
+  saveSettings({ templates: next })
+  return id
+}
+
+export function removeTemplate(id: string): string | null {
+  const ids = Object.keys(settings.templates)
+  if (ids.length <= 1) return "لا بدّ من قالبٍ واحد على الأقل."
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  delete next[id]
+  const fallback = Object.keys(next)[0]
+  const plan = settings.weekPlan.map((x) => (x === id ? fallback : x))
+  saveSettings({ templates: next, weekPlan: plan })
   return null
 }
 

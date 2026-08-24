@@ -15,6 +15,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Help } from "@/components/help"
+import {
+  LocationSection,
+  QuranSection,
+  Section,
+  WirdSection,
+  WorkoutSection,
+} from "@/components/systems-sections"
 import { cn } from "@/lib/utils"
 import { addAccount, dropToken, pullAccount } from "@/lib/gcal"
 import { notificationsGranted, requestNotifications, scheduleNotifications } from "@/lib/notify"
@@ -148,16 +155,23 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>حسابات Google Calendar</DialogTitle>
+          <DialogTitle>الإعدادات</DialogTitle>
           <DialogDescription>
-            أضف حسابًا أو أكثر — شاشة Google ستعرض كل الحسابات المسجلة على جهازك لتختار منها.
-            أحداث Google تُدمج كمهام قابلة للتأشير داخل بلوكات العمل والعائلة والراحة حسب وقتها
-            (قراءة فقط).
+            موقعك وأنظمتك وحسابك — كل قسم مطويّ حتى تفتحه، فلا يزاحمك ما لا تحتاجه.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
+          <LocationSection />
+          <QuranSection />
+          <WirdSection />
+          <WorkoutSection />
+
+          <Section
+            title="حسابات Google Calendar"
+            help="أحداث Google تُعرض شفافةً داخل بلوكاتها ولا أثر لها في جدولك: لا تزيح بلوكًا ولا تُحتسب في إنجازك. وهي قراءةٌ فقط — لا يكتب البرنامج في تقويمك شيئًا."
+          >
           <Input
             dir="ltr"
             placeholder="xxxxx.apps.googleusercontent.com"
@@ -205,6 +219,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
               {arab(getPulled().events.length)} حدث Google معروض حاليًا
             </Badge>
           )}
+          </Section>
 
           <div className="border-t pt-3">
             <h3 className="mb-2 flex items-center gap-1 text-sm font-semibold">

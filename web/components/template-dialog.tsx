@@ -1,7 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { CheckIcon, ChevronDownIcon, DownloadIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  CopyIcon,
+  DownloadIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -14,7 +23,12 @@ import {
   currentDayStart,
   dayStartOptions,
   DEFAULT_TEMPLATES,
+  duplicateTemplate,
   loadPreset,
+  moveBlock,
+  removeTemplate,
+  renameTemplate,
+  templateName,
   prayerMinutesOf,
   PRESETS,
   removeBlock,
@@ -60,7 +74,7 @@ export function isSelfPaced(b: Block): boolean {
 
 function endLabel(b: Block): string {
   const e = b.end
-  if (e.balance) return "يُكمل نومك إلى المجموع الذي حدّدته"
+  if (e.balance) return `يُكمل نومك إلى ${fmtDur(e.balance.target)}`
   if (e.len != null) return `${fmtDur(e.len)} من بدايته`
   if (isSelfPaced(b)) return `${fmtDur(e.offset || 0)} من أذانه`
   if (e.prayer) {
@@ -74,12 +88,64 @@ function endLabel(b: Block): string {
     return e.offset > 0 ? `بعد ${base} بـ${fmtDur(e.offset)}` : `قبل ${base} بـ${fmtDur(-e.offset)}`
   }
   if (e.lastThirdPrev) return "مطلع الثلث الأخير من الليلة السابقة"
+  if (e.clock != null)
+    return `عند ${arab(Math.floor(e.clock / 60))}:${arab(String(e.clock % 60).padStart(2, "0"))}`
   return "—"
 }
 
-function BlockRow({ tplId, block }: { tplId: string; block: Block }) {
+// صورة المرساة — بها يُبدَّل نوعُ نهاية البلوك لا رقمُها وحده
+type Kind = "prayer" | "night" | "clock" | "len" | "balance"
+const kindOf = (e: Block["end"]): Kind =>
+  e.balance ? "balance" : e.len != null ? "len" : e.clock != null ? "clock" : e.nightFraction ? "night" : "prayer"
+
+const KINDS: [Kind, string][] = [
+  ["prayer", "صلاة"],
+  ["night", "ثلث الليل"],
+  ["clock", "ساعة"],
+  ["len", "مدة ثابتة"],
+]
+
+function anchorOfKind(k: Kind, prev: Block["end"]): Block["end"] {
+  if (k === "prayer") return { prayer: prev.prayer || "dhuhr", offset: 0 }
+  if (k === "night") return { nightFraction: prev.nightFraction || 1, offset: 0 }
+  if (k === "clock") return { clock: prev.clock ?? 6 * 60 }
+  return { len: prev.len ?? 45 }
+}
+
+function Tick({ on, label, help, onClick }: { on: boolean; label: string; help: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="flex items-start gap-2 text-start">
+      <span
+        className={cn(
+          "mt-0.5 flex size-4 flex-none items-center justify-center rounded border",
+          on ? "bg-primary border-primary text-primary-foreground" : "border-border"
+        )}
+      >
+        {on && <CheckIcon className="size-3" />}
+      </span>
+      <span className="text-xs">{label}</span>
+      <Help text={help} />
+    </button>
+  )
+}
+
+function BlockRow({
+  tplId,
+  block,
+  index,
+  count,
+}: {
+  tplId: string
+  block: Block
+  index: number
+  count: number
+}) {
   const [open, setOpen] = useState(false)
-  const set = (patch: Partial<Block>) => updateBlock(tplId, block.id, patch)
+  const [err, setErr] = useState("")
+  // التعديل يُردّ إن قلب اليوم، فتظهر الرسالة مكانها ولا يُحفظ شيء
+  const set = (patch: Partial<Block>) => setErr(updateBlock(tplId, block.id, patch) || "")
+  const kind = kindOf(block.end)
+  const setEnd = (end: Block["end"]) => set({ end })
   return (
     <div className="rounded-md border p-2">
       <div className="flex items-center gap-2">
@@ -118,18 +184,138 @@ function BlockRow({ tplId, block }: { tplId: string; block: Block }) {
             </div>
           </div>
 
-          {block.end.len != null && (
+          {/* نوع النهاية — لا رقمُها وحده. وبلوكات الصلاة والقرآن تبقى على صورتها */}
+          {!block.gen && !block.end.balance && (
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-muted-foreground me-1 flex-none text-xs">ينتهي عند</span>
+              {KINDS.map(([k, label]) => (
+                <button
+                  key={k}
+                  onClick={() => setEnd(anchorOfKind(k, block.end))}
+                  className={cn(
+                    "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                    kind === k ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* أيّ صلاة — كان البلوك يُخلق على صلاته فلا يبرحها */}
+          {kind === "prayer" && !isSelfPaced(block) && (
+            <div className="flex flex-wrap gap-1">
+              {PRAYERS.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setEnd({ ...block.end, prayer: p.key })}
+                  className={cn(
+                    "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                    block.end.prayer === p.key
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border hover:bg-muted"
+                  )}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {kind === "night" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-1">
+                {[1, 2].map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setEnd({ ...block.end, nightFraction: k })}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                      block.end.nightFraction === k
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border hover:bg-muted"
+                    )}
+                  >
+                    {k === 1 ? "ثلث الليل" : "ثلثا الليل"}
+                  </button>
+                ))}
+              </div>
+              <label className="text-muted-foreground flex-none text-xs">إزاحة</label>
+              <Input
+                type="number"
+                value={block.end.offset || 0}
+                onChange={(e) => setEnd({ ...block.end, offset: +e.target.value || 0 })}
+                className="h-8 w-20"
+              />
+              <Help text="الليل من المغرب إلى فجر الغد، فثلثه وثلثاه يتحركان مع الفصول. وسالب الإزاحة قبله وموجبها بعده." />
+            </div>
+          )}
+
+          {kind === "clock" && (
+            <div className="flex items-center gap-2">
+              <label className="text-muted-foreground flex-none text-xs">الساعة</label>
+              <Input
+                type="time"
+                value={`${String(Math.floor((block.end.clock ?? 0) / 60)).padStart(2, "0")}:${String((block.end.clock ?? 0) % 60).padStart(2, "0")}`}
+                onChange={(e) => {
+                  const [h, m] = e.target.value.split(":").map(Number)
+                  if (Number.isFinite(h)) setEnd({ clock: h * 60 + m })
+                }}
+                className="h-8 w-28"
+              />
+              <Help text="ساعةٌ ثابتة لا تتحرك بالمواقيت — لمن كان في يومه موعدٌ لا يتبع الشمس." />
+            </div>
+          )}
+
+          {kind === "len" && (
             <div className="flex items-center gap-2">
               <label className="text-muted-foreground flex-none text-xs">المدة (دقيقة)</label>
               <Input
                 type="number"
                 min={5}
-                max={240}
+                max={600}
                 value={block.end.len}
-                onChange={(e) => set({ end: { ...block.end, len: Math.max(5, +e.target.value || 5) } })}
+                onChange={(e) => setEnd({ ...block.end, len: Math.max(5, +e.target.value || 5) })}
                 className="h-8 w-24"
               />
               <Help text="مدة البلوك من بدايته. لبلوكات الصلاة: من الأذان حتى فراغك من السنة والأذكار." />
+            </div>
+          )}
+
+          {/* نومة التوازن: أرقامها كانت ثابتة في الشيفرة والواجهة تقول إنك حدّدتها */}
+          {block.end.balance && (
+            <div className="flex flex-col gap-1.5 rounded-md border p-2">
+              <div className="flex items-center gap-1 text-xs">
+                نومة التوازن
+                <Help text="هذه النومة تُكمل مجموع نومك إلى الهدف: فإن قصرت ليلتك طالت هي وقصر عملك، وإن طالت ليلتك انكمشت. ولها حدّ أدنى وأعلى، وتُبقي بعدها فسحةً لا تأكلها." />
+              </div>
+              {(
+                [
+                  ["target", "مجموع نومك"],
+                  ["min", "أقلّها"],
+                  ["max", "أكثرها"],
+                  ["keepAfter", "تُبقي بعدها"],
+                ] as ["target" | "min" | "max" | "keepAfter", string][]
+              ).map(([k, label]) => (
+                <div key={k} className="flex items-center gap-2">
+                  <label className="text-muted-foreground w-24 flex-none text-xs">{label}</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={900}
+                    value={block.end.balance![k]}
+                    onChange={(e) =>
+                      setEnd({
+                        ...block.end,
+                        balance: { ...block.end.balance!, [k]: Math.max(0, +e.target.value || 0) },
+                      })
+                    }
+                    className="h-8 w-20"
+                  />
+                  <span className="text-muted-foreground text-[11px]">دقيقة</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -148,7 +334,7 @@ function BlockRow({ tplId, block }: { tplId: string; block: Block }) {
             </div>
           )}
 
-          {block.end.prayer && !isSelfPaced(block) && (
+          {kind === "prayer" && !isSelfPaced(block) && (
             <div className="flex items-center gap-2">
               <label className="text-muted-foreground flex-none text-xs">
                 إزاحة عن {PRAYERS.find((p) => p.key === block.end.prayer)?.name} (دقيقة)
@@ -161,6 +347,25 @@ function BlockRow({ tplId, block }: { tplId: string; block: Block }) {
               />
               <Help text="سالب يعني قبل الوقت، وموجب يعني بعده. مثاله تبكير الجمعة: −٦٠." />
             </div>
+          )}
+
+          {/* أعلام البلوك: نومٌ يُحتسب في مجموع نومك، ووقتٌ حرّ لا يُطالبك بشيء */}
+          {!block.gen && (
+            <Tick
+              on={!!block.sleep}
+              label="هذا البلوك نوم"
+              help="يُحتسب في مجموع نومك، فتقصر نومةُ التوازن بقدره. ومن أضاف نومةً بلا هذا العلَم زاد نومُه عن هدفه."
+              onClick={() => set({ sleep: !block.sleep, task: block.sleep ? block.task : false })}
+            />
+          )}
+
+          {!block.gen && (
+            <Tick
+              on={!!block.transparent}
+              label="وقت حرّ"
+              help="يُعرض باهتًا ولا يُطالبك بشيء — كبلوك الراحة: لك أن تملأه ولك أن تتركه."
+              onClick={() => set({ transparent: !block.transparent })}
+            />
           )}
 
           {/* بلوك المهام: يقبل مهامك اليدوية ويستقبل القضاء والتقديم */}
@@ -178,6 +383,36 @@ function BlockRow({ tplId, block }: { tplId: string; block: Block }) {
               <Help text="بلوك المهام يقبل ما تضيفه من مهام ومهام الخزانات، ويستقبل ما فاتك قضاءً وما تريد تقديمه. أما النوم والصلوات فلا." />
             </button>
           )}
+
+          {/* الترتيب: كان يُحدَّد مرة عند الإنشاء فلا يُصحَّح بعدها */}
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground me-1 flex-none text-xs">موضعه</span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-7"
+              aria-label="إلى الأعلى"
+              disabled={index === 0}
+              onClick={() => setErr(moveBlock(tplId, block.id, -1) || "")}
+            >
+              <ChevronUpIcon />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-7"
+              aria-label="إلى الأسفل"
+              disabled={index === count - 1}
+              onClick={() => setErr(moveBlock(tplId, block.id, 1) || "")}
+            >
+              <ChevronDownIcon />
+            </Button>
+            <span className="text-muted-foreground text-[11px]">
+              {arab(index + 1)} من {arab(count)}
+            </span>
+          </div>
+
+          {err && <p className="text-destructive text-[11px] leading-relaxed">{err}</p>}
 
           {!block.gen && (
             <Button
@@ -202,6 +437,9 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
   const [adding, setAdding] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState("")
   const [newAfter, setNewAfter] = useState("dhuhr")
+  const [newClock, setNewClock] = useState("06:00")
+  const [newSleep, setNewSleep] = useState(false)
+  const [tplErr, setTplErr] = useState("")
   const [confirmPreset, setConfirmPreset] = useState<string | null>(null)
   const [perPrayer, setPerPrayer] = useState(false)
   const [mins, setMins] = useState<Record<string, number>>(() => prayerMinutesOf())
@@ -420,7 +658,7 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
                             : "border-border hover:bg-muted"
                         )}
                       >
-                        {id}
+                        {templateName(id)}
                       </button>
                     ))}
                   </div>
@@ -440,14 +678,48 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
                   className="flex w-full items-center gap-2 text-start"
                 >
                   <ChevronDownIcon className={cn("size-4 flex-none transition-transform", !isOpen && "-rotate-90")} />
-                  <span className="flex-1 text-sm font-semibold">{id}</span>
+                  <span className="flex-1 text-sm font-semibold">{templateName(id)}</span>
                   <span className="text-muted-foreground text-[11px]">{arab(tpl.blocks.length)} بلوك</span>
                 </button>
 
                 {isOpen && (
                   <div className="flex flex-col gap-2 pt-2">
-                    {tpl.blocks.map((b) => (
-                      <BlockRow key={b.id} tplId={id} block={b as Block} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="text-muted-foreground flex-none text-xs">اسم القالب</label>
+                      <Input
+                        defaultValue={templateName(id)}
+                        onBlur={(e) => renameTemplate(id, e.target.value.trim() || templateName(id))}
+                        className="h-8 w-36"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setOpenTpl(duplicateTemplate(id, templateName(id) + " (نسخة)"))}
+                      >
+                        <CopyIcon />
+                        انسخه
+                      </Button>
+                      {ids.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setTplErr(removeTemplate(id) || "")}
+                        >
+                          <Trash2Icon />
+                          احذفه
+                        </Button>
+                      )}
+                    </div>
+                    {tplErr && <p className="text-destructive text-[11px]">{tplErr}</p>}
+                    {tpl.blocks.map((b, i) => (
+                      <BlockRow
+                        key={b.id}
+                        tplId={id}
+                        block={b as Block}
+                        index={i}
+                        count={tpl.blocks.length}
+                      />
                     ))}
 
                     {adding === id ? (
@@ -477,13 +749,51 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
                               {p.name}
                             </button>
                           ))}
+                          <button
+                            onClick={() => setNewAfter("clock")}
+                            className={cn(
+                              "rounded-md border px-2 py-1 text-xs transition-colors",
+                              newAfter === "clock"
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border hover:bg-muted"
+                            )}
+                          >
+                            ساعة
+                          </button>
                         </div>
+                        {newAfter === "clock" && (
+                          <Input
+                            type="time"
+                            value={newClock}
+                            onChange={(e) => setNewClock(e.target.value)}
+                            className="h-8 w-28"
+                          />
+                        )}
+                        <button
+                          onClick={() => setNewSleep((v) => !v)}
+                          className="flex items-center gap-2 text-start"
+                        >
+                          <span
+                            className={cn(
+                              "flex size-4 flex-none items-center justify-center rounded border",
+                              newSleep ? "bg-primary border-primary text-primary-foreground" : "border-border"
+                            )}
+                          >
+                            {newSleep && <CheckIcon className="size-3" />}
+                          </span>
+                          <span className="text-xs">هذا البلوك نوم</span>
+                        </button>
                         <div className="flex gap-2">
                           <Button
                             size="sm"
                             onClick={() => {
                               if (!newTitle.trim()) return
-                              addBlock(id, newTitle.trim(), { prayer: newAfter })
+                              const [h, m] = newClock.split(":").map(Number)
+                              const end =
+                                newAfter === "clock" ? { clock: h * 60 + m } : { prayer: newAfter }
+                              const e = addBlock(id, newTitle.trim(), end, { sleep: newSleep })
+                              if (e) return setTplErr(e)
+                              setTplErr("")
                               setNewTitle("")
                               setAdding(null)
                             }}
@@ -507,6 +817,19 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
               </div>
             )
           })}
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => setOpenTpl(duplicateTemplate(ids[0], "قالب جديد"))}
+          >
+            <PlusIcon />
+            قالب يوم
+          </Button>
+          <p className="text-muted-foreground text-[11px] leading-relaxed">
+            القالب الجديد نسخةٌ من أوّل قوالبك تعدّلها كما تشاء، ثم تُسنده إلى أيامه من «خطة الأسبوع».
+          </p>
 
           <Button
             variant="ghost"

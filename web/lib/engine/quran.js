@@ -12,7 +12,19 @@ export const DEFAULT_QURAN = {
   hifzQuarter: 1, // ١..٨ داخل الجزء
   hifzMode: 'حفظ', // 'حفظ' أو 'تكرار'
   repeats: 5, // مرات تكرار ربع الحفظ في يوم التكرار
-  wirdSlots: 8, // عدد السنن التي يُوزَّع عليها ورد التثبيت
+  enabled: true, // نظام الحفظ والمراجعة كلّه — من أطفأه خلا بلوكه منه
+  // السنن التي يُوزَّع عليها ورد التثبيت بترتيبها الزمني: [بلوك، بند]
+  wird: [
+    ['fajr', 'sunnah'],
+    ['fajr', 'duha'],
+    ['dhuhr', 'sunnahBefore'],
+    ['dhuhr', 'sunnahAfter'],
+    ['asr', 'sunnah'],
+    ['maghrib', 'sunnah'],
+    ['isha', 'sunnahBefore'],
+    ['isha', 'sunnahAfter'],
+  ],
+  wirdSlots: 8, // عدد السنن (يُشتقّ من طول wird)
 };
 
 export let QURAN_SEED = DEFAULT_QURAN;
@@ -130,6 +142,8 @@ export function tathbeetPoolKey(st, slotIndex, count = QURAN_SEED.wirdSlots) {
 // كل بند بمجمع أخطائه الخاص (نفس المجمع يُعاد استخدامه كل مرة يُقرأ فيه هذا الربع لاحقًا)
 // لكل بند مفتاح ثابت (key) تتعلّق به علامات التأشير، فلا تنزاح بتغيّر عدد البنود
 export function quranTaskLines(st) {
+  // من أطفأ نظام الحفظ خلا بلوكُه منه — ولم يبقَ يطالبه بموضعٍ لا يريده
+  if (QURAN_SEED.enabled === false) return [];
   // النظام الحرّ: بندان بلا موضع ولا تتبّع — تكتب ما قرأته بنفسك
   if (QURAN_SEED.mode === 'free')
     return [
@@ -156,6 +170,9 @@ export function quranTaskLines(st) {
 
 // أنصاف أحزاب التثبيت الثمانية بترتيب السنن:
 // [الفجر، الضحى، الظهر القبلية، الظهر البعدية، العصر، المغرب، العشاء القبلية، العشاء البعدية]
+// قائمة نصوص الورد بترتيب السنن. ولها `at(slot, itemId)` تقرأ الموضع من قائمة
+// السنن المُعدّة لا من رقمٍ مكتوب في مولّد البلوك — فمن حذف سنّةً من ورده أو
+// أعاد ترتيبها لم يقرأ «سنة العصر — undefined»، وإنما اسمَ سنّته وحده.
 export function tathbeetLabels(st, count = QURAN_SEED.wirdSlots) {
   const [a, b] = [st.hifzJuz - 2, st.hifzJuz - 1];
   const perJuz = Math.max(1, Math.round(count / 2));
@@ -168,5 +185,9 @@ export function tathbeetLabels(st, count = QURAN_SEED.wirdSlots) {
     const { s, e } = halfHizbPages(j, k);
     out.push(`الجزء ${arab(j)} — الحزب ${arab(hizb)} (${half})، ص ${arab(s)}–${arab(e)} تقريبًا`);
   }
+  out.at = (slot, itemId) => {
+    const i = (QURAN_SEED.wird || []).findIndex((w) => w[0] === slot && w[1] === itemId);
+    return i < 0 ? null : out[i];
+  };
   return out;
 }

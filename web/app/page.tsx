@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import {
   ActivityIcon,
   ArchiveIcon,
-  CalendarSyncIcon,
-  LayoutGridIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  LayoutGridIcon,
+  SettingsIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -146,10 +146,10 @@ export default function Page() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="أحداث Google"
+            aria-label="الإعدادات"
             onClick={() => setSettingsOpen(true)}
           >
-            <CalendarSyncIcon />
+            <SettingsIcon />
           </Button>
         </div>
       </header>

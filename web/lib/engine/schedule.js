@@ -32,16 +32,22 @@ const note = (text) => ({ id: 'note', text, note: true });
 const POETRY_LINE = 'بين الأذان والإقامة: كتابة شعر';
 const KAHF_LINE = 'بين الأذان والإقامة: قراءة سورة الكهف';
 
+// نصّ بند السنّة: اسمُها، ومعها موضعُ وردها إن كانت من سننه المختارة
+const wirdText = (name, t, slot, id) => {
+  const label = t.at ? t.at(slot, id) : null;
+  return label ? `${name} — ${label}` : name;
+};
+
 const GEN = {
   fajr: (t) => [
     it('adhan', 'ترديد الأذان ودعاء ما بعد الأذان'),
-    it('sunnah', `سنة الفجر — ${t[0]}`),
+    it('sunnah', wirdText('سنة الفجر', t, 'fajr', 'sunnah')),
     it('between', POETRY_LINE),
     it('pray', 'صلاة الفجر'),
     it('dhikr', 'أذكار الصلاة'),
     it('morning', 'أذكار الصباح'),
     it('tahlil', 'لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير (١٠٠ مرة)'),
-    it('duha', `سنة الضحى — ${t[1]}`),
+    it('duha', wirdText('سنة الضحى', t, 'fajr', 'duha')),
     note(PRAYER_NOTE),
   ],
   // بلوك «مهام» الصباحي: بنود القرآن وحدها — والتمرين مهمة يومية عائمة تظهر في كل بلوك مهام
@@ -49,25 +55,25 @@ const GEN = {
     quranTaskLines(st).map((l) => it(l.key, l.text, { pool: l.pool || undefined, quran: true })),
   dhuhr: (t) => [
     it('adhan', 'ترديد الأذان'),
-    it('sunnahBefore', `سنة الظهر القبلية — ${t[2]}`),
+    it('sunnahBefore', wirdText('سنة الظهر القبلية', t, 'dhuhr', 'sunnahBefore')),
     it('between', POETRY_LINE),
     it('pray', 'صلاة الظهر'),
     it('dhikr', 'أذكار الصلاة'),
-    it('sunnahAfter', `سنة الظهر البعدية — ${t[3]}`),
+    it('sunnahAfter', wirdText('سنة الظهر البعدية', t, 'dhuhr', 'sunnahAfter')),
     note(PRAYER_NOTE),
   ],
   jumua: (t) => [
     it('adhan', 'ترديد الأذان'),
-    it('sunnahBefore', `سنة الظهر القبلية — ${t[2]}`),
+    it('sunnahBefore', wirdText('سنة الظهر القبلية', t, 'dhuhr', 'sunnahBefore')),
     it('between', KAHF_LINE),
     it('pray', 'صلاة الجمعة'),
     it('dhikr', 'أذكار الصلاة'),
-    it('sunnahAfter', `سنة الظهر البعدية — ${t[3]}`),
+    it('sunnahAfter', wirdText('سنة الظهر البعدية', t, 'dhuhr', 'sunnahAfter')),
     note(PRAYER_NOTE),
   ],
   asr: (t) => [
     it('adhan', 'ترديد الأذان'),
-    it('sunnah', `سنة العصر — ${t[4]}`),
+    it('sunnah', wirdText('سنة العصر', t, 'asr', 'sunnah')),
     it('between', POETRY_LINE),
     it('pray', 'صلاة العصر'),
     it('dhikr', 'أذكار الصلاة'),
@@ -87,11 +93,11 @@ const GEN = {
   ],
   isha: (t) => [
     it('adhan', 'ترديد الأذان'),
-    it('sunnahBefore', `سنة العشاء القبلية — ${t[6]}`),
+    it('sunnahBefore', wirdText('سنة العشاء القبلية', t, 'isha', 'sunnahBefore')),
     it('between', POETRY_LINE),
     it('pray', 'صلاة العشاء'),
     it('dhikr', 'أذكار الصلاة'),
-    it('sunnahAfter', `سنة العشاء البعدية — ${t[7]}`),
+    it('sunnahAfter', wirdText('سنة العشاء البعدية', t, 'isha', 'sunnahAfter')),
     note(PRAYER_NOTE),
   ],
   // القيام: وجبة رقم ١ (السحور) أيام العمل، وفي الجمعة والسبت تنتقل إلى نهارهما
@@ -104,7 +110,7 @@ const MAGHRIB_TAIL = (t) => [
   it('dhikr', 'أذكار الصلاة'),
   it('evening', 'أذكار المساء'),
   it('tasbih', 'سبحان الله وبحمده (١٠٠ مرة)'),
-  it('sunnah', `سنة المغرب — ${t[5]}`),
+  it('sunnah', wirdText('سنة المغرب', t, 'maghrib', 'sunnah')),
   note(PRAYER_NOTE),
 ];
 const QIYAM_BASE = [
