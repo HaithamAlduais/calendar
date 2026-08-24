@@ -131,6 +131,10 @@ const DEFAULT_SETTINGS = {
   method: "ummAlQura",
   asrFactor: 1, // ظل المثل، و٢ للحنفية
   startDate: "2026-08-24", // يوم بداية الجدول — ما قبله لا يُعرض
+  onboarded: false, // هل أتمّ المستخدم الإعداد الأول
+  wirdEnabled: true, // متابعة الورد في السنن
+  hifzEnabled: true, // نظام الحفظ والمراجعة
+  workoutEnabled: true, // نظام التمرين
   // ورد التثبيت: السنن المشاركة بترتيبها الزمني [slot البلوك، معرّف البند]
   wird: [
     ["fajr", "sunnah"],
@@ -149,11 +153,10 @@ const DEFAULT_SETTINGS = {
   workout: DEFAULT_WORKOUT as typeof DEFAULT_WORKOUT,
 }
 export type Settings = typeof DEFAULT_SETTINGS
-export const settings: Settings = Object.assign(
-  {} as Settings,
-  DEFAULT_SETTINGS,
-  load<Partial<Settings>>(K.settings, {})
-)
+const stored = load<Partial<Settings> | null>(K.settings, null)
+export const settings: Settings = Object.assign({} as Settings, DEFAULT_SETTINGS, stored || {})
+// من كان له إعدادات محفوظة فهو مستخدم قائم — لا يُعرض عليه الإعداد الأول
+if (stored && stored.onboarded === undefined) settings.onboarded = true
 
 // المحركات تقرأ إعداداتها من هنا، فتُطبَّق عند الإقلاع وعند كل حفظ
 function applyEngineConfig() {

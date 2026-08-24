@@ -15,6 +15,7 @@ import { CabinetsDialog } from "@/components/cabinets-dialog"
 import { TemplateDialog } from "@/components/template-dialog"
 import { DayPanel } from "@/components/day-panel"
 import { DayPopup } from "@/components/day-popup"
+import { Onboarding } from "@/components/onboarding"
 import { EventSheet } from "@/components/event-sheet"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { WeekView } from "@/components/week-view"
@@ -158,6 +159,7 @@ export default function Page() {
         onClose={() => setOpenEv(null)}
         onOpen={setOpenEv}
       />
+      <Onboarding />
       <TemplateDialog open={tplOpen} onClose={() => setTplOpen(false)} />
       <CabinetsDialog open={cabinetsOpen} onClose={() => setCabinetsOpen(false)} events={events} />
       <DayPanel open={panelOpen} onClose={() => setPanelOpen(false)} events={events} />
