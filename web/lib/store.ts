@@ -47,8 +47,10 @@ export type Ev = {
   trainDate?: string // بلوك تمرين قضاء: تاريخ الجلسة الأصلية (أمس)
 }
 
-export const SCHEDULE_START = "2026-08-24" // بداية جديدة (الاثنين ٢٤ أغسطس) — نسينا ما قبلها
-const BLOCK_START = "2026-08-24" // نافذة التوليد: كتل ٢٨ يومًا من البداية الجديدة
+// يوم بداية الجدول — إعدادٌ يُغيّره المستخدم من «بداية جديدة»، لا ثابتٌ في الشيفرة.
+// (ارتباط حيّ: من يستورده يرى قيمته الجديدة بعد إعادة الضبط)
+export let SCHEDULE_START = "2026-08-24"
+let BLOCK_START = SCHEDULE_START // نافذة التوليد: كتل ٢٨ يومًا من يوم البداية
 
 // كل بداية جديدة ترفع أرقام المفاتيح فتبدأ الحالة فارغة (الإعدادات وحدها تبقى)
 const K = {
@@ -128,6 +130,7 @@ const DEFAULT_SETTINGS = {
   tz: 3,
   method: "ummAlQura",
   asrFactor: 1, // ظل المثل، و٢ للحنفية
+  startDate: "2026-08-24", // يوم بداية الجدول — ما قبله لا يُعرض
   // ورد التثبيت: السنن المشاركة بترتيبها الزمني [slot البلوك، معرّف البند]
   wird: [
     ["fajr", "sunnah"],
@@ -151,6 +154,8 @@ export const settings: Settings = Object.assign(
 
 // المحركات تقرأ إعداداتها من هنا، فتُطبَّق عند الإقلاع وعند كل حفظ
 function applyEngineConfig() {
+  SCHEDULE_START = settings.startDate
+  BLOCK_START = settings.startDate
   const { lat, lng, tz, method, asrFactor } = settings
   setPrayerConfig({ lat, lng, tz, method, asrFactor })
   setQuranConfig({ ...settings.quran, wirdSlots: settings.wird.length })
@@ -756,6 +761,43 @@ export function removeTask(date: string, slot: string, taskId: string) {
   delete late[`${date}#${slot}:task:${taskId}`]
   save(K.tasks, tasks)
   save(K.late, late)
+  notify()
+}
+
+// ── «بداية جديدة»: تصفير ما تختاره والبدء من تاريخ جديد ──
+// كان هذا يتطلّب تعديل شيفرة ونشرًا في كل مرة — وصار زرًّا.
+export type FreshScope = {
+  quran?: boolean // يعيد موضع التسميع والحفظ إلى بذرته
+  workout?: boolean // يعيد دورة التمرين وأوزانها إلى بدايتها
+  cabinets?: boolean // يحذف الخزانات والأدراج والمهام
+  history?: boolean // يمسح التأشير والإنجاز وسجل التمرين والتغذية والمهام اليدوية
+  mistakes?: boolean // يمسح أخطاء القرآن المتراكمة
+}
+
+export function freshStart(date: string, scope: FreshScope) {
+  settings.startDate = date
+  if (scope.quran) settings.quran = { ...settings.quran, date }
+  if (scope.workout) settings.workout = { ...settings.workout, start: date }
+  save(K.settings, settings)
+  if (scope.history) {
+    done = {}
+    checks = {}
+    late = {}
+    gym = {}
+    food = {}
+    tasks = {}
+    for (const k of [K.done, K.checks, K.late, K.gym, K.food, K.tasks]) save(k, {})
+  }
+  if (scope.mistakes) {
+    mistakes = {}
+    save(K.mistakes, mistakes)
+  }
+  if (scope.cabinets) {
+    cab = emptyCabinets()
+    save(K.cabinets, cab)
+  }
+  applyEngineConfig()
+  cuCache = { at: "", val: "" } // الوحدة الجارية تُحسب من جديد
   notify()
 }
 

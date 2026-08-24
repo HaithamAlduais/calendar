@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { BellIcon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react"
+import { BellIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Help } from "@/components/help"
 import { cn } from "@/lib/utils"
 import { addAccount, dropToken, pullAccount } from "@/lib/gcal"
 import { notificationsGranted, requestNotifications, scheduleNotifications } from "@/lib/notify"
@@ -21,6 +23,8 @@ import { addDays, arab } from "@/lib/engine/dates.js"
 import { dotColor } from "@/lib/format"
 import {
   allEvents,
+  currentUnit,
+  freshStart,
   getPulled,
   saveSettings,
   setPulled,
@@ -33,6 +37,10 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const [clientId, setClientId] = useState(settings.clientId)
   const [status, setStatus] = useState("")
   const [busy, setBusy] = useState(false)
+  // «بداية جديدة»: تاريخ ونطاق — كان تعديل شيفرة، وصار زرًّا
+  const [freshDate, setFreshDate] = useState(todayIso())
+  const [scope, setScope] = useState({ quran: true, workout: true, history: true, cabinets: false, mistakes: false })
+  const [confirming, setConfirming] = useState(false)
 
   const ensureClientId = (): string | null => {
     const cid = clientId.trim()
@@ -196,6 +204,67 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
               <BellIcon />
               {settings.notify && notificationsGranted() ? "إيقاف التنبيهات" : "تفعيل التنبيهات"}
             </Button>
+          </div>
+
+          <div className="border-t pt-3">
+            <h3 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+              بداية جديدة
+              <Help text="تبدأ من تاريخٍ تختاره: يعود القرآن إلى موضع بذرته، والتمرين إلى أول دورته، ويُمسح ما تختاره من سجلّك. وما قبل ذلك التاريخ لا يظهر في الجدول." />
+            </h3>
+            <p className="text-muted-foreground mb-2 text-xs leading-relaxed">
+              فرصة جديدة: اختر يومًا تبدأ منه، وحدّد ما تريد تصفيره.
+            </p>
+            <div className="mb-2 flex items-center gap-2">
+              <label className="text-muted-foreground flex-none text-xs">من يوم</label>
+              <Input type="date" value={freshDate} onChange={(e) => setFreshDate(e.target.value)} className="h-8" />
+            </div>
+            <div className="mb-2 flex flex-col gap-1">
+              {([
+                ["quran", "القرآن — يعود إلى موضع البذرة"],
+                ["workout", "التمرين — يعود إلى أول الدورة وأوزانها"],
+                ["history", "السجل — التأشير والإنجاز والتغذية والمهام اليدوية"],
+                ["cabinets", "الخزانات — تُحذف بأدراجها ومهامها"],
+                ["mistakes", "أخطاء القرآن المتراكمة"],
+              ] as [keyof typeof scope, string][]).map(([k, label]) => (
+                <label key={k} className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md p-1 text-xs">
+                  <Checkbox
+                    checked={scope[k]}
+                    onCheckedChange={() => setScope((p) => ({ ...p, [k]: !p[k] }))}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {!confirming ? (
+              <Button variant="outline" className="w-full" onClick={() => setConfirming(true)}>
+                <RotateCcwIcon />
+                ابدأ من جديد…
+              </Button>
+            ) : (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
+                <p className="mb-2 text-xs leading-relaxed">
+                  ستبدأ من {freshDate}، وما اخترته سيُمسح ولا يُسترجع. متأكد؟
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    onClick={() => {
+                      freshStart(freshDate, scope)
+                      setConfirming(false)
+                      setStatus(`✅ بدأنا من جديد — أول يوم ${freshDate}`)
+                    }}
+                  >
+                    نعم، ابدأ
+                  </Button>
+                  <Button variant="ghost" className="flex-1" onClick={() => setConfirming(false)}>
+                    تراجع
+                  </Button>
+                </div>
+              </div>
+            )}
+            <p className="text-muted-foreground pt-1 text-[11px]">
+              أول يوم في جدولك الآن: {currentUnit()}
+            </p>
           </div>
         </div>
       </DialogContent>
