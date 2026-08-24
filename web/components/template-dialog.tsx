@@ -373,17 +373,20 @@ function BlockRow({
           {/* بلوك المهام: يقبل مهامك اليدوية ويستقبل القضاء والتقديم */}
           {!block.gen && !block.sleep && (
             <div className="flex items-center gap-2">
-            <button onClick={() => set({ task: !block.task })} className="flex items-center gap-2 text-start">
-              <span
-                className={cn(
-                  "flex size-4 flex-none items-center justify-center rounded border",
-                  block.task ? "bg-primary border-primary text-primary-foreground" : "border-border"
-                )}
+              <button
+                onClick={() => set({ task: !block.task })}
+                className="flex items-center gap-2 text-start"
               >
-                {block.task && <CheckIcon className="size-3" />}
-              </span>
-              <span className="text-xs">بلوك مهام</span>
-            </button>
+                <span
+                  className={cn(
+                    "flex size-4 flex-none items-center justify-center rounded border",
+                    block.task ? "bg-primary border-primary text-primary-foreground" : "border-border"
+                  )}
+                >
+                  {block.task && <CheckIcon className="size-3" />}
+                </span>
+                <span className="text-xs">بلوك مهام</span>
+              </button>
               <Help text="بلوك المهام يقبل ما تضيفه من مهام ومهام الخزانات، ويستقبل ما فاتك قضاءً وما تريد تقديمه. أما النوم والصلوات فلا." />
             </div>
           )}

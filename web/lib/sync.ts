@@ -9,7 +9,8 @@
 // البرنامج يعمل كاملًا بلا حساب (local-first): الحساب يضيف النسخ والمزامنة فقط.
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js"
 
-import { applyRemote, localSnapshot, subscribe, SYNC_KEYS, type SyncRow } from "@/lib/store"
+import { applyRemote, localSnapshot, settings, subscribe, SYNC_KEYS, type SyncRow } from "@/lib/store"
+import { relinkPush } from "@/lib/push"
 
 const URL = "https://znlkhlfmhdjmldnmrrym.supabase.co"
 const ANON =
@@ -126,7 +127,11 @@ export async function initSync() {
     const was = user?.id
     user = session?.user ?? null
     ping()
-    if (user && user.id !== was) await firstSync()
+    if (user && user.id !== was) {
+      await firstSync()
+      // اشتراك الإشعارات يُربط بصاحبه عند الدخول، وإلا بقي مجهولًا بلا جدول
+      if (settings.push) void relinkPush()
+    }
   })
   if (user) await firstSync()
   // كل تغيير محلي يُدفع بعد لحظة
@@ -146,6 +151,14 @@ async function firstSync() {
     lastError = String(e)
   }
   ping()
+}
+
+// رمز الدخول الحالي — تستعمله دالة الإشعارات لتعرف صاحب الاشتراك.
+// والهوية تُشتقّ من الرمز في الخادم لا تُؤخذ مما يرسله العميل، فلا انتحال.
+export async function accessToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null
+  const { data } = await sb().auth.getSession()
+  return data.session?.access_token ?? null
 }
 
 export async function syncNow() {

@@ -1,145 +1,115 @@
-// إشعارات تقويم هيثم — /subscribe /unsubscribe /tick /test
-// v9: الوحدة تبدأ بنومة الثلث الأخير وتنتهي بالقيام، وتسميات عائلة/أسرة/أصدقاء
-// نسخة خادمية مطابقة لمحرك التطبيق (web/lib/engine) — أي تعديل هناك يُنقل هنا
+// إشعارات التقويم — /subscribe /unsubscribe /tick /test
+//
+// v10: لكل مشترك جدولُه. كانت الدالة تحمل نسخةً مكتوبةً باليد من محرك التطبيق،
+// مثبَّتًا فيها موقعُ صاحبه ومواقيتُه وشكلُ يومه وأسماءُ بلوكاته — فكان كل من
+// اشترك يتلقّى إشعارات جدول رجلٍ آخر في مدينةٍ أخرى. والآن:
+//   • المحرك نفسُه (web/lib/engine) يُنسخ آليًّا إلى _shared/engine بـ
+//     `npm run sync:engine`، ويحرسه فحصٌ يسقط إن تباعدت النسختان.
+//   • إعدادات كل مشترك تُقرأ من user_state (المفتاح hc.settings.v2) الذي
+//     تكتبه المزامنة، فيُبنى يومُه بموقعه وطريقة حسابه وقوالبه وبداية يومه.
+//   • هوية المشترك تُؤخذ من رمز دخوله لا مما يرسله، فلا ينتحل أحدٌ أحدًا.
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import * as webpush from "jsr:@negrel/webpush"
+import { blocksAround, duePayloads, fmt12, FALLBACK } from "../_shared/notify.js"
 
 const supa = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 )
 
-// ── مواقيت أم القرى للرياض (مطابقة لـ web/lib/engine/prayers.js) ──
-const LAT = 24.7136, LNG = 46.6753, TZ = 3, FAJR_ANGLE = 18.5, RIM = 0.833
-const dtr = (d: number) => (d * Math.PI) / 180
-const rtd = (r: number) => (r * 180) / Math.PI
-const fix = (a: number, b: number) => { a -= b * Math.floor(a / b); return a < 0 ? a + b : a }
-const fixHour = (a: number) => fix(a, 24)
-const fixAngle = (a: number) => fix(a, 360)
+const SETTINGS_KEY = "hc.settings.v2"
 
-function julian(y: number, m: number, d: number) {
-  if (m <= 2) { y -= 1; m += 12 }
-  const A = Math.floor(y / 100), B = 2 - A + Math.floor(A / 4)
-  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5
-}
-function sunPos(jd: number) {
-  const D = jd - 2451545.0
-  const g = fixAngle(357.529 + 0.98560028 * D), q = fixAngle(280.459 + 0.98564736 * D)
-  const L = fixAngle(q + 1.915 * Math.sin(dtr(g)) + 0.020 * Math.sin(dtr(2 * g)))
-  const e = 23.439 - 0.00000036 * D
-  const RA = rtd(Math.atan2(Math.cos(dtr(e)) * Math.sin(dtr(L)), Math.cos(dtr(L)))) / 15
-  return { decl: rtd(Math.asin(Math.sin(dtr(e)) * Math.sin(dtr(L)))), eqt: q / 15 - fixHour(RA) }
-}
-const midDay = (jd: number, t: number) => fixHour(12 - sunPos(jd + t).eqt)
-function sat(jd: number, ang: number, t: number, dir: number) {
-  const { decl } = sunPos(jd + t)
-  const h = rtd(Math.acos((-Math.sin(dtr(ang)) - Math.sin(dtr(decl)) * Math.sin(dtr(LAT))) / (Math.cos(dtr(decl)) * Math.cos(dtr(LAT))))) / 15
-  return midDay(jd, t) + dir * h
-}
-function asrT(jd: number, t: number) {
-  const { decl } = sunPos(jd + t)
-  const angle = -rtd(Math.atan(1 / (1 + Math.tan(dtr(Math.abs(LAT - decl))))))
-  return sat(jd, angle, t, 1)
-}
-function prayerTimes(y: number, m: number, d: number) {
-  const jd = julian(y, m, d) - LNG / (15 * 24)
-  const toMin = (t: number) => Math.round(fixHour(t + TZ - LNG / 15) * 60)
-  const mag = Math.ceil(fixHour(sat(jd, RIM, 18 / 24, 1) + TZ - LNG / 15) * 60) // المغرب يُقرَّب لأعلى
-  return {
-    fajr: toMin(sat(jd, FAJR_ANGLE, 5 / 24, -1)),
-    sunrise: toMin(sat(jd, RIM, 6 / 24, -1)),
-    dhuhr: toMin(midDay(jd, 12 / 24)),
-    asr: toMin(asrT(jd, 13 / 24)),
-    maghrib: mag,
-    isha: mag + 90,
-  }
+type Anchor = Record<string, unknown>
+type Block = { id: string; title: string; end: Anchor }
+type Template = { start: Anchor; blocks: Block[] }
+type Settings = {
+  lat: number
+  lng: number
+  tz: number
+  method: string
+  asrFactor: number
+  templates: Record<string, Template>
+  weekPlan: string[]
+  dayStart: { blockId?: string; anchor?: Anchor } | null
+  startDate?: string
 }
 
-const DAYMS = 86400000
-function fromEpochDay(e: number) {
-  const dt = new Date(e * DAYMS)
-  return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate(), dow: dt.getUTCDay() }
-}
-const epochDayRiyadhNow = () => Math.floor((Date.now() + TZ * 3600e3) / DAYMS)
-
-// دورة التمرين المتتابعة (لا علاقة لها بأيام الأسبوع): تبدأ الاثنين ٢٤ أغسطس ٢٠٢٦
-const GYM_EPOCH = Math.floor(Date.UTC(2026, 7, 24) / DAYMS)
-function trainTitle(epochDay: number): string {
-  const off = epochDay - GYM_EPOCH
-  if (off < 0 || off % 2 === 1) return "تطوير"
-  const t = (off / 2) % 3
-  return t === 0 ? "تمرين — اليوم الأول" : t === 1 ? "تمرين — اليوم الثاني" : "تمرين — اليوم الثالث (جري)"
-}
-
-// وحدة اليوم: من الفجر إلى فجر الغد (مطابقة لـ buildUnit)
-function unitEvents(epochDay: number): { title: string; minute: number }[] {
-  const prev = fromEpochDay(epochDay - 1)
-  const cur = fromEpochDay(epochDay), next = fromEpochDay(epochDay + 1)
-  const P0 = prayerTimes(prev.y, prev.m, prev.d)
-  const P1 = prayerTimes(cur.y, cur.m, cur.d), P2 = prayerTimes(next.y, next.m, next.d)
-  const F = P1.fajr, SR = P1.sunrise, DH = P1.dhuhr, AS = P1.asr, M = P1.maghrib, ISH = P1.isha
-  const F2 = P2.fajr + 1440
-  // أول الوحدة: مطلع الثلث الأخير من ليلة أمس — «أول مهمة في اليوم هي النوم»
-  const prevM = P0.maghrib - 1440
-  const wake = prevM + Math.round((2 * (F - prevM)) / 3)
-  const night = F2 - M
-  const t1 = M + Math.round(night / 3) // نهاية أسرة الليلية
-  const t2 = M + Math.round((2 * night) / 3) // نهاية الثلث الثاني: يليه نوم
-  const dow = cur.dow, friday = dow === 5, weekend = dow === 5 || dow === 6
-  // النومة ملاصقة للتمرين، ثم العمل متصل منها إلى الظهر — والنومة تكمّل نوم الليل حتى ٦ س ٣٥ د
-  // والجمعة يبدأ بلوك الظهر مبكرًا بساعة (تبكير الجمعة)
-  const dhuhrStart = friday ? DH - 60 : DH
-  const trainEnd = SR + 90
-  const nightSleep = ISH - (M + 30) + (F - wake)
-  const napLen = Math.max(45, Math.min(240, 395 - nightSleep, dhuhrStart - trainEnd - 45))
-  const napEnd = trainEnd + napLen
-  const work = weekend ? "أسرة" : "مهام" // بلوك الصباح
-  const mid = weekend ? "عائلة" : "مهام"
-  const late = friday ? "عائلة ودعاء" : weekend ? "عائلة" : "مهام"
-  const eve = weekend ? "أسرة" : "عائلة" // ما بعد العشاء
-  const rest = weekend ? "أصدقاء" : "أسرة"
-  const ev: [string, number][] = [
-    ["نوم", wake],
-    ["الفجر", F], ["مهام", F + 45], ["نوم", trainEnd],
-    [work, napEnd], [friday ? "الجمعة" : "الظهر", dhuhrStart], [mid, DH + 45],
-    ["العصر", AS], [late, AS + 45],
-    ["المغرب", M], ["نوم", M + 30], ["العشاء", ISH], [eve, ISH + 45],
-    [rest, t1], ["صلاة القيام", t2 - 45],
-  ]
-  const baseMin = epochDay * 1440 - TZ * 60 // منتصف ليل الرياض بدقائق يونكس
-  return ev.map(([title, min]) => ({ title, minute: baseMin + min }))
-}
-
-const ARD = "٠١٢٣٤٥٦٧٨٩"
-const arab = (x: number | string) => String(x).replace(/[0-9]/g, (d) => ARD[+d])
-function fmt12(unixMin: number) {
-  const m = (((unixMin + TZ * 60) % 1440) + 1440) % 1440
-  const h = Math.floor(m / 60), mm = m % 60, ap = h < 12 ? "ص" : "م", h12 = h % 12 || 12
-  return mm === 0 ? `${arab(h12)} ${ap}` : `${arab(h12)}:${arab(String(mm).padStart(2, "0"))} ${ap}`
-}
+type Payload = { title: string; body: string; tag: string }
 
 async function getAppServer() {
-  const { data, error } = await supa.from("calendar_push_config").select("value").eq("key", "vapid").single()
+  const { data, error } = await supa
+    .from("calendar_push_config")
+    .select("value")
+    .eq("key", "vapid")
+    .single()
   if (error) throw error
   const vapidKeys = await webpush.importVapidKeys(data.value, { extractable: false })
-  return webpush.ApplicationServer.new({ contactInformation: "mailto:haithamhameed15@gmail.com", vapidKeys })
+  return webpush.ApplicationServer.new({
+    contactInformation: "mailto:haithamhameed15@gmail.com",
+    vapidKeys,
+  })
 }
 
-async function sendToAll(payloads: { title: string; body: string; tag: string }[]) {
-  if (!payloads.length) return { sent: 0, subs: 0, errors: [] as string[] }
-  const { data: subs, error } = await supa.from("calendar_push_subscriptions").select("id,endpoint,subscription")
+type Sub = {
+  id: string
+  endpoint: string
+  subscription: webpush.PushSubscription
+  user_id: string | null
+}
+
+// إعدادات كل مشترك من صفّه في user_state — استعلامٌ واحد لكل المشتركين
+async function settingsByUser(ids: string[]): Promise<Map<string, Settings>> {
+  const map = new Map<string, Settings>()
+  if (!ids.length) return map
+  const { data, error } = await supa
+    .from("user_state")
+    .select("user_id,value")
+    .eq("key", SETTINGS_KEY)
+    .in("user_id", ids)
   if (error) throw error
+  for (const row of data ?? []) {
+    const v = row.value as Partial<Settings> | null
+    if (v && v.templates && v.weekPlan) map.set(row.user_id as string, { ...FALLBACK, ...v })
+  }
+  return map
+}
+
+async function sendEach(
+  make: (s: Settings) => Payload[],
+  fixed?: Payload[]
+): Promise<{ sent: number; subs: number; users: number; errors: string[] }> {
+  const { data: subs, error } = await supa
+    .from("calendar_push_subscriptions")
+    .select("id,endpoint,subscription,user_id")
+  if (error) throw error
+  const list = (subs ?? []) as Sub[]
   const errors: string[] = []
+  if (!list.length) return { sent: 0, subs: 0, users: 0, errors }
+
+  const ids = [...new Set(list.map((s) => s.user_id).filter(Boolean))] as string[]
+  const byUser = await settingsByUser(ids)
+
   let appServer
   try {
     appServer = await getAppServer()
   } catch (e) {
     const msg = `vapid: ${String(e)}`
     console.error(msg)
-    return { sent: 0, subs: (subs ?? []).length, errors: [msg] }
+    return { sent: 0, subs: list.length, users: byUser.size, errors: [msg] }
   }
+
+  // الحساب مرة واحدة لكل مستخدم لا لكل جهاز — فأجهزته الثلاثة جدولٌ واحد
+  const cache = new Map<string, Payload[]>()
+  const forUser = (uid: string | null): Payload[] => {
+    const key = uid ?? "-"
+    if (!cache.has(key)) cache.set(key, make((uid && byUser.get(uid)) || FALLBACK))
+    return cache.get(key)!
+  }
+
   let sent = 0
-  for (const s of subs ?? []) {
+  for (const s of list) {
+    const payloads = fixed ?? forUser(s.user_id)
+    if (!payloads.length) continue
     try {
       const subscriber = appServer.subscribe(s.subscription)
       for (const p of payloads) {
@@ -163,7 +133,17 @@ async function sendToAll(payloads: { title: string; body: string; tag: string }[
       errors.push(msg)
     }
   }
-  return { sent, subs: (subs ?? []).length, errors }
+  return { sent, subs: list.length, users: byUser.size, errors }
+}
+
+// هوية المشترك من رمز دخوله لا مما يرسله — وإلا انتحل أحدٌ صفوف غيره
+async function userIdFrom(req: Request): Promise<string | null> {
+  const auth = req.headers.get("Authorization") || ""
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : ""
+  if (!token || token === Deno.env.get("SUPABASE_ANON_KEY")) return null
+  const { data, error } = await supa.auth.getUser(token)
+  if (error) return null
+  return data.user?.id ?? null
 }
 
 Deno.serve(async (req) => {
@@ -183,8 +163,11 @@ Deno.serve(async (req) => {
     if (path === "subscribe" && req.method === "POST") {
       const sub = await req.json()
       if (!sub?.endpoint) return json({ error: "bad subscription" }, 400)
-      await supa.from("calendar_push_subscriptions").upsert({ endpoint: sub.endpoint, subscription: sub }, { onConflict: "endpoint" })
-      return json({ ok: true })
+      const user_id = await userIdFrom(req)
+      await supa
+        .from("calendar_push_subscriptions")
+        .upsert({ endpoint: sub.endpoint, subscription: sub, user_id }, { onConflict: "endpoint" })
+      return json({ ok: true, linked: !!user_id })
     }
     if (path === "unsubscribe" && req.method === "POST") {
       const { endpoint } = await req.json()
@@ -192,26 +175,43 @@ Deno.serve(async (req) => {
       return json({ ok: true })
     }
     if (path === "test") {
-      return json(await sendToAll([{ title: "🔔 اختبار تقويم هيثم", body: "إن وصلك هذا فالخادم يعمل ✅", tag: "test" }]))
+      return json(
+        await sendEach(() => [], [
+          { title: "🔔 اختبار التقويم", body: "إن وصلك هذا فالخادم يعمل ✅", tag: "test" },
+        ])
+      )
     }
     if (path === "tick") {
       const nowMin = Math.floor(Date.now() / 60000)
-      const today = epochDayRiyadhNow()
-      const events = [...unitEvents(today - 1), ...unitEvents(today), ...unitEvents(today + 1)]
-      const payloads: { title: string; body: string; tag: string }[] = []
-      for (const e of events) {
-        if (e.minute === nowMin)
-          payloads.push({ title: `🕌 ${e.title} — الآن`, body: `بدأ وقت «${e.title}» (${fmt12(e.minute)})`, tag: `s${e.minute}` })
-        if (e.minute - 30 === nowMin)
-          payloads.push({ title: `⏰ ${e.title} بعد ٣٠ دقيقة`, body: `يبدأ «${e.title}» الساعة ${fmt12(e.minute)}`, tag: `p${e.minute}` })
+      if (url.searchParams.get("dry")) {
+        // فحصٌ جاف: ماذا يُرسَل الآن لكل مشترك، وما بلوكاته القادمة
+        const { data: subs } = await supa
+          .from("calendar_push_subscriptions")
+          .select("id,user_id")
+        const list = (subs ?? []) as { id: string; user_id: string | null }[]
+        const ids = [...new Set(list.map((s) => s.user_id).filter(Boolean))] as string[]
+        const byUser = await settingsByUser(ids)
+        const seen = new Set<string>()
+        const report = []
+        for (const s of list) {
+          const key = s.user_id ?? "-"
+          if (seen.has(key)) continue
+          seen.add(key)
+          const cfg = (s.user_id && byUser.get(s.user_id)) || FALLBACK
+          report.push({
+            user: s.user_id ? s.user_id.slice(0, 8) : "بلا حساب",
+            configured: !!(s.user_id && byUser.has(s.user_id)),
+            tz: cfg.tz,
+            payloads: duePayloads(cfg, nowMin),
+            upcoming: blocksAround(cfg)
+              .filter((b) => b.minute >= nowMin && b.minute < nowMin + 240)
+              .map((b) => ({ t: b.title, at: fmt12(b.at) })),
+          })
+        }
+        return json({ nowMin, subs: list.length, report })
       }
-      if (url.searchParams.get("dry"))
-        return json({
-          nowMin,
-          payloads,
-          upcoming: events.filter((e) => e.minute >= nowMin && e.minute < nowMin + 240).map((e) => ({ t: e.title, at: fmt12(e.minute) })),
-        })
-      return json({ ...(await sendToAll(payloads)), fired: payloads.length })
+      const r = await sendEach((s) => duePayloads(s, nowMin))
+      return json(r)
     }
     return json({ error: "not found" }, 404)
   } catch (e) {

@@ -20,6 +20,14 @@ const headers = {
   apikey: ANON,
 }
 
+// رأسٌ يحمل رمز دخولك إن كنت داخلًا — به يعرف الخادم جدولَ من يحسب.
+// وبلا حساب لا يعرف إعداداتك أصلًا (فهي في جهازك وحده)، فلا إشعارات مضبوطة.
+async function authHeaders(): Promise<Record<string, string>> {
+  const { accessToken } = await import("@/lib/sync")
+  const token = await accessToken()
+  return token ? { ...headers, Authorization: `Bearer ${token}` } : headers
+}
+
 export function pushSupported(): boolean {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window
 }
@@ -37,12 +45,29 @@ export async function enablePush(): Promise<boolean> {
       }))
     const r = await fetch(`${FN}/subscribe`, {
       method: "POST",
-      headers,
+      headers: await authHeaders(),
       body: JSON.stringify(sub.toJSON()),
     })
     return r.ok
   } catch {
     return false
+  }
+}
+
+// إعادة ربط اشتراك قائم بصاحبه بعد الدخول — تُستدعى من المزامنة
+export async function relinkPush(): Promise<void> {
+  if (!pushSupported()) return
+  try {
+    const reg = await navigator.serviceWorker.getRegistration()
+    const sub = await reg?.pushManager.getSubscription()
+    if (!sub) return
+    await fetch(`${FN}/subscribe`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify(sub.toJSON()),
+    })
+  } catch {
+    /* تجاهل */
   }
 }
 
