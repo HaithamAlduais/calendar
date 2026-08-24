@@ -68,7 +68,7 @@ export function EventSheet({
   const checked = new Set(checksFor(ev.id))
   const doneItems = items.filter((i) => checked.has(i.id)).length
   // المهام اليدوية تُضاف في بلوكات العمل والأسرة والراحة
-  const isTaskHost = !ev.external && TASK_SLOTS.includes(ev.slot || "")
+  const isTaskHost = !ev.external && TASK_SLOTS().includes(ev.slot || "")
   const auto = isAutoDone(ev) // اكتمل ببنوده فلا حاجة لزر الإنجاز
 
   // القضاء: البلوك الفائت مقفل وبنوده تظهر في بلوك العمل القادم

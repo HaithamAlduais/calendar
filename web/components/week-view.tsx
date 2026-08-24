@@ -55,7 +55,7 @@ function Section({
               now={now}
               current={isCur && e.start <= now && e.end > now}
               makeupCount={mk.get(e.id)?.length || 0}
-              dayCount={TASK_SLOTS.includes(e.slot || "") && !e.external ? dayCount : 0}
+              dayCount={TASK_SLOTS().includes(e.slot || "") && !e.external ? dayCount : 0}
               onOpen={onOpen}
             />
             {nowHere && (

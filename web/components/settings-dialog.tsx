@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
-import { BellIcon, CloudIcon, LogOutIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, XIcon } from "lucide-react"
+import { BellIcon, CheckIcon, CloudIcon, LogOutIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,42 @@ import {
   todayIso,
   weekStartOf,
 } from "@/lib/store"
+
+// مفتاحٌ بشرحه — الشرح تحت العنوان لا في تلميح، فالإعداد الذي لا يُفهم لا يُستعمل
+function Toggle({
+  on,
+  onClick,
+  label,
+  help,
+}: {
+  on: boolean
+  onClick: () => void
+  label: string
+  help: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-start gap-2 rounded-md border p-2 text-start transition-colors",
+        on ? "border-primary bg-primary/5" : "border-border hover:bg-muted"
+      )}
+    >
+      <span
+        className={cn(
+          "mt-0.5 flex size-4 flex-none items-center justify-center rounded border",
+          on ? "bg-primary border-primary text-primary-foreground" : "border-border"
+        )}
+      >
+        {on && <CheckIcon className="size-3" />}
+      </span>
+      <span className="flex-1">
+        <span className="text-xs font-medium">{label}</span>
+        <span className="text-muted-foreground block text-[11px] leading-relaxed">{help}</span>
+      </span>
+    </button>
+  )
+}
 
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [clientId, setClientId] = useState(settings.clientId)
@@ -224,6 +260,58 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
                 </Button>
               </div>
             )}
+          </div>
+
+          {/* القضاء والتقديم */}
+          <div className="border-t pt-3">
+            <h3 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+              القضاء والتقديم
+              <Help text="ما فات وقته لا يسقط: ينتقل إلى أول بلوك مهام قادم فتقضيه — لكن بنصف إنجاز، لأن الوقت جزءٌ من العمل. وعكسه التقديم: تؤدي مهمة بلوكٍ لاحق في بلوك سابق من يومك، فتُحتسب كاملة إذ أدّيتها في يومها." />
+            </h3>
+            <div className="flex flex-col gap-2">
+              <Toggle
+                on={settings.qada.enabled}
+                onClick={() => saveSettings({ qada: { ...settings.qada, enabled: !settings.qada.enabled } })}
+                label="قضاء ما فات"
+                help="إن أطفأته، فالبلوك الذي انتهى وقته يُغلق بما فيه ولا تنتقل بنوده."
+              />
+              {settings.qada.enabled && (
+                <>
+                  <Toggle
+                    on={settings.qada.crossDay}
+                    onClick={() => saveSettings({ qada: { ...settings.qada, crossDay: !settings.qada.crossDay } })}
+                    label="ترحيل ما لم يُنجز من الأمس"
+                    help="يوم واحد فقط: ما انقضى يومه ويومُ غده لا يُقضى، وإلا صار دَينًا لا يُسدّد."
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs">حظّ المقضيّ من الإنجاز</span>
+                    <Help text="البند المقضيّ يُحتسب بهذا الحظّ في نسبة يومك. والنصف هو الأصل: أدّيتَه، لكن لا في وقته." />
+                    <div className="flex flex-wrap gap-1">
+                      {[0.25, 0.5, 0.75, 1].map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => saveSettings({ qada: { ...settings.qada, credit: c } })}
+                          className={cn(
+                            "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                            settings.qada.credit === c
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border hover:bg-muted"
+                          )}
+                        >
+                          {c === 1 ? "كامل" : c === 0.5 ? "نصف" : c === 0.25 ? "ربع" : "ثلاثة أرباع"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              <Toggle
+                on={settings.qada.early}
+                onClick={() => saveSettings({ qada: { ...settings.qada, early: !settings.qada.early } })}
+                label="التقديم"
+                help="يعرض لك في بلوكك الحالي مهامَّ بلوكاتك اللاحقة من يومك، فتؤدّيها الآن بإنجاز كامل."
+              />
+            </div>
           </div>
 
           <div className="border-t pt-3">

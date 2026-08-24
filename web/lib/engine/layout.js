@@ -8,13 +8,16 @@
 //   { prayer: 'fajr'|'sunrise'|'dhuhr'|'asr'|'maghrib'|'isha', offset? }
 //   { nightFraction: 1|2, offset? }   ثلث الليل أو ثلثاه (من المغرب إلى فجر الغد)
 //   { lastThirdPrev: true }           مطلع الثلث الأخير من الليلة السابقة
+//   { clock: n }                      ساعة ثابتة من منتصف الليل (٣:٠٠ ص = 180)
 //   { len: n }                        طول ثابت من بداية البلوك
 //   { balance: { target, min, max, keepAfter } }  نومة تُكمِل مجموع النوم إلى هدف ثابت
+// ولأيّ مرساة فلكية أن تحمل { next: true } فتشير إلى نظيرتها من الغد — وبها يدور
+// اليوم على أيّ بلوك شاء صاحبه: ما سبق البلوك المختار يُزاح إلى غدٍ فيبقى الترتيب.
 import { addDays, minToDateTime } from './dates.js';
 import { prayerTimes } from './prayers.js';
 
 // كل المراسي بالدقائق منسوبةً إلى منتصف ليل dIso (وقد تتجاوز 1440 أو تسبق الصفر)
-function anchorsFor(dIso) {
+function anchorsFor(dIso, depth = 0) {
   const P0 = prayerTimes(addDays(dIso, -1));
   const P1 = prayerTimes(dIso);
   const P2 = prayerTimes(addDays(dIso, 1));
@@ -22,7 +25,7 @@ function anchorsFor(dIso) {
   const M = P1.maghrib;
   const F2 = P2.fajr + 1440;
   const prevM = P0.maghrib - 1440; // مغرب أمس (قيمة سالبة)
-  return {
+  const a = {
     fajr: F,
     sunrise: P1.sunrise,
     dhuhr: P1.dhuhr,
@@ -33,14 +36,27 @@ function anchorsFor(dIso) {
     night: (k) => M + Math.round((k * (F2 - M)) / 3),
     lastThirdPrev: prevM + Math.round((2 * (F - prevM)) / 3),
   };
+  // مراسي الغد بإطار اليوم نفسه (بزيادة ١٤٤٠) — تُبنى مرة واحدة ولا تتوالد
+  if (depth === 0) a.next = shiftDay(anchorsFor(addDays(dIso, 1), 1));
+  return a;
 }
 
-function resolve(anchor, a, start, balanceLen) {
+// إزاحة مراسي يومٍ تالٍ إلى إطار اليوم الحالي
+function shiftDay(a) {
+  const out = { night: (k) => a.night(k) + 1440 };
+  for (const k of ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha', 'fajrNext', 'lastThirdPrev'])
+    out[k] = a[k] + 1440;
+  return out;
+}
+
+function resolve(anchor, a0, start, balanceLen) {
   const off = anchor.offset || 0;
+  const a = anchor.next && a0.next ? a0.next : a0;
   if (anchor.prayer) return a[anchor.prayer] + off;
   if (anchor.nightFraction) return a.night(anchor.nightFraction) + off;
   if (anchor.lastThirdPrev) return a.lastThirdPrev + off;
   if (anchor.fajrNext) return a.fajrNext + off;
+  if (anchor.clock != null) return anchor.clock + (anchor.next ? 1440 : 0);
   if (anchor.balance) return start + balanceLen;
   return start + (anchor.len || 0);
 }
@@ -68,6 +84,49 @@ function layoutMinutes(tpl, a, balanceLen) {
     t = resolve(b.end, a, startMin, balanceLen);
     return { ...b, startMin, endMin: t };
   });
+}
+
+// ── بداية اليوم: أيّ بلوك يفتتح الوحدة، وأيّ مرساة تفتتحه ──
+// القالب يُحفظ دائمًا بترتيبه الأصلي، والدوران يُطبَّق عند البناء لا عند الحفظ،
+// فيبقى التحرير على حاله ويبقى الرجوع ممكنًا بإلغاء الاختيار.
+export const isAbsolute = (a) =>
+  !!(a && (a.prayer || a.nightFraction || a.lastThirdPrev || a.fajrNext || a.clock != null));
+
+// البلوكات التي تصلح بدايةً ليوم: من سبقه ينتهي بمرساة مطلقة يمكن أن تكون بدايةً
+export function startCandidates(tpl) {
+  return tpl.blocks
+    .map((b, i) => ({ b, prev: i === 0 ? null : tpl.blocks[i - 1] }))
+    .filter(({ prev }) => prev === null || isAbsolute(prev.end))
+    .map(({ b }) => ({ id: b.id, title: b.title }));
+}
+
+export function rotateTemplate(tpl, dayStart) {
+  if (!dayStart) return tpl;
+  let blocks = tpl.blocks;
+  let start = tpl.start;
+  if (dayStart.blockId) {
+    const i = blocks.findIndex((b) => b.id === dayStart.blockId);
+    if (i > 0) {
+      const prev = blocks[i - 1];
+      if (!isAbsolute(prev.end)) return tpl; // لا مرساة تصلح بدايةً، فلا دوران
+      // ما سبق البلوك المختار يُزاح إلى غدٍ، فيبقى الترتيب الزمني صاعدًا
+      const wrapped = blocks.slice(0, i).map((b) => ({
+        ...b,
+        end: isAbsolute(b.end) ? { ...b.end, next: true } : { ...b.end },
+      }));
+      blocks = [...blocks.slice(i), ...wrapped];
+      start = { ...prev.end };
+      delete start.next;
+    }
+  }
+  if (dayStart.anchor) start = dayStart.anchor;
+  return { ...tpl, start, blocks };
+}
+
+// يومٌ سليم: لا بلوك ينتهي قبل أن يبدأ
+export function isMonotone(dIso, tpl) {
+  const a = anchorsFor(dIso);
+  return layoutMinutes(tpl, a, balanceLength(tpl, a)).every((b) => b.endMin >= b.startMin);
 }
 
 // وقت بداية وحدة dIso نصًّا — تستعمله الواجهة لتحديد الوحدة الجارية

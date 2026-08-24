@@ -140,7 +140,7 @@ export function DayPanel({
       for (const l of items) {
         if (!marked.has(l.id)) continue
         if (isLate(e.id, l.id)) {
-          s += 0.5
+          s += settings.qada.credit // حظّ المقضيّ — يضبطه المستخدم
           lateTotal++
         } else s += 1
       }

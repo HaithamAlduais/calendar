@@ -9,7 +9,15 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Help } from "@/components/help"
 import { arab } from "@/lib/format"
-import { loadPreset, PRESETS, saveSettings, setPrayerMinutes, settings } from "@/lib/store"
+import {
+  loadPreset,
+  prayerMinutesOf,
+  presetPrayerMinutes,
+  PRESETS,
+  saveSettings,
+  setPrayerMinutes,
+  settings,
+} from "@/lib/store"
 
 // مدن جاهزة تختصر إدخال الإحداثيات — ولمن ليس فيها زرّ «موقعي» أو إدخال يدوي
 const CITIES = [
@@ -36,6 +44,23 @@ const METHODS = [
   { key: "dubai", name: "دبي" },
 ]
 
+const PRAYER_NAMES: [string, string][] = [
+  ["fajr", "الفجر"],
+  ["dhuhr", "الظهر"],
+  ["asr", "العصر"],
+  ["maghrib", "المغرب"],
+  ["isha", "العشاء"],
+]
+
+// الجاهز قبل المدد: فالخطوة اللاحقة ترى ما جاء به وتعلو عليه إن شاء صاحبها
+const STEPS = ["أهلًا بك", "ابدأ بجدول جاهز", "مدة الصلاة", "ما الذي تتابعه؟"]
+const BLURBS = [
+  "جدولك يُبنى على مواقيت الصلاة، فيتحرك معها كل يوم. أين أنت؟",
+  "خُذ جدولًا مكتملًا بضغطة، أو ابدأ فارغًا وابنِ يومك بنفسك.",
+  "كم تحتاج من الوقت لصلاتك؟",
+  "فعّل ما يعنيك الآن — وكل شيء قابل للتغيير لاحقًا.",
+]
+
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -50,17 +75,52 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
   )
 }
 
+function Tick({ on }: { on: boolean }) {
+  return (
+    <span
+      className={cn(
+        "mt-0.5 flex size-4 flex-none items-center justify-center rounded border",
+        on ? "bg-primary border-primary text-primary-foreground" : "border-border"
+      )}
+    >
+      {on && <CheckIcon className="size-3" />}
+    </span>
+  )
+}
+
 export function Onboarding() {
   const [step, setStep] = useState(0)
   const [city, setCity] = useState<string | null>(null)
   const [loc, setLoc] = useState({ lat: settings.lat, lng: settings.lng, tz: settings.tz })
   const [method, setMethod] = useState(settings.method)
   const [minutes, setMinutes] = useState(45)
+  // مدة كل صلاة على حدة — لا تظهر خاناتها حتى تُطلب، فالأصل رقمٌ واحد يكفي أكثر الناس
+  const [perPrayer, setPerPrayer] = useState(false)
+  const [mins, setMins] = useState<Record<string, number>>(() =>
+    Object.fromEntries(PRAYER_NAMES.map(([k]) => [k, 45]))
+  )
   const [feats, setFeats] = useState({ wird: true, hifz: true, workout: true })
   const [geoMsg, setGeoMsg] = useState("")
   const [preset, setPreset] = useState<string | null>(null)
 
   if (settings.onboarded) return null
+
+  // عند دخول خطوة المدد: تُملأ خاناتها بمدد الجاهز الذي اختاره (أو بمدد قالبه الحالي)،
+  // فيراها ويعدّلها إن شاء. وبهذا لا يُطمس اختياره ولا تُطمس مدد الجاهز —
+  // لأن اللاحق يرى السابق بدل أن يمحوه في صمت.
+  const enterDurations = () => {
+    const src = (preset && presetPrayerMinutes(preset)) || prayerMinutesOf()
+    const filled = Object.fromEntries(PRAYER_NAMES.map(([k]) => [k, src[k] ?? 45]))
+    setMins(filled)
+    const vals = Object.values(filled)
+    setMinutes(vals[0] ?? 45)
+    setPerPrayer(!vals.every((v) => v === vals[0])) // مدده مختلفة ← تُفتح مفصَّلة
+  }
+
+  const next = () => {
+    if (step === 1) enterDurations()
+    setStep((s) => s + 1)
+  }
 
   const finish = () => {
     if (preset) loadPreset(preset) // الجاهز أولًا، ثم تفضيلاتك فوقه
@@ -72,7 +132,7 @@ export function Onboarding() {
       workoutEnabled: feats.workout,
       onboarded: true,
     })
-    if (!preset) setPrayerMinutes(minutes) // الجاهز يأتي بمدده المضبوطة، فلا تُطمس بمدة موحّدة
+    setPrayerMinutes(perPrayer ? mins : minutes)
   }
 
   const useMyLocation = () => {
@@ -96,18 +156,8 @@ export function Onboarding() {
     <Dialog open>
       <DialogContent className="max-h-[88dvh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {step === 0 ? "أهلًا بك" : step === 1 ? "مدة الصلاة" : step === 2 ? "ما الذي تتابعه؟" : "ابدأ بجدول جاهز"}
-          </DialogTitle>
-          <DialogDescription>
-            {step === 0
-              ? "جدولك يُبنى على مواقيت الصلاة، فيتحرك معها كل يوم. أين أنت؟"
-              : step === 1
-                ? "كم تحتاج من الوقت لصلاتك؟"
-                : step === 2
-                  ? "فعّل ما يعنيك الآن — وكل شيء قابل للتغيير لاحقًا."
-                  : "خُذ جدولًا مكتملًا بضغطة، أو ابدأ فارغًا وابنِ يومك بنفسك."}
-          </DialogDescription>
+          <DialogTitle>{STEPS[step]}</DialogTitle>
+          <DialogDescription>{BLURBS[step]}</DialogDescription>
         </DialogHeader>
 
         {step === 0 && (
@@ -169,74 +219,6 @@ export function Onboarding() {
         )}
 
         {step === 1 && (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm leading-relaxed">
-              الصلاة تبدأ بالأذان، وبين الأذان والإقامة دعاءٌ لا يُردّ، ثم السنن الرواتب، ثم صلاةٌ
-              تحتاج حضور قلب، ثم أذكارها. وهي أهمّ فرصة في يومك — فاجعل وقتها يسعها.
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={5}
-                max={120}
-                value={minutes}
-                onChange={(e) => setMinutes(Math.max(5, +e.target.value || 5))}
-                className="h-9 w-24"
-              />
-              <span className="text-muted-foreground text-sm">دقيقة لكل صلاة</span>
-              <Help text="ستُطبَّق على الصلوات الخمس. ولتخصيص صلاة بعينها لاحقًا: «قالب يومك» ← افتح البلوك ← غيّر مدته." />
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {[20, 30, 45, 60].map((m) => (
-                <Chip key={m} on={minutes === m} onClick={() => setMinutes(m)}>
-                  {arab(m)} دقيقة
-                </Chip>
-              ))}
-            </div>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              من تصلّي في بيتها أو من يصلّي منفردًا قد يكفيه أقلّ.
-            </p>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="flex flex-col gap-2">
-            {(
-              [
-                ["wird", "الورد في السنن", "تقرأ وردك في السنن الرواتب، ويوزّعه البرنامج عليها بالترتيب — وما فاتك لا يُتخطّى."],
-                ["hifz", "الحفظ والمراجعة", "نظام يومي: تسميع جزء، وحفظ ربع، ويوم تكرار — ويتقدّم وحده متى أنجزت."],
-                ["workout", "التمرين", "دورة متتابعة لا علاقة لها بأيام الأسبوع، بتقدّم مزدوج: عدة كل جلسة ثم زيادة وزن."],
-              ] as [keyof typeof feats, string, string][]
-            ).map(([k, label, help]) => (
-              <button
-                key={k}
-                onClick={() => setFeats((p) => ({ ...p, [k]: !p[k] }))}
-                className={cn(
-                  "flex items-start gap-2 rounded-md border p-2 text-start transition-colors",
-                  feats[k] ? "border-primary bg-primary/5" : "border-border hover:bg-muted"
-                )}
-              >
-                <span
-                  className={cn(
-                    "mt-0.5 flex size-4 flex-none items-center justify-center rounded border",
-                    feats[k] ? "bg-primary border-primary text-primary-foreground" : "border-border"
-                  )}
-                >
-                  {feats[k] && <CheckIcon className="size-3" />}
-                </span>
-                <span className="flex-1">
-                  <span className="text-sm font-medium">{label}</span>
-                  <span className="text-muted-foreground block text-[11px] leading-relaxed">{help}</span>
-                </span>
-              </button>
-            ))}
-            <p className="text-muted-foreground pt-1 text-xs leading-relaxed">
-              وستجد بعدها «قالب يومك» لتشكيل بلوكاتك، و«الخزانات» لمشاريعك وأهدافك.
-            </p>
-          </div>
-        )}
-
-        {step === 3 && (
           <div className="flex flex-col gap-2">
             {PRESETS.map((p) => (
               <button
@@ -248,14 +230,7 @@ export function Onboarding() {
                 )}
               >
                 <span className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "flex size-4 flex-none items-center justify-center rounded border",
-                      preset === p.id ? "bg-primary border-primary text-primary-foreground" : "border-border"
-                    )}
-                  >
-                    {preset === p.id && <CheckIcon className="size-3" />}
-                  </span>
+                  <Tick on={preset === p.id} />
                   <span className="text-sm font-semibold">{p.name}</span>
                 </span>
                 <span className="text-muted-foreground mt-1 block text-[11px] leading-relaxed">{p.desc}</span>
@@ -281,8 +256,110 @@ export function Onboarding() {
               </span>
             </button>
             <p className="text-muted-foreground pt-1 text-[11px] leading-relaxed">
-              الجاهز يحمل الشكل لا الشخص: مواقيتك تبقى مواقيتَك، ويومُ بدايتك يومَك.
-              {preset && " ومدد صلاته تأتي معه بدل ما اخترت — وتغيّرها متى شئت من «قالب يومك»."}
+              الجاهز يحمل الشكل لا الشخص: مواقيتك تبقى مواقيتَك، ويومُ بدايتك يومَك — وما بعده من
+              خطوات يعلو عليه، فما غيّرته غُيِّر.
+            </p>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm leading-relaxed">
+              الصلاة تبدأ بالأذان، وبين الأذان والإقامة دعاءٌ لا يُردّ، ثم السنن الرواتب، ثم صلاةٌ
+              تحتاج حضور قلب، ثم أذكارها. وهي أهمّ فرصة في يومك — فاجعل وقتها يسعها.
+            </p>
+
+            {!perPrayer && (
+              <>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={5}
+                    max={180}
+                    value={minutes}
+                    onChange={(e) => setMinutes(Math.max(5, +e.target.value || 5))}
+                    className="h-9 w-24"
+                  />
+                  <span className="text-muted-foreground text-sm">دقيقة لكل صلاة</span>
+                  <Help text="ستُطبَّق على الصلوات الخمس. ولك أن تفصّلها لكل صلاة من الخيار أسفله، أو لاحقًا من «قالب يومك»." />
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {[20, 30, 45, 60].map((m) => (
+                    <Chip key={m} on={minutes === m} onClick={() => setMinutes(m)}>
+                      {arab(m)} دقيقة
+                    </Chip>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* إفصاحٌ متدرّج: الخانات الخمس لا تظهر إلا لمن طلبها */}
+            <button
+              onClick={() => {
+                if (!perPrayer) setMins(Object.fromEntries(PRAYER_NAMES.map(([k]) => [k, minutes])))
+                setPerPrayer((v) => !v)
+              }}
+              className="flex items-start gap-2 text-start"
+            >
+              <Tick on={perPrayer} />
+              <span className="text-sm">لكل صلاة مدتها</span>
+            </button>
+
+            {perPrayer && (
+              <div className="flex flex-col gap-1.5">
+                {PRAYER_NAMES.map(([key, name]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <label className="w-14 flex-none text-sm">{name}</label>
+                    <Input
+                      type="number"
+                      min={5}
+                      max={180}
+                      value={mins[key] ?? 45}
+                      onChange={(e) => setMins((p) => ({ ...p, [key]: Math.max(5, +e.target.value || 5) }))}
+                      className="h-8 w-20"
+                    />
+                    <span className="text-muted-foreground text-xs">دقيقة</span>
+                  </div>
+                ))}
+                <p className="text-muted-foreground flex items-start gap-1 text-[11px] leading-relaxed">
+                  <span>المغرب أقصرها عادةً إذ لا سنة قبله، والفجر والعشاء أطولها لسننهما.</span>
+                  <Help text="ومدة الجمعة تتبع مدة الظهر وتزيد عليها ساعة تلقائيًا، فيسع بلوكُها الخطبةَ والصلاة." />
+                </p>
+              </div>
+            )}
+
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              من تصلّي في بيتها أو من يصلّي منفردًا قد يكفيه أقلّ.
+            </p>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="flex flex-col gap-2">
+            {(
+              [
+                ["wird", "الورد في السنن", "تقرأ وردك في السنن الرواتب، ويوزّعه البرنامج عليها بالترتيب — وما فاتك لا يُتخطّى."],
+                ["hifz", "الحفظ والمراجعة", "نظام يومي: تسميع جزء، وحفظ ربع، ويوم تكرار — ويتقدّم وحده متى أنجزت."],
+                ["workout", "التمرين", "دورة متتابعة لا علاقة لها بأيام الأسبوع، بتقدّم مزدوج: عدة كل جلسة ثم زيادة وزن."],
+              ] as [keyof typeof feats, string, string][]
+            ).map(([k, label, help]) => (
+              <button
+                key={k}
+                onClick={() => setFeats((p) => ({ ...p, [k]: !p[k] }))}
+                className={cn(
+                  "flex items-start gap-2 rounded-md border p-2 text-start transition-colors",
+                  feats[k] ? "border-primary bg-primary/5" : "border-border hover:bg-muted"
+                )}
+              >
+                <Tick on={feats[k]} />
+                <span className="flex-1">
+                  <span className="text-sm font-medium">{label}</span>
+                  <span className="text-muted-foreground block text-[11px] leading-relaxed">{help}</span>
+                </span>
+              </button>
+            ))}
+            <p className="text-muted-foreground pt-1 text-xs leading-relaxed">
+              وستجد بعدها «قالب يومك» لتشكيل بلوكاتك وبداية يومك، و«الخزانات» لمشاريعك وأهدافك.
             </p>
           </div>
         )}
@@ -293,9 +370,11 @@ export function Onboarding() {
               رجوع
             </Button>
           )}
-          <span className="text-muted-foreground text-xs">{arab(step + 1)} من ٤</span>
-          <Button className="ms-auto" onClick={() => (step < 3 ? setStep(step + 1) : finish())}>
-            {step < 3 ? "التالي" : "ابدأ"}
+          <span className="text-muted-foreground text-xs">
+            {arab(step + 1)} من {arab(STEPS.length)}
+          </span>
+          <Button className="ms-auto" onClick={() => (step < STEPS.length - 1 ? next() : finish())}>
+            {step < STEPS.length - 1 ? "التالي" : "ابدأ"}
           </Button>
         </div>
       </DialogContent>

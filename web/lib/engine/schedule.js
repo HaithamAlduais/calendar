@@ -6,7 +6,7 @@
 // ترتيب الوحدة: نوم ← الفجر ← مهام ← نومة الضحى ← نهار ← المغرب ← ليل ← القيام
 import { addDays, dow } from './dates.js';
 import { quranStateFor, quranTaskLines, tathbeetLabels } from './quran.js';
-import { buildDay, unitStart as layoutUnitStart } from './layout.js';
+import { buildDay, rotateTemplate, unitStart as layoutUnitStart } from './layout.js';
 
 const PRAYER_NOTE =
   'ملاحظات: التركيز وتدوين ما قُرئ في كل ركعة (أو ما قرأ الإمام) • تنويع أذكار الركوع والسجود بين الركعات • الدعاء في كل سجدة.';
@@ -135,19 +135,19 @@ function makeTemplate({ day1, day2, day3, eve, rest, jumua, restFree }) {
     blocks: [
       { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'fajr' } },
       { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
-      { id: 'quran', title: TASKS_TITLE, colorId: 10, gen: 'quran', end: { prayer: 'sunrise', offset: 90 } },
+      { id: 'quran', title: TASKS_TITLE, colorId: 10, gen: 'quran', task: true, end: { prayer: 'sunrise', offset: 90 } },
       { id: 'nap', title: 'نوم', colorId: 8, sleep: true, end: { balance: SLEEP_BALANCE } },
       // يوم الجمعة يبدأ بلوك الصلاة مبكرًا بساعة (تبكير الجمعة) فيقصر العمل قبله
-      { id: 'work1', title: day1.title, colorId: 6, items: day1.items, end: { prayer: 'dhuhr', offset: jumua ? -60 : 0 } },
+      { id: 'work1', title: day1.title, colorId: 6, items: day1.items, task: true, end: { prayer: 'dhuhr', offset: jumua ? -60 : 0 } },
       { id: 'dhuhr', title: jumua ? 'الجمعة' : 'الظهر', colorId: 9, gen: jumua ? 'jumua' : 'dhuhr', end: { prayer: 'dhuhr', offset: 45 } },
-      { id: 'work2', title: day2.title, colorId: 6, items: day2.items, end: { prayer: 'asr' } },
+      { id: 'work2', title: day2.title, colorId: 6, items: day2.items, task: true, end: { prayer: 'asr' } },
       { id: 'asr', title: 'العصر', colorId: 9, gen: 'asr', end: { len: 45 } },
-      { id: 'work3', title: day3.title, colorId: 6, items: day3.items, end: { prayer: 'maghrib' } },
+      { id: 'work3', title: day3.title, colorId: 6, items: day3.items, task: true, end: { prayer: 'maghrib' } },
       { id: 'maghrib', title: 'المغرب', colorId: 9, gen: rest.weekend ? 'maghribWeekend' : 'maghrib', end: { len: 30 } },
       { id: 'sleep1', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'isha' } },
       { id: 'isha', title: 'العشاء', colorId: 9, gen: 'isha', end: { len: 45 } },
-      { id: 'family', title: eve.title, colorId: 6, items: eve.items, end: { nightFraction: 1 } },
-      { id: 'rest', title: rest.title, colorId: 8, items: rest.items, transparent: restFree, end: { nightFraction: 2, offset: -45 } },
+      { id: 'family', title: eve.title, colorId: 6, items: eve.items, task: true, end: { nightFraction: 1 } },
+      { id: 'rest', title: rest.title, colorId: 8, items: rest.items, task: true, transparent: restFree, end: { nightFraction: 2, offset: -45 } },
       { id: 'qiyam', title: 'صلاة القيام', colorId: 9, gen: rest.weekend ? 'qiyamWeekend' : 'qiyam', end: { nightFraction: 2 } },
     ],
   };
@@ -189,19 +189,40 @@ export const DEFAULT_TEMPLATES = {
 export const DEFAULT_WEEK_PLAN = ['weekday', 'weekday', 'weekday', 'weekday', 'weekday', 'friday', 'saturday'];
 
 // القوالب وخطة الأسبوع من إعدادات المستخدم
-let cfg = { templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN };
+let cfg = { templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN, dayStart: null };
+
+// معرّفات بلوكات المهام في كل القوالب — مصدرها البيانات لا قائمةٌ مكتوبة في الواجهة
+export function taskSlots() {
+  const out = [];
+  for (const tpl of Object.values(cfg.templates))
+    for (const b of tpl.blocks) if (b.task && !out.includes(b.id)) out.push(b.id);
+  return out;
+}
 export function setScheduleConfig(next) {
   cfg = {
     templates: (next && next.templates) || DEFAULT_TEMPLATES,
     weekPlan: (next && next.weekPlan) || DEFAULT_WEEK_PLAN,
+    // بداية اليوم واحدة لكل القوالب — وإلا تداخلت الوحدات أو تباعدت
+    dayStart: (next && next.dayStart) || null,
   };
+  rotated = new Map();
 }
 export function scheduleConfig() {
   return cfg;
 }
 
 // قالب اليوم: من خطة الأسبوع، وإن غاب فأول قالب موجود
+// القوالب مدارةً ببداية اليوم المختارة — تُحسب مرة لكل قالب لا لكل يوم
+let rotated = new Map();
 function templateFor(dIso) {
+  const ids = Object.keys(cfg.templates);
+  const key = cfg.weekPlan[dow(dIso)] in cfg.templates ? cfg.weekPlan[dow(dIso)] : ids[0];
+  if (!rotated.has(key)) rotated.set(key, rotateTemplate(cfg.templates[key], cfg.dayStart));
+  return rotated.get(key);
+}
+
+// القالب كما هو مكتوب (بلا دوران) — للتحرير وللواجهة
+export function rawTemplateFor(dIso) {
   const ids = Object.keys(cfg.templates);
   return cfg.templates[cfg.weekPlan[dow(dIso)]] || cfg.templates[ids[0]];
 }

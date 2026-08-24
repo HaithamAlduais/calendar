@@ -1,9 +1,17 @@
 "use client"
 
 // المخزن — يربط المحرك المُتحقَّق منه بالواجهة، وكل الحالة في localStorage
-import { buildRange, unitStart, setScheduleConfig, DEFAULT_TEMPLATES, DEFAULT_WEEK_PLAN } from "@/lib/engine/schedule.js"
+import {
+  buildRange,
+  unitStart,
+  setScheduleConfig,
+  taskSlots,
+  DEFAULT_TEMPLATES,
+  DEFAULT_WEEK_PLAN,
+} from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { setPrayerConfig } from "@/lib/engine/prayers.js"
+import { isMonotone, rotateTemplate, startCandidates } from "@/lib/engine/layout.js"
 import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
 import {
   setQuranCompletion,
@@ -163,6 +171,17 @@ const DEFAULT_SETTINGS = {
   weekPlan: DEFAULT_WEEK_PLAN as string[],
   quran: DEFAULT_QURAN as typeof DEFAULT_QURAN,
   workout: DEFAULT_WORKOUT as typeof DEFAULT_WORKOUT,
+  // بداية اليوم: أيّ بلوك يفتتح الوحدة وبأيّ مرساة — واحدة لكل القوالب، وإلا
+  // تداخلت الوحدات. null = كما كُتب القالب (نومة الثلث الأخير في الجاهز).
+  dayStart: null as { blockId?: string; anchor?: Anchor } | null,
+  // القضاء والتقديم: القضاء أداءُ الفائت بعد وقته بنصف إنجاز، والتقديم أداءُ
+  // اللاحق قبل وقته من يومه بإنجاز كامل.
+  qada: {
+    enabled: true,
+    credit: 0.5, // حظّ البند المقضيّ من الإنجاز
+    crossDay: true, // ترحيل ما لم يُنجز من الأمس إلى اليوم (يوم واحد)
+    early: true, // إتاحة التقديم
+  },
 }
 export type Settings = typeof DEFAULT_SETTINGS
 const stored = load<Partial<Settings> | null>(K.settings, null)
@@ -178,7 +197,11 @@ function applyEngineConfig() {
   setPrayerConfig({ lat, lng, tz, method, asrFactor })
   setQuranConfig({ ...settings.quran, wirdSlots: settings.wird.length })
   setWorkoutConfig(settings.workout)
-  setScheduleConfig({ templates: settings.templates, weekPlan: settings.weekPlan })
+  setScheduleConfig({
+    templates: settings.templates,
+    weekPlan: settings.weekPlan,
+    dayStart: settings.dayStart,
+  })
 }
 applyEngineConfig()
 
@@ -396,10 +419,12 @@ export function isAutoDone(ev: Ev): boolean {
 }
 
 // ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى البلوك المستقبِل القادم ──
-// المستقبِلات بالترتيب الزمني: بلوكات العمل/الأسرة ثم أسرة الليل وراحته — والنوم لا يستقبل شيئًا
-const WORK_SLOTS = ["quran", "work1", "work2", "work3", "family", "rest"]
-// البلوكات التي تقبل مهامك اليدوية — عمل وأسرة وراحة
-export const TASK_SLOTS = WORK_SLOTS
+// المستقبِلات بالترتيب الزمني: بلوكات المهام — والنوم والصلوات لا تستقبل شيئًا.
+// ومصدرها القوالب نفسُها (b.task) لا قائمةٌ مكتوبة هنا، فمن صنع بلوك مهام جديدًا
+// صار مستقبِلًا مثلها بلا تعديل سطر واحد.
+const WORK_SLOTS = () => taskSlots()
+// البلوكات التي تقبل مهامك اليدوية — هي نفسها بلوكات المهام
+export const TASK_SLOTS = () => taskSlots()
 
 export type Makeup = {
   destId: string
@@ -429,12 +454,13 @@ export function isMissed(ev: Ev, now: string): boolean {
 //  • من الأمس: كل ما لم يُنجز — أيًّا كان بلوكه، حتى مهام العمل — ينتقل إلى «راحة أو تعويض» وحده
 export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   const map = new Map<string, Makeup[]>()
+  if (!settings.qada.enabled) return map
   const cu = currentUnit()
   const sorted = events
     .filter((e) => e.unit === cu)
     .sort((a, b) => (a.start < b.start ? -1 : 1))
   // البلوكات المستقبِلة التي لم ينتهِ وقتها بعد، بالترتيب
-  const dests = sorted.filter((e) => !e.external && WORK_SLOTS.includes(e.slot || "") && e.end > now)
+  const dests = sorted.filter((e) => !e.external && WORK_SLOTS().includes(e.slot || "") && e.end > now)
   if (!dests.length) return map
   const push = (destId: string, m: Makeup) => {
     const list = map.get(destId) || []
@@ -445,7 +471,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   // ── تعويض الأمس: بنود أمس غير المنجزة تُوزَّع بالتناوب على بلوكات اليوم المستقبِلة
   //    (راحة ← عمل/أسرة ← زوجة…) واحدًا تلو الآخر — يوم واحد فقط ──
   const prevU = addDays(cu, -1)
-  if (prevU >= SCHEDULE_START) {
+  if (settings.qada.crossDay && prevU >= SCHEDULE_START) {
     let turn = 0
     for (const ev of events) {
       if (ev.unit !== prevU || ev.external || ev.done) continue
@@ -505,17 +531,18 @@ const EARLY_SRC_SLOTS = WORK_SLOTS
 
 export function earlyMap(events: Ev[], now: string): Map<string, Early[]> {
   const map = new Map<string, Early[]>()
+  if (!settings.qada.early) return map
   const cu = currentUnit()
   const sorted = events
     .filter((e) => e.unit === cu && !e.external)
     .sort((a, b) => (a.start < b.start ? -1 : 1))
   // البلوكات المستقبِلة الجارية أو القادمة — كلٌّ يعرض ما بعده مما يمكن تقديمه
-  const dests = sorted.filter((e) => WORK_SLOTS.includes(e.slot || "") && e.end > now)
+  const dests = sorted.filter((e) => WORK_SLOTS().includes(e.slot || "") && e.end > now)
   for (const dest of dests) {
     const list: Early[] = []
     for (const src of sorted) {
       if (src.id === dest.id || src.start < dest.end) continue // اللاحق فقط
-      if (!EARLY_SRC_SLOTS.includes(src.slot || "") || src.done || src.slot === "quran") continue
+      if (!EARLY_SRC_SLOTS().includes(src.slot || "") || src.done || src.slot === "quran") continue
       const marked = new Set(checksFor(src.id))
       for (const item of checkable(src)) {
         if (marked.has(item.id)) continue
@@ -624,12 +651,12 @@ export function allEvents(): Ev[] {
   // أول بلوك مهام في الوحدة هو وجهة المهام التي لم يُحدَّد لها بلوك
   const cabByUnit = new Map<string, Map<string, Due[]>>()
   for (const [unit, evs] of byUnit) {
-    const firstTaskSlot = evs.find((e) => WORK_SLOTS.includes(e.slot || ""))?.slot
+    const firstTaskSlot = evs.find((e) => WORK_SLOTS().includes(e.slot || ""))?.slot
     cabByUnit.set(unit, itemsForDay(unit, cab, firstTaskSlot))
   }
   for (const ev of [...byUnit.values()].flat()) {
     // مهامك اليدوية تُلحق ببنود البلوك الثابتة، كلٌّ بمعرّفه فلا ينزاح التأشير بحذف غيره
-    if (WORK_SLOTS.includes(ev.slot || ""))
+    if (WORK_SLOTS().includes(ev.slot || ""))
       for (const t of tasksFor(ev.unit!, ev.slot!))
         ev.items.push({ id: `task:${t.id}`, text: t.text, taskId: t.id })
     // مهام الخزانات المستحقّة اليوم — كلٌّ في البلوك الذي اخترتَه لها
@@ -845,9 +872,11 @@ export type Anchor = {
   prayer?: string
   nightFraction?: number
   lastThirdPrev?: boolean
+  clock?: number // دقائق من منتصف الليل
   len?: number
   balance?: { target: number; min: number; max: number; keepAfter: number }
   offset?: number
+  next?: boolean // مرساة الغد، بها يدور اليوم على البلوك الذي يختاره صاحبه
 }
 export type Block = {
   id: string
@@ -857,6 +886,7 @@ export type Block = {
   sleep?: boolean
   transparent?: boolean
   gen?: string // بنود مولّدة (صلاة أو قرآن) — لا تُحذف
+  task?: boolean // بلوك مهام: يقبل مهامك اليدوية ويستقبل القضاء والتقديم
   items?: Item[]
 }
 
@@ -895,18 +925,95 @@ export function removeBlock(tplId: string, blockId: string) {
   })
 }
 
-// مدة كل بلوكات الصلاة دفعةً واحدة (وما له مدة ثابتة غير الصلوات لا يُمسّ)
-const PRAYER_BLOCKS = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
-export function setPrayerMinutes(minutes: number) {
+// ── مدد الصلاة ──
+// بلوك الصلاة ينتهي بإحدى صورتين: مدةٍ ثابتة { len }، أو إزاحةٍ عن صلاته نفسِها
+// { prayer: <نفسه>, offset } — والثانية هي التي تجعل الجمعة أطول: بلوكها يبدأ قبل
+// الأذان بساعة وينتهي بعده بالمدة، فتزيد الخطبةُ ساعةً بلا إعداد منفصل.
+// فمن هنا: الإزاحة عن الصلاة نفسِها = مدتُها، وأيّ صورة أخرى ليست مدةً فلا تُمسّ.
+export const PRAYER_BLOCKS = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
+
+// هل هذه المرساة تعبّر عن «مدة» هذا البلوك؟
+function durationField(b: Block): "len" | "offset" | null {
+  if (!PRAYER_BLOCKS.includes(b.id)) return null
+  if (b.end.len != null) return "len"
+  if (b.end.prayer === b.id && !b.end.next) return "offset"
+  return null
+}
+
+export function prayerMinutesOf(
+  templates: Record<string, { blocks: Block[] }> = settings.templates
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const id of PRAYER_BLOCKS) {
+    for (const tpl of Object.values(templates)) {
+      const b = tpl.blocks.find((x) => x.id === id)
+      const f = b && durationField(b)
+      if (b && f) {
+        out[id] = (f === "len" ? b.end.len : b.end.offset) ?? 0
+        break
+      }
+    }
+  }
+  return out
+}
+
+// رقمٌ واحد يعمّ الصلوات الخمس، أو خريطةٌ لكلٍّ مدتُه
+export function setPrayerMinutes(minutes: number | Record<string, number>) {
+  const map = typeof minutes === "number" ? null : minutes
   editTemplates((t) => {
     for (const tpl of Object.values(t))
-      for (const b of tpl.blocks)
-        if (PRAYER_BLOCKS.includes(b.id) && b.end.len != null) b.end.len = minutes
+      for (const b of tpl.blocks) {
+        const f = durationField(b)
+        if (!f) continue
+        const v = map ? map[b.id] : (minutes as number)
+        if (v == null || !Number.isFinite(v)) continue
+        b.end[f] = Math.max(5, Math.round(v))
+      }
   })
 }
 
+// ── بداية اليوم ──
+// اليومُ حلقةٌ: أيّ بلوك صلح أن يفتتحها ما دام سابقُه ينتهي بمرساة مطلقة.
+// والقالب لا يُحرَّك عند الاختيار — إنما يُدار عند البناء، فالرجوع بإلغاء الاختيار.
+export type StartOption = { id: string; title: string }
+
+export function dayStartOptions(): StartOption[] {
+  const seen = new Set<string>()
+  const out: StartOption[] = []
+  for (const tpl of Object.values(settings.templates))
+    for (const o of startCandidates(tpl))
+      if (!seen.has(o.id)) {
+        seen.add(o.id)
+        out.push(o)
+      }
+  return out
+}
+
+// البلوك الذي يفتتح اليوم فعلًا الآن
+export function currentDayStart(): { blockId: string; clock: number | null } {
+  const first = Object.values(settings.templates)[0]
+  const ds = settings.dayStart
+  return {
+    blockId: ds?.blockId || first?.blocks[0]?.id || "",
+    clock: ds?.anchor?.clock ?? null,
+  }
+}
+
+// يُطبَّق على كل القوالب معًا — ويُرفض ما يقلب يومًا رأسًا على عقب
+export function setDayStart(next: { blockId?: string; anchor?: Anchor } | null): string | null {
+  const sample = ["2026-01-15", "2026-04-15", "2026-06-21", "2026-09-15", "2026-12-21"]
+  for (const tpl of Object.values(settings.templates)) {
+    const rot = rotateTemplate(tpl, next)
+    for (const d of sample)
+      if (!isMonotone(d, rot))
+        return "هذه البداية تجعل بعض بلوكاتك تنتهي قبل أن تبدأ في بعض أيام السنة — اختر غيرها."
+  }
+  saveSettings({ dayStart: next })
+  return null
+}
+
 export function resetTemplates() {
-  saveSettings({ templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN })
+  saveSettings({ templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN, dayStart: null })
 }
 
 // ── الجداول الجاهزة: جدول كامل بضغطة، لمن لا يريد بناء يومه من الصفر ──
@@ -934,12 +1041,19 @@ export const PRESETS: Preset[] = [
   },
 ]
 
+// مدد صلاة جدولٍ جاهز — تُقرأ قبل تحميله لتُملأ بها خانات الإعداد
+export function presetPrayerMinutes(id: string): Record<string, number> | null {
+  if (id !== "haitham") return null
+  return prayerMinutesOf(DEFAULT_TEMPLATES)
+}
+
 export function loadPreset(id: string) {
   if (id !== "haitham") return
   const from = settings.startDate // الجاهز يبدأ من يومك أنت لا من يومه
   saveSettings({
     templates: DEFAULT_TEMPLATES,
     weekPlan: DEFAULT_WEEK_PLAN,
+    dayStart: null, // الجاهز يبدأ يومه بنومة الثلث الأخير كما كُتب قالبه
     wird: DEFAULT_WIRD,
     quran: { ...DEFAULT_QURAN, date: from },
     workout: { ...DEFAULT_WORKOUT, start: from },
@@ -1064,7 +1178,7 @@ export { repeatLabel }
 // بلوكات المهام في وحدةٍ ما — لاختيار مكان مهمة الخزانة
 export function taskBlocksOf(events: Ev[], unit: string): { slot: string; title: string; start: string }[] {
   return events
-    .filter((e) => e.unit === unit && !e.external && TASK_SLOTS.includes(e.slot || ""))
+    .filter((e) => e.unit === unit && !e.external && TASK_SLOTS().includes(e.slot || ""))
     .sort((a, b) => (a.start < b.start ? -1 : 1))
     .map((e) => ({ slot: e.slot!, title: e.title, start: e.start }))
 }

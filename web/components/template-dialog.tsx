@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDownIcon, DownloadIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, DownloadIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -11,12 +11,16 @@ import { Help } from "@/components/help"
 import { arab, DAY_NAMES, fmtDur } from "@/lib/format"
 import {
   addBlock,
+  currentDayStart,
+  dayStartOptions,
   DEFAULT_TEMPLATES,
   loadPreset,
+  prayerMinutesOf,
   PRESETS,
   removeBlock,
   resetTemplates,
   saveSettings,
+  setDayStart,
   setPrayerMinutes,
   settings,
   updateBlock,
@@ -30,6 +34,15 @@ const COLORS: { id: number; name: string; cls: string }[] = [
   { id: 8, name: "رمادي", cls: "bg-zinc-400" },
 ]
 
+// الصلوات الخمس التي لها مدة (والشروق مرساة لا صلاة)
+const PRAYER_DURATIONS: [string, string][] = [
+  ["fajr", "الفجر"],
+  ["dhuhr", "الظهر"],
+  ["asr", "العصر"],
+  ["maghrib", "المغرب"],
+  ["isha", "العشاء"],
+]
+
 const PRAYERS: { key: string; name: string }[] = [
   { key: "fajr", name: "الفجر" },
   { key: "sunrise", name: "الشروق" },
@@ -40,10 +53,16 @@ const PRAYERS: { key: string; name: string }[] = [
 ]
 
 // وصف نهاية البلوك نصًّا — حتى يفهم المستخدم متى ينتهي بلا أن يقرأ بيانات
+// البلوك المرتبط بصلاته نفسِها: إزاحتُه هي مدتُه لا إزاحةٌ عن شيء آخر
+export function isSelfPaced(b: Block): boolean {
+  return b.end.prayer === b.id && !b.end.next
+}
+
 function endLabel(b: Block): string {
   const e = b.end
   if (e.balance) return "يُكمل نومك إلى المجموع الذي حدّدته"
   if (e.len != null) return `${fmtDur(e.len)} من بدايته`
+  if (isSelfPaced(b)) return `${fmtDur(e.offset || 0)} من أذانه`
   if (e.prayer) {
     const name = PRAYERS.find((p) => p.key === e.prayer)?.name || e.prayer
     if (!e.offset) return `عند ${name}`
@@ -114,9 +133,26 @@ function BlockRow({ tplId, block }: { tplId: string; block: Block }) {
             </div>
           )}
 
-          {block.end.prayer && (
+          {isSelfPaced(block) && (
             <div className="flex items-center gap-2">
-              <label className="text-muted-foreground flex-none text-xs">إزاحة عن {PRAYERS.find((p) => p.key === block.end.prayer)?.name} (دقيقة)</label>
+              <label className="text-muted-foreground flex-none text-xs">المدة (دقيقة)</label>
+              <Input
+                type="number"
+                min={5}
+                max={180}
+                value={block.end.offset || 0}
+                onChange={(e) => set({ end: { ...block.end, offset: Math.max(5, +e.target.value || 5) } })}
+                className="h-8 w-24"
+              />
+              <Help text="من الأذان حتى فراغك من السنة والأذكار. وبلوك الجمعة يبدأ قبل الأذان بساعة فيسع الخطبة، فمدتُه هذه زائدًا ساعة." />
+            </div>
+          )}
+
+          {block.end.prayer && !isSelfPaced(block) && (
+            <div className="flex items-center gap-2">
+              <label className="text-muted-foreground flex-none text-xs">
+                إزاحة عن {PRAYERS.find((p) => p.key === block.end.prayer)?.name} (دقيقة)
+              </label>
               <Input
                 type="number"
                 value={block.end.offset || 0}
@@ -125,6 +161,22 @@ function BlockRow({ tplId, block }: { tplId: string; block: Block }) {
               />
               <Help text="سالب يعني قبل الوقت، وموجب يعني بعده. مثاله تبكير الجمعة: −٦٠." />
             </div>
+          )}
+
+          {/* بلوك المهام: يقبل مهامك اليدوية ويستقبل القضاء والتقديم */}
+          {!block.gen && !block.sleep && (
+            <button onClick={() => set({ task: !block.task })} className="flex items-center gap-2 text-start">
+              <span
+                className={cn(
+                  "flex size-4 flex-none items-center justify-center rounded border",
+                  block.task ? "bg-primary border-primary text-primary-foreground" : "border-border"
+                )}
+              >
+                {block.task && <CheckIcon className="size-3" />}
+              </span>
+              <span className="text-xs">بلوك مهام</span>
+              <Help text="بلوك المهام يقبل ما تضيفه من مهام ومهام الخزانات، ويستقبل ما فاتك قضاءً وما تريد تقديمه. أما النوم والصلوات فلا." />
+            </button>
           )}
 
           {!block.gen && (
@@ -151,7 +203,12 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
   const [newTitle, setNewTitle] = useState("")
   const [newAfter, setNewAfter] = useState("dhuhr")
   const [confirmPreset, setConfirmPreset] = useState<string | null>(null)
+  const [perPrayer, setPerPrayer] = useState(false)
+  const [mins, setMins] = useState<Record<string, number>>(() => prayerMinutesOf())
+  const [startErr, setStartErr] = useState("")
   const ids = Object.keys(settings.templates)
+  const ds = currentDayStart()
+  const startOpts = dayStartOptions()
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -217,22 +274,127 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
               مدة الصلاة
               <Help text="تبدأ الصلاة بالأذان، وبين الأذان والإقامة دعاءٌ مستجاب، ثم السنن، ثم الصلاة بتركيز، ثم أذكارها. اجعل الوقت يسع عباداتك في أهم فرصة في يومك." />
             </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={5}
-                max={120}
-                value={minutes}
-                onChange={(e) => setMinutes(Math.max(5, +e.target.value || 5))}
-                className="h-8 w-24"
-              />
-              <Button size="sm" onClick={() => setPrayerMinutes(minutes)}>
-                طبّق على كل الصلوات
-              </Button>
+            {!perPrayer && (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={5}
+                  max={180}
+                  value={minutes}
+                  onChange={(e) => setMinutes(Math.max(5, +e.target.value || 5))}
+                  className="h-8 w-24"
+                />
+                <Button size="sm" onClick={() => setPrayerMinutes(minutes)}>
+                  طبّق على كل الصلوات
+                </Button>
+              </div>
+            )}
+
+            {/* إفصاحٌ متدرّج: الخانات الخمس لمن طلبها وحده */}
+            <button
+              onClick={() => {
+                setMins(prayerMinutesOf()) // تُملأ من قوالبك الحالية لا من رقمٍ مفترض
+                setPerPrayer((v) => !v)
+              }}
+              className="mt-1 flex items-center gap-2 text-start"
+            >
+              <span
+                className={cn(
+                  "flex size-4 flex-none items-center justify-center rounded border",
+                  perPrayer ? "bg-primary border-primary text-primary-foreground" : "border-border"
+                )}
+              >
+                {perPrayer && <CheckIcon className="size-3" />}
+              </span>
+              <span className="text-xs">لكل صلاة مدتها</span>
+            </button>
+
+            {perPrayer && (
+              <div className="mt-2 flex flex-col gap-1.5">
+                {PRAYER_DURATIONS.map(([key, name]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <label className="w-14 flex-none text-xs">{name}</label>
+                    <Input
+                      type="number"
+                      min={5}
+                      max={180}
+                      value={mins[key] ?? 45}
+                      onChange={(e) => setMins((p) => ({ ...p, [key]: Math.max(5, +e.target.value || 5) }))}
+                      className="h-8 w-20"
+                    />
+                    <span className="text-muted-foreground text-[11px]">دقيقة</span>
+                  </div>
+                ))}
+                <Button size="sm" className="mt-1 self-start" onClick={() => setPrayerMinutes(mins)}>
+                  احفظ المدد
+                </Button>
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                  تُطبَّق على كل قوالبك. ومدة الجمعة تتبع الظهر وتزيد ساعة تلقائيًا.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* بداية اليوم */}
+          <div className="rounded-lg border p-2">
+            <div className="mb-1 flex items-center gap-1 text-sm font-semibold">
+              بداية يومك
+              <Help text="يومك حلقةٌ لا خطّ: تختار أيّ بلوك يفتتحه، فما قبله ينتقل إلى ما بعده ويبقى الترتيب. وهي واحدة لكل قوالبك، وإلا تداخلت أيامك." />
             </div>
-            <p className="text-muted-foreground pt-1 text-[11px]">
-              ولتخصيص صلاة بعينها، افتح قالبها أدناه وغيّر مدتها وحدها.
+            <p className="text-muted-foreground mb-2 text-[11px] leading-relaxed">
+              اليوم يبدأ ببلوك «{startOpts.find((o) => o.id === ds.blockId)?.title || ds.blockId}»
+              {ds.clock != null && ` عند ${arab(Math.floor(ds.clock / 60))}:${arab(String(ds.clock % 60).padStart(2, "0"))}`}.
             </p>
+            <div className="flex flex-wrap gap-1">
+              {startOpts.map((o) => (
+                <button
+                  key={o.id}
+                  onClick={() => setStartErr(setDayStart({ blockId: o.id }) || "")}
+                  className={cn(
+                    "rounded-md border px-2 py-1 text-xs transition-colors",
+                    ds.blockId === o.id && ds.clock == null
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border hover:bg-muted"
+                  )}
+                >
+                  {o.title}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-muted-foreground flex-none text-xs">أو عند ساعة</span>
+              <Input
+                type="time"
+                defaultValue={
+                  ds.clock != null
+                    ? `${String(Math.floor(ds.clock / 60)).padStart(2, "0")}:${String(ds.clock % 60).padStart(2, "0")}`
+                    : "03:00"
+                }
+                onChange={(e) => {
+                  const [h, m] = e.target.value.split(":").map(Number)
+                  if (!Number.isFinite(h)) return
+                  setStartErr(setDayStart({ blockId: ds.blockId, anchor: { clock: h * 60 + m } }) || "")
+                }}
+                className="h-8 w-28"
+              />
+              <Help text="ساعةٌ ثابتة لا تتحرك بالمواقيت. ولا تصلح كل ساعة: إن كانت بعد نهاية أوّل بلوك انقلب اليوم، فيردّها البرنامج." />
+            </div>
+            {startErr && <p className="text-destructive pt-1 text-[11px] leading-relaxed">{startErr}</p>}
+            {settings.dayStart && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground mt-1"
+                onClick={() => {
+                  setStartErr("")
+                  setDayStart(null)
+                }}
+              >
+                <RotateCcwIcon />
+                أرجِع البداية الأصلية
+              </Button>
+            )}
           </div>
 
           {/* خطة الأسبوع */}
