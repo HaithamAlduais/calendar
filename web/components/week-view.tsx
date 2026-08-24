@@ -95,7 +95,9 @@ export function WeekView({
   const mk = makeupMap(events, now) // شارة «قضاء N» على البلوكات المستقبِلة
 
   return (
-    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 sm:grid sm:grid-cols-7 sm:gap-1 sm:overflow-visible sm:px-3">
+    // سبعة أعمدة لا تُعرض إلا إذا اتّسع لها فعلًا (≥١٢٨٠ بكسل ≈ ١٧٠ لكل عمود)،
+    // وما دون ذلك تمرير أفقي بيوم واحد كامل — أوضح من سبعة أعمدة مزدحمة
+    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 xl:grid xl:grid-cols-7 xl:gap-1 xl:overflow-visible xl:px-3">
       {days.map((d) => {
         const isCur = d === cu
         // عمود اليوم = وحدته كاملة من الفجر إلى فجر الغد: نهاره ثم ليلته
@@ -110,7 +112,7 @@ export function WeekView({
           <div
             key={d}
             ref={isCur ? curRef : undefined}
-            className="w-[82vw] max-w-80 flex-none snap-center sm:w-auto sm:max-w-none"
+            className="w-[82vw] max-w-80 flex-none snap-center xl:w-auto xl:max-w-none"
           >
             <div className="bg-background/95 sticky top-0 z-10 flex items-center justify-center gap-2 py-2 backdrop-blur">
               <span

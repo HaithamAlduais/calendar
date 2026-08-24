@@ -57,9 +57,10 @@ export function EventChip({
         {missed && <CircleAlertIcon className="size-3.5 flex-none" />}
         {halfDone && <CircleDotIcon className="size-3.5 flex-none text-amber-500" />}
         {ev.done && !halfDone && "✓ "}
-        <span className="truncate">{ev.title}</span>
+        <span className="min-w-0 truncate">{ev.title}</span>
       </div>
-      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+      {/* سطر التفاصيل يلتفّ قطعةً قطعةً: كل قطعة لا تُكسر في نفسها ولو ضاق العمود */}
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs [&>*]:whitespace-nowrap">
         <span>
           {fmt12(timeOf(ev.start))} – {fmt12(timeOf(ev.end))}
         </span>
