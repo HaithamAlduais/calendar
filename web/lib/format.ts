@@ -48,12 +48,6 @@ export function dotColor(colorId: number, external?: boolean): string {
   )
 }
 
-export const NUMBERED = /^[٠-٩]+\.\s/
-
-export function checklistLines(desc: string): { text: string; idx: number; item: boolean }[] {
-  if (!desc) return []
-  return desc.split("\n").map((text, idx) => ({ text, idx, item: NUMBERED.test(text) }))
-}
 
 export function fmtDur(min: number): string {
   if (min <= 0) return "٠ د"

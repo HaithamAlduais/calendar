@@ -2,7 +2,7 @@
 
 // مشاركة حدث كصورة عبر واتساب — تعرض الحالة وكل البنود بعلاماتها، لمتابعة الزوجة
 import { arab } from "@/lib/engine/dates.js"
-import { checklistLines, dateOf, fmt12, fmtDateLong, timeOf } from "@/lib/format"
+import { dateOf, fmt12, fmtDateLong, timeOf } from "@/lib/format"
 import type { Ev } from "@/lib/store"
 
 const ACCENT: Record<number, string> = {
@@ -31,14 +31,14 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   return lines
 }
 
-export function eventStatus(ev: Ev, checked: Set<number>, prog?: { done: number; total: number }): string {
+export function eventStatus(ev: Ev, checked: Set<string>, prog?: { done: number; total: number }): string {
   if (prog && prog.total) {
     if (prog.done === 0) return "⬜ لم يبدأ بعد"
     if (prog.done >= prog.total) return "✅ اكتمل التمرين"
     return `🔄 قيد التنفيذ — ${arab(prog.done)} من ${arab(prog.total)} جلسة`
   }
-  const items = checklistLines(ev.desc).filter((l) => l.item)
-  const doneItems = items.filter((l) => checked.has(l.idx)).length
+  const items = ev.items.filter((i) => !i.note)
+  const doneItems = items.filter((i) => checked.has(i.id)).length
   const n = new Date()
   const pad = (x: number) => String(x).padStart(2, "0")
   const stamp = `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}T${pad(n.getHours())}:${pad(n.getMinutes())}`
@@ -51,7 +51,7 @@ export function eventStatus(ev: Ev, checked: Set<number>, prog?: { done: number;
 
 export async function shareEventImage(
   ev: Ev,
-  checked: Set<number>,
+  checked: Set<string>,
   workout?: { prog: { done: number; total: number }; lines: string[] }
 ): Promise<"shared" | "downloaded"> {
   const W = 900
@@ -74,13 +74,15 @@ export async function shareEventImage(
       )
     }
   } else {
-    for (const l of checklistLines(ev.desc)) {
-      const maxW = W - pad * 2 - (l.item ? 56 : 16)
-      wrapText(x, l.text, maxW).forEach((t, i) =>
+    let num = 0 // الترقيم يُحسب عند العرض لا يُخزَّن في النص
+    for (const l of ev.items) {
+      const maxW = W - pad * 2 - (l.note ? 16 : 56)
+      const label = l.note ? l.text : `${arab(++num)}. ${l.text}`
+      wrapText(x, label, maxW).forEach((t, i) =>
         rlines.push({
           text: t,
-          kind: l.item ? (i === 0 ? "item" : "cont") : "plain",
-          checked: checked.has(l.idx),
+          kind: l.note ? "plain" : i === 0 ? "item" : "cont",
+          checked: checked.has(l.id),
         })
       )
     }
@@ -162,9 +164,9 @@ export async function shareEventImage(
   URL.revokeObjectURL(a.href)
   const bodyLines = workout
     ? workout.lines
-    : checklistLines(ev.desc)
-        .filter((l) => l.item)
-        .map((l) => `${checked.has(l.idx) ? "✅" : "⬜"} ${l.text}`)
+    : ev.items
+        .filter((l) => !l.note)
+        .map((l) => `${checked.has(l.id) ? "✅" : "⬜"} ${l.text}`)
   const txt = encodeURIComponent(`*${ev.title}* — ${status}\n` + bodyLines.join("\n"))
   window.open(`https://wa.me/?text=${txt}`, "_blank")
   return "downloaded"

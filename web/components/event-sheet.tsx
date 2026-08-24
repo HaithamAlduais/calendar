@@ -19,11 +19,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { checklistLines, dotColor, fmt12, fmtDateLong, dateOf, timeOf } from "@/lib/format"
+import { dotColor, fmt12, fmtDateLong, dateOf, timeOf } from "@/lib/format"
 import { WorkoutSheet } from "@/components/workout-sheet"
 import { shareEventImage } from "@/lib/share"
 import {
   addTask,
+  checkable,
   checksFor,
   dayTasks,
   earlyMap,
@@ -32,9 +33,7 @@ import {
   isLate,
   isMissed,
   makeupMap,
-  mistakePoolFor,
   nowStamp,
-  numberedIdx,
   removeTask,
   TASK_SLOTS,
   tasksFor,
@@ -63,25 +62,12 @@ export function EventSheet({
   const [openTrain, setOpenTrain] = useState<string | null>(null)
   if (!ev) return <Sheet open={false}>{null}</Sheet>
 
-  const lines = checklistLines(ev.desc)
-  const items = lines.filter((l) => l.item)
+  const items = checkable(ev)
   const checked = new Set(checksFor(ev.id))
-  const doneItems = items.filter((l) => checked.has(l.idx)).length
+  const doneItems = items.filter((i) => checked.has(i.id)).length
   // المهام اليدوية تُضاف في بلوكات العمل والأسرة والراحة
   const isTaskHost = !ev.external && TASK_SLOTS.includes(ev.slot || "")
   const auto = isAutoDone(ev) // اكتمل ببنوده فلا حاجة لزر الإنجاز
-  // زر الحذف لمهامك اليدوية فقط — بنود Google المدموجة تُدار من تقويم Google نفسه
-  const myTasks = isTaskHost ? tasksFor(ev.unit!, ev.slot!) : []
-  // مهامك أُضيفت بعد بنود البلوك الثابتة بترتيبها، فنطابقها بنصّها لنعرف أي سطر يُحذف
-  const taskOfLine = new Map<number, number>()
-  if (myTasks.length) {
-    let t = 0
-    const src = (ev.desc || "").split("\n")
-    for (const li of numberedIdx(ev.desc)) {
-      if (t < myTasks.length && (src[li] || "").replace(/^[٠-٩]+\.\s/, "") === myTasks[t])
-        taskOfLine.set(li, t++)
-    }
-  }
 
   // القضاء: البلوك الفائت مقفل وبنوده تظهر في بلوك العمل القادم
   const now = nowStamp()
@@ -94,7 +80,7 @@ export function EventSheet({
   const today: DayTask[] = isTaskHost
     ? dayTasks(events, ev.unit!).filter((g) => !(g.kind === "quran" && ev.slot === "quran"))
     : []
-  const pendingHere = missed ? numberedIdx(ev.desc).filter((i) => !checked.has(i)) : []
+  const pendingHere = missed ? items.filter((i) => !checked.has(i.id)) : []
   let destTitle = ""
   if (missed && pendingHere.length) {
     for (const [destId, list] of map)
@@ -152,47 +138,51 @@ export function EventSheet({
             <Progress value={(doneItems / items.length) * 100} className="h-1.5" />
           )}
 
-          {lines.length > 0 && (
+          {ev.items.length > 0 && (
             <div className="flex flex-col gap-1">
-              {lines.map((l) => {
-                if (!l.item || ev.external)
+              {ev.items.map((l, li) => {
+                if (l.note || ev.external)
                   return (
-                    <p key={l.idx} className="text-muted-foreground p-1 text-xs leading-relaxed">
+                    <p key={l.id} className="text-muted-foreground p-1 text-xs leading-relaxed">
                       {l.text}
                     </p>
                   )
                 // مجمع الأخطاء يُستخدم هنا لقاعدة نصف الإنجاز فقط — إدخال الأخطاء صار في صفحة الإحصاءات
-                const pool = mistakePoolFor(ev, l.idx)
+                const pool = l.pool
+                const num = ev.items.slice(0, li).filter((x) => !x.note).length + 1
                 return (
-                  <div key={l.idx} className="flex flex-col gap-1">
+                  <div key={l.id} className="flex flex-col gap-1">
                     <label
                       className={cn(
                         "flex items-start gap-3 rounded-md p-2 text-sm",
                         missed ? "opacity-60" : "hover:bg-muted cursor-pointer",
-                        checked.has(l.idx) && "text-muted-foreground line-through"
+                        checked.has(l.id) && "text-muted-foreground line-through"
                       )}
                     >
                       <Checkbox
-                        checked={checked.has(l.idx)}
+                        checked={checked.has(l.id)}
                         disabled={missed}
                         onCheckedChange={() => {
-                          const checking = !checked.has(l.idx)
+                          const checking = !checked.has(l.id)
                           const asMakeup = checking && !!pool && hasOldMistakes(pool)
-                          toggleCheck(ev.id, l.idx, asMakeup)
+                          toggleCheck(ev.id, l.id, asMakeup)
                         }}
                         className="mt-0.5"
                       />
-                      {isLate(ev.id, l.idx) && (
+                      {isLate(ev.id, l.id) && (
                         <span className="mt-0.5 flex-none text-xs text-amber-500" title="نصف إنجاز">
                           ½
                         </span>
                       )}
-                      <span className="leading-relaxed">{l.text}</span>
-                      {taskOfLine.has(l.idx) && (
+                      <span className="leading-relaxed">
+                        <span className="text-muted-foreground me-1">{arab(num)}.</span>
+                        {l.text}
+                      </span>
+                      {l.taskId && (
                         <button
                           onClick={(e2) => {
                             e2.preventDefault()
-                            removeTask(ev.unit!, ev.slot!, taskOfLine.get(l.idx)!)
+                            removeTask(ev.unit!, ev.slot!, l.taskId!)
                           }}
                           className="text-muted-foreground hover:text-destructive ms-auto"
                           aria-label="حذف المهمة"
@@ -222,12 +212,12 @@ export function EventSheet({
                         <div className="px-1 pb-1 text-xs font-medium">القرآن</div>
                         {g.lines.map((l) => (
                           <label
-                            key={l.idx}
+                            key={l.itemId}
                             className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm"
                           >
                             <Checkbox
                               checked={false}
-                              onCheckedChange={() => toggleCheck(g.srcId, l.idx, false)}
+                              onCheckedChange={() => toggleCheck(g.srcId, l.itemId, false)}
                               className="mt-0.5"
                             />
                             <span className="leading-relaxed">{l.text}</span>
@@ -295,10 +285,10 @@ export function EventSheet({
                       </button>
                     )
                   }
-                  const on = checksFor(m.srcId).includes(m.idx)
+                  const on = checksFor(m.srcId).includes(m.itemId)
                   return (
                     <label
-                      key={`${m.srcId}:${m.idx}`}
+                      key={`${m.srcId}:${m.itemId}`}
                       className={cn(
                         "hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm",
                         on && "text-muted-foreground line-through",
@@ -307,7 +297,7 @@ export function EventSheet({
                     >
                       <Checkbox
                         checked={on}
-                        onCheckedChange={() => toggleCheck(m.srcId, m.idx, true)}
+                        onCheckedChange={() => toggleCheck(m.srcId, m.itemId, true)}
                         className="mt-0.5"
                       />
                       <span className="leading-relaxed">
@@ -346,10 +336,10 @@ export function EventSheet({
                       </button>
                     )
                   }
-                  const on = checksFor(m.srcId).includes(m.idx)
+                  const on = checksFor(m.srcId).includes(m.itemId)
                   return (
                     <label
-                      key={`${m.srcId}:${m.idx}`}
+                      key={`${m.srcId}:${m.itemId}`}
                       className={cn(
                         "hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm",
                         on && "text-muted-foreground line-through"
@@ -357,7 +347,7 @@ export function EventSheet({
                     >
                       <Checkbox
                         checked={on}
-                        onCheckedChange={() => toggleCheck(m.srcId, m.idx, false)}
+                        onCheckedChange={() => toggleCheck(m.srcId, m.itemId, false)}
                         className="mt-0.5"
                       />
                       <span className="leading-relaxed">

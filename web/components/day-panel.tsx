@@ -13,9 +13,10 @@ import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
 import { quranStateFor } from "@/lib/engine/quran.js"
 import { strengthSnapshot } from "@/lib/engine/workout.js"
-import { checklistLines, durMin, fmtDateLong, fmtDur, dow } from "@/lib/format"
+import { durMin, fmtDateLong, fmtDur, dow } from "@/lib/format"
 import {
   addFood,
+  checkable,
   checksFor,
   completedQuranPools,
   currentUnit,
@@ -127,20 +128,18 @@ export function DayPanel({
 
   // إنجاز اليوم
   // البلوكات التي لها بنود فعلًا (أو عُلّمت منجزة) — النوم والراحة الفارغة لا تُحتسب
-  const actionable = dayEvents.filter(
-    (e) => checklistLines(e.desc).some((l) => l.item) || e.done
-  )
+  const actionable = dayEvents.filter((e) => checkable(e).length > 0 || e.done)
   // البند المؤدَّى قضاءً يُحتسب نصف إنجاز
   let score = 0
   let lateTotal = 0
   for (const e of actionable) {
-    const items = checklistLines(e.desc).filter((l) => l.item)
+    const items = checkable(e)
     if (items.length) {
       const marked = new Set(checksFor(e.id))
       let s = 0
       for (const l of items) {
-        if (!marked.has(l.idx)) continue
-        if (isLate(e.id, l.idx)) {
+        if (!marked.has(l.id)) continue
+        if (isLate(e.id, l.id)) {
           s += 0.5
           lateTotal++
         } else s += 1

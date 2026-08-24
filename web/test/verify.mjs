@@ -38,6 +38,9 @@ check('1/8 fajr', fmtTime(p1.fajr), '03:55');
 const u30 = buildUnit('2026-07-30');
 const bySlot = Object.fromEntries(u30.map((e) => [e.slot, e]));
 const T = (s) => s.slice(11);
+// بنود البلوك صارت كائنات لها معرّفات: نصّها مجموعًا، وبندٌ بعينه بمعرّفه
+const txt = (ev) => ev.items.map((i) => i.text).join(String.fromCharCode(10));
+const item = (ev, id) => ev.items.find((i) => i.id === id);
 check('u30 maghrib', `${T(bySlot.maghrib.start)}-${T(bySlot.maghrib.end)}`, '18:39-19:09');
 check('u30 نوم (المغرب←العشاء)', `${T(bySlot.sleep1.start)}-${T(bySlot.sleep1.end)}`, '19:09-20:09');
 check('u30 اسم بلوك المغرب←العشاء', bySlot.sleep1.title, 'نوم');
@@ -46,7 +49,7 @@ check('u30 family end (ثلث أول)', T(bySlot.family.end), '21:44');
 check('u30 راحة الليل حتى قبل القيام', `${T(bySlot.rest.start)}-${T(bySlot.rest.end)}`, '21:44-00:04');
 check('u30 قيام: آخر ٤٥ د من الثلث الثاني', `${T(bySlot.qiyam.start)}-${T(bySlot.qiyam.end)}`, '00:04-00:49');
 check('u30 مدة القيام ٤٥ د', (new Date(bySlot.qiyam.end) - new Date(bySlot.qiyam.start)) / 60000, 45);
-check('u30 وجبة ١ داخل القيام', bySlot.qiyam.desc.includes('وجبة رقم ١ (سحور)'), true);
+check('u30 وجبة ١ داخل القيام', txt(bySlot.qiyam).includes('وجبة رقم ١ (سحور)'), true);
 // أول الوحدة نومة الثلث الأخير التي تسبق فجرها، وآخرها نهاية قيام ليلتها
 check('u30 يبدأ بالنوم', u30[0].slot, 'sleep2');
 check('u30 نومة الثلث الأخير أول الوحدة', `${T(bySlot.sleep2.start)}-${T(bySlot.sleep2.end)}`, '00:49-03:54');
@@ -60,8 +63,8 @@ check('u30 تلاصق الوحدتين', buildUnit('2026-07-31')[0].start, bySlo
 check('u30 بلوك مهام واحد (قرآن + تمرين)', `${T(bySlot.quran.start)}-${T(bySlot.quran.end)}`, '04:39-06:50');
 check('u30 اسمه مهام', bySlot.quran.title, 'مهام');
 check('u30 لا بلوك تمرين منفصل', !!bySlot.train, false);
-check('u30 سنة الضحى انتقلت للفجر', bySlot.fajr.desc.includes('٨. سنة الضحى'), true);
-check('u30 لا سنة ضحى في بلوك المهام', bySlot.quran.desc.includes('سنة الضحى'), false);
+check('u30 سنة الضحى انتقلت للفجر', item(bySlot.fajr, 'duha').text.startsWith('سنة الضحى'), true);
+check('u30 لا سنة ضحى في بلوك المهام', !!item(bySlot.quran, 'duha'), false);
 // النومة تلي التمرين مباشرة، ثم العمل متصل منها إلى الظهر
 check('u30 النومة تلي التمرين مباشرة', `${T(bySlot.nap.start)}-${T(bySlot.nap.end)}`, '06:50-09:20');
 check('u30 النومة تبدأ بنهاية بلوك المهام', bySlot.nap.start, bySlot.quran.end);
@@ -159,7 +162,7 @@ const sat = (s) => byUnit.get('2026-08-15').find((e) => e.slot === s);
 const sun = (s) => byUnit.get('2026-08-16').find((e) => e.slot === s);
 check('لا بلوك دعاء منفصل', !!fri('duaa'), false);
 check('الجمعة بعد العصر: عائلة ودعاء', fri('work3').title, 'عائلة ودعاء');
-check('وصف الجمعة فيه ساعة الاستجابة', fri('work3').desc.includes('ساعة استجابة الدعاء'), true);
+check('وصف الجمعة فيه ساعة الاستجابة', txt(fri('work3')).includes('ساعة استجابة الدعاء'), true);
 check('الجمعة يمتد إلى المغرب', fri('work3').end, fri('maghrib').start);
 // الجمعة: تبكير — بلوك الجمعة يبدأ قبل الزوال بساعة، والنومة تنتهي عنده
 check('الجمعة: بلوك الظهر اسمه الجمعة', fri('dhuhr').title, 'الجمعة');
@@ -183,22 +186,22 @@ check('لا وجود لاسم «أسرة وزوجة» إطلاقًا', all.some(
 
 // ── الوجبات ──────────────────────────────────────────────────────
 // أحد–خميس: وجبتان (١ في القيام سحورًا، و٢ بين أذان المغرب والإقامة)
-check('وجبة ١ في قيام الأحد', sun('qiyam').desc.includes('وجبة رقم ١ (سحور)'), true);
-check('وجبة ٢ في مغرب الأحد', sun('maghrib').desc.includes('بين الأذان والإقامة: وجبة رقم ٢'), true);
-check('لا وجبة في أسرة الليل', sun('family').desc.includes('وجبة'), false);
-check('لا وجبة ٣ في راحة الأحد', sun('rest').desc.includes('وجبة'), false);
+check('وجبة ١ في قيام الأحد', txt(sun('qiyam')).includes('وجبة رقم ١ (سحور)'), true);
+check('وجبة ٢ في مغرب الأحد', txt(sun('maghrib')).includes('بين الأذان والإقامة: وجبة رقم ٢'), true);
+check('لا وجبة في أسرة الليل', txt(sun('family')).includes('وجبة'), false);
+check('لا وجبة ٣ في راحة الأحد', txt(sun('rest')).includes('وجبة'), false);
 // الجمعة والسبت: ثلاث وجبات نهارية/ليلية ولا سحور
 for (const [nm, g] of [['الجمعة', fri], ['السبت', sat]]) {
-  check(`${nm}: وجبة ١ قبل الظهر`, g('work1').desc.includes('وجبة رقم ١'), true);
-  check(`${nm}: وجبة ٢ بعد الظهر`, g('work2').desc.includes('وجبة رقم ٢'), true);
-  check(`${nm}: وجبة ٣ في راحة ما بعد العشاء`, g('rest').desc.includes('وجبة رقم ٣'), true);
-  check(`${nm}: لا سحور في القيام`, g('qiyam').desc.includes('وجبة'), false);
-  check(`${nm}: المغرب شعر لا وجبة`, g('maghrib').desc.includes('كتابة شعر'), true);
+  check(`${nm}: وجبة ١ قبل الظهر`, txt(g('work1')).includes('وجبة رقم ١'), true);
+  check(`${nm}: وجبة ٢ بعد الظهر`, txt(g('work2')).includes('وجبة رقم ٢'), true);
+  check(`${nm}: وجبة ٣ في راحة ما بعد العشاء`, txt(g('rest')).includes('وجبة رقم ٣'), true);
+  check(`${nm}: لا سحور في القيام`, txt(g('qiyam')).includes('وجبة'), false);
+  check(`${nm}: المغرب شعر لا وجبة`, txt(g('maghrib')).includes('كتابة شعر'), true);
 }
 check('نهار الأحد مهام', sun('work1').title, 'مهام');
 check('الأحد بعد العصر مهام', sun('work3').title, 'مهام');
-check('صلة رحم في أسرة الجمعة', fri('work1').desc.includes('صلة رحم'), true);
-check('لا صلة رحم في أسرة السبت', sat('work1').desc.includes('صلة رحم'), false);
+check('صلة رحم في أسرة الجمعة', txt(fri('work1')).includes('صلة رحم'), true);
+check('لا صلة رحم في أسرة السبت', txt(sat('work1')).includes('صلة رحم'), false);
 check('نومة الضحى نفسها في الجمعة والسبت', [fri('nap').title, sat('nap').title].join('|'), 'نوم|نوم');
 
 // ── آلة حالة القرآن (البذرة: مراجعة جزء ١، حفظ ربع ١ من جزء ١٠) ──
@@ -212,11 +215,11 @@ check('+١٥ تكرار ربع8', JSON.stringify(q(D(15))), JSON.stringify({ rev
 check('+١٦ انتقال جزء الحفظ', JSON.stringify(q(D(16))), JSON.stringify({ reviewJuz: 3, hifzJuz: 11, hifzQuarter: 1, hifzMode: 'حفظ' }));
 // التثبيت: قبل الانتقال [٨،٩] وبعده [٩،١٠]
 const fajr23 = buildUnit(D(15)).find((e) => e.slot === 'fajr');
-check('تثبيت +١٥ = جزء ٨', fajr23.desc.includes('سنة الفجر — الجزء ٨'), true);
+check('تثبيت +١٥ = جزء ٨', txt(fajr23).includes('سنة الفجر — الجزء ٨'), true);
 const fajr24 = buildUnit(D(16)).find((e) => e.slot === 'fajr');
-check('تثبيت +١٦ = جزء ٩', fajr24.desc.includes('سنة الفجر — الجزء ٩'), true);
+check('تثبيت +١٦ = جزء ٩', txt(fajr24).includes('سنة الفجر — الجزء ٩'), true);
 const isha24 = buildUnit(D(16)).find((e) => e.slot === 'isha');
-check('عشاء +١٦ على الجزء ١٠', isha24.desc.includes('الجزء ١٠'), true);
+check('عشاء +١٦ على الجزء ١٠', txt(isha24).includes('الجزء ١٠'), true);
 
 // ── تقدّم التمرين عبر الشهر (يوم البذرة = يوم التمرين الأول) ──
 const trainOn = (d) => wdesc(d);
@@ -315,21 +318,23 @@ check('hifzPoolKey', hifzPoolKey(11, 3), 'hz:11:3');
 // ── بين الأذان والإقامة: شعر في كل الصلوات، وسورة الكهف في صلاة الجمعة (٧ أغسطس) ──
 const u7 = buildUnit('2026-08-14'); // جمعة
 const u8 = buildUnit('2026-08-16'); // أحد (يوم عادي)
-const dl = (u, slot) => u.find((e) => e.slot === slot).desc.split('\n');
-check('فجر: شعر في السطر ٣', dl(u7, 'fajr')[2], '٣. بين الأذان والإقامة: كتابة شعر');
-check('فجر: سنة الفجر بقيت في السطر ٢ (فهرس 1)', dl(u7, 'fajr')[1].startsWith('٢. سنة الفجر'), true);
-check('ظهر الجمعة: سورة الكهف', dl(u7, 'dhuhr')[2], '٣. بين الأذان والإقامة: قراءة سورة الكهف');
-check('ظهر الجمعة: صلاة الجمعة', dl(u7, 'dhuhr')[3], '٤. صلاة الجمعة');
-check('ظهر الأحد: شعر لا كهف', dl(u8, 'dhuhr')[2], '٣. بين الأذان والإقامة: كتابة شعر');
-check('ظهر الأحد: صلاة الظهر', dl(u8, 'dhuhr')[3], '٤. صلاة الظهر');
-check('ظهر: البعدية في الفهرس 5 (خريطة المجمعات)', dl(u8, 'dhuhr')[5].startsWith('٦. سنة الظهر البعدية'), true);
-check('عصر: شعر في السطر ٣', dl(u8, 'asr')[2], '٣. بين الأذان والإقامة: كتابة شعر');
-check('عصر: سنة العصر في الفهرس 1', dl(u8, 'asr')[1].startsWith('٢. سنة العصر'), true);
-check('مغرب يوم عادي: وجبة ٢ بعد الترديد مباشرة (لا قبلية)', dl(u8, 'maghrib')[1], '٢. بين الأذان والإقامة: وجبة رقم ٢');
-check('مغرب: سنة المغرب في الفهرس 6 (خريطة المجمعات)', dl(u8, 'maghrib')[6].startsWith('٧. سنة المغرب'), true);
-check('عشاء: شعر في السطر ٣', dl(u8, 'isha')[2], '٣. بين الأذان والإقامة: كتابة شعر');
-check('عشاء: البعدية في الفهرس 5 (خريطة المجمعات)', dl(u8, 'isha')[5].startsWith('٦. سنة العشاء البعدية'), true);
-check('الكهف مرة واحدة أسبوعيًا: لا كهف في فجر الجمعة', dl(u7, 'fajr')[2].includes('الكهف'), false);
+const bl = (u, slot) => u.find((e) => e.slot === slot);
+check('فجر: بند ما بين الأذان والإقامة شعر', item(bl(u7, 'fajr'), 'between').text, 'بين الأذان والإقامة: كتابة شعر');
+check('فجر: بند سنة الفجر', item(bl(u7, 'fajr'), 'sunnah').text.startsWith('سنة الفجر'), true);
+check('ظهر الجمعة: سورة الكهف', item(bl(u7, 'dhuhr'), 'between').text, 'بين الأذان والإقامة: قراءة سورة الكهف');
+check('ظهر الجمعة: صلاة الجمعة', item(bl(u7, 'dhuhr'), 'pray').text, 'صلاة الجمعة');
+check('ظهر الأحد: شعر لا كهف', item(bl(u8, 'dhuhr'), 'between').text, 'بين الأذان والإقامة: كتابة شعر');
+check('ظهر الأحد: صلاة الظهر', item(bl(u8, 'dhuhr'), 'pray').text, 'صلاة الظهر');
+check('عصر: بند ما بين الأذان والإقامة', item(bl(u8, 'asr'), 'between').text, 'بين الأذان والإقامة: كتابة شعر');
+check('مغرب يوم عادي: وجبة ٢ بين الأذان والإقامة (لا قبلية)', item(bl(u8, 'maghrib'), 'between').text, 'بين الأذان والإقامة: وجبة رقم ٢');
+check('عشاء: بند ما بين الأذان والإقامة', item(bl(u8, 'isha'), 'between').text, 'بين الأذان والإقامة: كتابة شعر');
+check('الكهف مرة واحدة أسبوعيًا: لا كهف في فجر الجمعة', item(bl(u7, 'fajr'), 'between').text.includes('الكهف'), false);
+// معرّفات السنن الثمانية التي تتعلّق بها خريطة التثبيت في store.ts — وجودها شرط
+const TB = [['fajr', 'sunnah'], ['fajr', 'duha'], ['dhuhr', 'sunnahBefore'], ['dhuhr', 'sunnahAfter'],
+  ['asr', 'sunnah'], ['maghrib', 'sunnah'], ['isha', 'sunnahBefore'], ['isha', 'sunnahAfter']];
+check('معرّفات السنن الثمانية موجودة', TB.every(([sl, id]) => !!item(bl(u8, sl), id)), true);
+check('كل بند له معرّف ونص', u8.every((e) => e.items.every((i) => i.id && i.text)), true);
+check('معرّفات البنود فريدة داخل البلوك', u8.every((e) => new Set(e.items.map((i) => i.id)).size === e.items.length), true);
 
 // ── عينة عرض ───────────────────────────────────────────────────────
 console.log('\n── وحدة اليوم الجمعة ٣١ يوليو ──');

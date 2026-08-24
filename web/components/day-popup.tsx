@@ -58,8 +58,8 @@ export function DayPopup() {
   const stPrev = quranStateFor(first ? cur : prev)
   const qChecks = checksFor(`${prev}#quran`)
   const qDone = isDone(`${prev}#quran`)
-  const reviewDone = qDone || qChecks.includes(0)
-  const hifzDone = qDone || qChecks.includes(1)
+  const reviewDone = qDone || qChecks.includes("review")
+  const hifzDone = qDone || qChecks.includes("hifz")
   const prevTrainType = workoutDayType(prev)
   const prevProg = sessionProgress(prev)
   const trainDone =

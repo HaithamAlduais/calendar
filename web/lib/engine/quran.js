@@ -114,20 +114,22 @@ export function tathbeetPoolKey(st, slotIndex) {
 // بنود بلوك «قرآن وسنة الضحى» (بلا سنة الضحى نفسها): التسميع، ثم الحفظ أو —
 // في يوم التكرار — تكرار الربع الحالي ×٥ مرات مع مراجعة الأرباع ١..(n−1) من جزء الحفظ نفسه،
 // كل بند بمجمع أخطائه الخاص (نفس المجمع يُعاد استخدامه كل مرة يُقرأ فيه هذا الربع لاحقًا)
+// لكل بند مفتاح ثابت (key) تتعلّق به علامات التأشير، فلا تنزاح بتغيّر عدد البنود
 export function quranTaskLines(st) {
-  const lines = [{ text: reviewLine(st), pool: reviewPoolKey(st.reviewJuz) }];
+  const lines = [{ key: 'review', text: reviewLine(st), pool: reviewPoolKey(st.reviewJuz) }];
   if (st.hifzMode === 'تكرار') {
-    lines.push({ text: `${hifzLine(st)} × ٥ مرات`, pool: hifzPoolKey(st.hifzJuz, st.hifzQuarter) });
+    lines.push({ key: 'hifz', text: `${hifzLine(st)} × ٥ مرات`, pool: hifzPoolKey(st.hifzJuz, st.hifzQuarter) });
     for (let k = 1; k < st.hifzQuarter; k++) {
       const hizb = k <= 4 ? 2 * st.hifzJuz - 1 : 2 * st.hifzJuz;
       const { s, e } = quarterPages(st.hifzJuz, k);
       lines.push({
+        key: `rev${k}`,
         text: `مراجعة الربع ${arab(k)} من الجزء ${arab(st.hifzJuz)} — الحزب ${arab(hizb)} (ص ${arab(s)}–${arab(e)} تقريبًا)`,
         pool: hifzPoolKey(st.hifzJuz, k),
       });
     }
   } else {
-    lines.push({ text: hifzLine(st), pool: null }); // يوم الحفظ نفسه بلا تتبّع أخطاء
+    lines.push({ key: 'hifz', text: hifzLine(st), pool: null }); // يوم الحفظ نفسه بلا تتبّع أخطاء
   }
   return lines;
 }

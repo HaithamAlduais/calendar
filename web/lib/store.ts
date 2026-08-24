@@ -13,6 +13,17 @@ import {
 } from "@/lib/engine/quran.js"
 import { setWorkoutCompletion, workoutPlan, workoutDayType, workoutTitle } from "@/lib/engine/workout.js"
 
+// بند داخل بلوك: معرّفه ثابت، فالتأشير والقضاء والتقديم تُمسك به لا بموضع السطر
+export type Item = {
+  id: string
+  text: string
+  note?: boolean // سطر شرح لا يُؤشَّر
+  pool?: string // مجمع أخطاء القرآن
+  quran?: boolean // بند من بنود القرآن (مهمة يومية عائمة)
+  taskId?: string // مهمة يدوية أضافها المستخدم
+  external?: boolean // بند مسحوب من Google
+}
+
 export type Ev = {
   id: string
   unit?: string
@@ -21,7 +32,7 @@ export type Ev = {
   start: string // "YYYY-MM-DDTHH:MM" بجدار الرياض
   end: string
   colorId: number
-  desc: string
+  items: Item[]
   transparent?: boolean
   done?: boolean
   external?: boolean
@@ -62,9 +73,10 @@ function save(key: string, val: unknown) {
 }
 
 let done = load<Record<string, boolean>>(K.done, {})
-let checks = load<Record<string, number[]>>(K.checks, {})
-// مهام يدوية لكل بلوك مستقبِل: تاريخ الوحدة ← slot ← قائمة المهام
-let tasks = load<Record<string, Record<string, string[]>>>(K.tasks, {})
+let checks = load<Record<string, string[]>>(K.checks, {})
+// مهام يدوية لكل بلوك مستقبِل: تاريخ الوحدة ← slot ← مهام لها معرّفات ثابتة
+export type UserTask = { id: string; text: string }
+let tasks = load<Record<string, Record<string, UserTask[]>>>(K.tasks, {})
 let food = load<Record<string, { kcal: number; p: number; c: number; f: number }>>(K.food, {})
 // سجل التمرين: تاريخ ← مفتاح خلية ("exKey:setIdx" أو "exKey:setIdx:partKey") ← منجَز
 let gym = load<Record<string, Record<string, boolean>>>(K.gym, {})
@@ -128,7 +140,7 @@ if (isClient) {
     if (d >= currentUnit()) return { review: true, hifz: true }
     const dn = !!done[`${d}#quran`]
     const arr = checks[`${d}#quran`] || []
-    return { review: dn || arr.includes(0), hifz: dn || arr.includes(1) }
+    return { review: dn || arr.includes("review"), hifz: dn || arr.includes("hifz") }
   })
   // إنجاز التمرين لكل تمرين على حدة: الفائت وحده يتجمّد تقدّمه
   setWorkoutCompletion((d: string, exKey: string) => {
@@ -249,8 +261,6 @@ function windowEnd(): string {
 
 // البلوكات التي تستقبل مهام Google: بلوكات العمل/الأسرة والراحة
 const GOOGLE_HOST_SLOTS = ["quran", "work1", "work2", "work3", "family", "rest"]
-const NUMBERED_RE = /^[٠-٩]+\.\s/
-const NL = String.fromCharCode(10)
 
 function fmt12Short(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number)
@@ -259,33 +269,23 @@ function fmt12Short(hhmm: string): string {
   return m === 0 ? `${arab(h12)} ${ap}` : `${arab(h12)}:${arab(String(m).padStart(2, "0"))} ${ap}`
 }
 
-export function numberedIdx(desc?: string): number[] {
-  const idx: number[] = []
-  ;(desc || "").split("\n").forEach((ln, i) => {
-    if (NUMBERED_RE.test(ln)) idx.push(i)
-  })
-  return idx
-}
+// البنود القابلة للتأشير (ما عدا أسطر الشرح)
+export const checkable = (ev: Ev): Item[] => ev.items.filter((i) => !i.note)
 
 // ── التثبيت متتابع: أنصاف الأحزاب الثمانية تُقرأ بالترتيب لا بحسب موضع السنّة ──
-// ترتيب السنن زمنيًا: [slot الحدث، فهرس السطر] — و-١ تعني آخر سطر (سنة الضحى في بلوك القرآن)
-const TATHBEET_SEQ: [string, number][] = [
-  ["fajr", 1],
-  ["fajr", 7], // سنة الضحى انتقلت إلى بلوك الفجر
-  ["dhuhr", 1],
-  ["dhuhr", 5],
-  ["asr", 1],
-  ["maghrib", 6],
-  ["isha", 1],
-  ["isha", 5],
+// ترتيب السنن زمنيًا: [slot الحدث، معرّف البند] — لا يتأثر بتغيّر ترتيب البنود
+const TATHBEET_SEQ: [string, string][] = [
+  ["fajr", "sunnah"],
+  ["fajr", "duha"], // سنة الضحى داخل بلوك الفجر
+  ["dhuhr", "sunnahBefore"],
+  ["dhuhr", "sunnahAfter"],
+  ["asr", "sunnah"],
+  ["maghrib", "sunnah"],
+  ["isha", "sunnahBefore"],
+  ["isha", "sunnahAfter"],
 ]
 
-// خريطة الإزاحة لكل وحدة: رقم السنّة ← نصف الحزب المعروض فيها
-const shiftCache = new Map<string, number[]>()
 
-function tathbeetLineIdx(seqIdx: number): number {
-  return TATHBEET_SEQ[seqIdx][1]
-}
 
 // نصف الحزب المعروض في السنّة i = i − (عدد السنن الفائتة قبلها)
 // فما فات لا يُتخطّى: الصلاة التالية تبدأ من حيث توقّف
@@ -297,24 +297,20 @@ function computeShift(unitEvents: Ev[], st: { hifzMode: string }, now: string): 
     const [slot] = TATHBEET_SEQ[i]
     const ev = unitEvents.find((e) => e.slot === slot)
     if (!ev) continue
-    const line = tathbeetLineIdx(i)
-    if (ev.end <= now && !checksFor(ev.id).includes(line)) missed++ // فاتت ولم تُقرأ
+    const itemId = TATHBEET_SEQ[i][1]
+    if (ev.end <= now && !checksFor(ev.id).includes(itemId)) missed++ // فاتت ولم تُقرأ
   }
   return out
 }
 
-// نصف الحزب المعروض فعليًا في سنّة معيّنة (بعد الإزاحة)
-function shiftedPortion(unit: string, seqIdx: number): number {
-  return shiftCache.get(unit)?.[seqIdx] ?? seqIdx
-}
 
 // إنجاز تلقائي: البلوك يُعدّ منجزًا متى أُنجزت كل بنوده (أو كل جلسات تمرينه)
 export function isAutoDone(ev: Ev): boolean {
   if (ev.external) return false
-  const idx = numberedIdx(ev.desc)
-  if (!idx.length) return false
+  const items = checkable(ev)
+  if (!items.length) return false
   const marked = new Set(checksFor(ev.id))
-  return idx.every((i) => marked.has(i))
+  return items.every((i) => marked.has(i.id))
 }
 
 // ── نظام القضاء: البلوك الفائت تنتقل بنوده غير المنجزة إلى البلوك المستقبِل القادم ──
@@ -328,7 +324,7 @@ export type Makeup = {
   srcId: string
   srcTitle: string
   srcStart: string
-  idx: number
+  itemId: string
   text: string
   kind?: "line" | "train" // train: بطاقة تمرين تُفتح من بلوك العمل
   crossDay?: boolean // مُرحَّل من أمس (يوم واحد فقط)
@@ -340,10 +336,10 @@ export function isMissed(ev: Ev, now: string): boolean {
   if (ev.external || ev.done || ev.end > now) return false
   // بلوك «مهام» الصباحي لا يفوت: مهمتاه متاحتان في كل بلوك مهام طوال اليوم
   if (ev.slot === "quran") return false
-  const idx = numberedIdx(ev.desc)
-  if (!idx.length) return false
+  const items = checkable(ev)
+  if (!items.length) return false
   const marked = new Set(checksFor(ev.id))
-  return idx.some((i) => !marked.has(i))
+  return items.some((i) => !marked.has(i.id))
 }
 
 // خريطة القضاء:
@@ -372,18 +368,17 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
     for (const ev of events) {
       if (ev.unit !== prevU || ev.external || ev.done) continue
       const marked = new Set(checksFor(ev.id))
-      const lines = (ev.desc || "").split("\n")
-      for (const i of numberedIdx(ev.desc)) {
-        if (marked.has(i)) continue
+      for (const item of checkable(ev)) {
+        if (marked.has(item.id)) continue
         const dest = dests[turn++ % dests.length]
         push(dest.id, {
           destId: dest.id,
           srcId: ev.id,
           srcTitle: `${ev.title} — أمس`,
           srcStart: ev.start,
-          idx: i,
+          itemId: item.id,
           crossDay: true,
-          text: lines[i].replace(NUMBERED_RE, ""),
+          text: item.text,
         })
       }
     }
@@ -392,22 +387,19 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   for (const ev of sorted) {
     if (ev.external || ev.done || ev.end > now) continue
     if (ev.slot === "quran") continue // مهمتا اليوم عائمتان بإنجاز كامل، فلا تُقضيان
-    const idx = numberedIdx(ev.desc)
-    if (!idx.length) continue
     const marked = new Set(checksFor(ev.id))
-    const pending = idx.filter((i) => !marked.has(i))
+    const pending = checkable(ev).filter((i) => !marked.has(i.id))
     if (!pending.length) continue
     // أول بلوك عمل يبدأ بعد نهاية البلوك الفائت (أو الجاري الآن)
     const dest = dests.find((d) => d.start >= ev.end) || dests[0]
-    const lines = (ev.desc || "").split("\n")
-    for (const i of pending)
+    for (const item of pending)
       push(dest.id, {
         destId: dest.id,
         srcId: ev.id,
         srcTitle: ev.title,
         srcStart: ev.start,
-        idx: i,
-        text: lines[i].replace(NUMBERED_RE, ""),
+        itemId: item.id,
+        text: item.text,
       })
   }
   return map
@@ -421,7 +413,7 @@ export type Early = {
   srcId: string
   srcTitle: string
   srcStart: string
-  idx: number
+  itemId: string
   text: string
   kind?: "line" | "train"
 }
@@ -443,16 +435,15 @@ export function earlyMap(events: Ev[], now: string): Map<string, Early[]> {
       if (src.id === dest.id || src.start < dest.end) continue // اللاحق فقط
       if (!EARLY_SRC_SLOTS.includes(src.slot || "") || src.done || src.slot === "quran") continue
       const marked = new Set(checksFor(src.id))
-      const lines = (src.desc || "").split("\n")
-      for (const i of numberedIdx(src.desc)) {
-        if (marked.has(i)) continue
+      for (const item of checkable(src)) {
+        if (marked.has(item.id)) continue
         list.push({
           destId: dest.id,
           srcId: src.id,
           srcTitle: src.title,
           srcStart: src.start,
-          idx: i,
-          text: lines[i].replace(NUMBERED_RE, ""),
+          itemId: item.id,
+          text: item.text,
         })
       }
     }
@@ -481,7 +472,7 @@ function trainCarry(): { from: string; to: string } | null {
 // ── مهمتا اليوم العائمتان: القرآن والتمرين/التطوير ──
 // تظهران في كل بلوك مهام (وأسرة وراحة) — تؤدّيهما في أيّها شئت، ومتى أُنجزت واحدة اختفت من البقية
 export type DayTask =
-  | { kind: "quran"; srcId: string; lines: { idx: number; text: string }[] }
+  | { kind: "quran"; srcId: string; lines: { itemId: string; text: string }[] }
   | { kind: "train"; date: string; title: string; done: number; total: number; carried?: boolean }
   | { kind: "dev"; id: string; title: string }
 
@@ -489,12 +480,10 @@ export function dayTasks(events: Ev[], unit: string): DayTask[] {
   const out: DayTask[] = []
   const qEv = events.find((e) => e.unit === unit && e.slot === "quran")
   if (qEv && !qEv.done) {
-    const n = quranTaskLines(quranStateFor(unit)).length // بنود القرآن وحدها دون مهامك اليدوية
-    const marked = new Set(checksFor(qEv.id))
-    const src = (qEv.desc || "").split(NL)
-    const pending = numberedIdx(qEv.desc)
-      .filter((k) => k < n && !marked.has(k))
-      .map((k) => ({ idx: k, text: src[k].replace(NUMBERED_RE, "") }))
+    const marked = new Set(checksFor(qEv.id)) // بنود القرآن وحدها دون مهامك اليدوية
+    const pending = qEv.items
+      .filter((i) => i.quran && !marked.has(i.id))
+      .map((i) => ({ itemId: i.id, text: i.text }))
     if (pending.length) out.push({ kind: "quran", srcId: qEv.id, lines: pending })
   }
   // تمرين أمس غير المكتمل يُرحَّل يومًا واحدًا فيظهر إلى جانب مهمة اليوم
@@ -529,7 +518,7 @@ export function allEvents(): Ev[] {
   const out: Ev[] = []
   const byUnit = new Map<string, Ev[]>()
   for (const raw of buildRange(SCHEDULE_START, windowEnd()) as Ev[]) {
-    const ev: Ev = { ...raw, done: !!done[raw.id] }
+    const ev: Ev = { ...raw, items: raw.items.map((i) => ({ ...i })), done: !!done[raw.id] }
     const list = byUnit.get(ev.unit!) || []
     list.push(ev)
     byUnit.set(ev.unit!, list)
@@ -539,47 +528,32 @@ export function allEvents(): Ev[] {
     const st = quranStateFor(unit)
     const labels = tathbeetLabels(st) as string[]
     const shift = computeShift(evs, st, now)
-    shiftCache.set(unit, shift)
     for (let i = 0; i < 8; i++) {
-      const [slot] = TATHBEET_SEQ[i]
-      const ev = evs.find((e) => e.slot === slot)
-      if (!ev) continue
-      const li = tathbeetLineIdx(i)
-      const lines = ev.desc.split("\n")
-      if (!lines[li]) continue
-      const cut = lines[li].indexOf(" — ") // ما قبل أول شرطة هو اسم السنّة
+      const [slot, itemId] = TATHBEET_SEQ[i]
+      const item = evs.find((e) => e.slot === slot)?.items.find((x) => x.id === itemId)
+      if (!item) continue
+      const cut = item.text.indexOf(" — ") // ما قبل أول شرطة هو اسم السنّة
       if (cut < 0) continue
-      lines[li] = `${lines[li].slice(0, cut + 3)}${labels[shift[i]]}`
-      ev.desc = lines.join("\n")
+      item.text = `${item.text.slice(0, cut + 3)}${labels[shift[i]]}`
+      item.pool = tathbeetPoolKey(st, shift[i]) // المجمع يتبع النصف المعروض فعلًا
     }
   }
   for (const ev of [...byUnit.values()].flat()) {
-    // مهامك اليدوية تُضاف بعد بنود البلوك الثابتة (وبلوك العمل الفارغ تصير هي بنوده)
-    if (WORK_SLOTS.includes(ev.slot || "")) {
-      const list = tasksFor(ev.unit!, ev.slot!)
-      if (list.length) {
-        const base = ev.slot === "work1" ? [] : ev.desc ? ev.desc.split("\n") : []
-        let n = base.filter((l) => NUMBERED_RE.test(l)).length
-        ev.desc = [...base, ...list.map((t) => `${arab(++n)}. ${t}`)].join("\n")
-      } else if (ev.slot === "work1") {
-        ev.desc = "" // بلوك المهام الأول: بنوده مهامك وحدها
-      }
-    }
-    // أحداث Google التي تبدأ داخل هذا البلوك تصير بنود مهام فيه (وما خارج هذه البلوكات يُهمل)
-    if (GOOGLE_HOST_SLOTS.includes(ev.slot || "")) {
-      const gs = pulledEvents
+    // مهامك اليدوية تُلحق ببنود البلوك الثابتة، كلٌّ بمعرّفه فلا ينزاح التأشير بحذف غيره
+    if (WORK_SLOTS.includes(ev.slot || ""))
+      for (const t of tasksFor(ev.unit!, ev.slot!))
+        ev.items.push({ id: `task:${t.id}`, text: t.text, taskId: t.id })
+    // أحداث Google التي تبدأ داخل هذا البلوك تصير بنودًا فيه (وما خارج هذه البلوكات يُهمل)
+    if (GOOGLE_HOST_SLOTS.includes(ev.slot || ""))
+      for (const g of pulledEvents
         .filter((g) => g.start >= ev.start && g.start < ev.end)
-        .sort((a, b) => (a.start < b.start ? -1 : 1))
-      if (gs.length) {
-        const base = ev.desc ? ev.desc.split("\n") : []
-        let n = base.filter((l) => NUMBERED_RE.test(l)).length
-        const extra = gs.map(
-          (g) => `${arab(++n)}. ${g.title} — ${fmt12Short(g.start.slice(11))} (Google)`
-        )
-        ev.desc = [...base, ...extra].join("\n")
-      }
-    }
-    if (!ev.done) ev.done = isAutoDone(ev) // بعد اكتمال الوصف النهائي
+        .sort((a, b) => (a.start < b.start ? -1 : 1)))
+        ev.items.push({
+          id: `gcal:${g.id}`,
+          text: `${g.title} — ${fmt12Short(g.start.slice(11))} (Google)`,
+          external: true,
+        })
+    if (!ev.done) ev.done = isAutoDone(ev) // بعد اكتمال البنود
     out.push(ev)
   }
   return out
@@ -594,17 +568,17 @@ export function toggleDone(id: string) {
   save(K.done, done)
   notify()
 }
-export function checksFor(id: string): number[] {
+export function checksFor(id: string): string[] {
   return checks[id] || []
 }
-export function toggleCheck(id: string, lineIdx: number, asMakeup = false) {
+export function toggleCheck(id: string, itemId: string, asMakeup = false) {
   const set = new Set(checks[id] || [])
-  const lk = `${id}:${lineIdx}`
-  if (set.has(lineIdx)) {
-    set.delete(lineIdx)
+  const lk = `${id}:${itemId}`
+  if (set.has(itemId)) {
+    set.delete(itemId)
     delete late[lk]
   } else {
-    set.add(lineIdx)
+    set.add(itemId)
     if (asMakeup) late[lk] = true // قضاء: نصف إنجاز
   }
   if (set.size) checks[id] = [...set]
@@ -614,13 +588,13 @@ export function toggleCheck(id: string, lineIdx: number, asMakeup = false) {
   notify()
 }
 
-export function isLate(id: string, lineIdx: number): boolean {
-  return !!late[`${id}:${lineIdx}`]
+export function isLate(id: string, itemId: string): boolean {
+  return !!late[`${id}:${itemId}`]
 }
 
 // عدد بنود البلوك المؤدّاة قضاءً
 export function lateCount(ev: Ev): number {
-  return numberedIdx(ev.desc).filter((i) => isLate(ev.id, i)).length
+  return checkable(ev).filter((i) => isLate(ev.id, i.id)).length
 }
 
 // ── أخطاء القرآن: مجمع لكل مكان يُقرأ فيه (تسميع/حفظ-تكرار/تثبيت)، يتتبّع أخطاء الآيات عبر الزمن ──
@@ -628,18 +602,9 @@ export function lateCount(ev: Ev): number {
 // الفهارس بعد إدراج سطر «بين الأذان والإقامة» في كل صلاة (٧ أغسطس)
 // مجمع الأخطاء الذي يخصّ سطرًا معينًا في وصف الحدث، أو null إن كان سطرًا بلا تتبّع (أذان/صلاة/أذكار)
 // مجمع السنّة يتبع نصف الحزب المعروض فيها فعلًا بعد الإزاحة، لا موضعها في اليوم
-export function mistakePoolFor(ev: Ev, lineIdx: number): string | null {
-  if (ev.external || !ev.unit) return null
-  const st = quranStateFor(ev.unit)
-  if (ev.slot === "quran") {
-    const task = quranTaskLines(st)
-    return lineIdx < task.length ? task[lineIdx].pool : null // وما بعدها مهامك اليدوية
-  }
-  const seqIdx = TATHBEET_SEQ.findIndex(
-    ([slot], i) => slot === ev.slot && tathbeetLineIdx(i) === lineIdx
-  )
-  if (seqIdx < 0) return null
-  return tathbeetPoolKey(st, shiftedPortion(ev.unit, seqIdx))
+export function mistakePoolFor(ev: Ev, itemId: string): string | null {
+  if (ev.external) return null
+  return ev.items.find((i) => i.id === itemId)?.pool ?? null
 }
 
 export function mistakesFor(poolKey: string): Mistake[] {
@@ -654,13 +619,10 @@ export function completedQuranPools(events: Ev[], unit: string): DonePool[] {
   for (const ev of events) {
     if (ev.unit !== unit || ev.external) continue
     const marked = new Set(checksFor(ev.id))
-    const lines = (ev.desc || "").split("\n")
-    for (const i of numberedIdx(ev.desc)) {
-      if (!marked.has(i)) continue // المُنجَز فقط
-      const pool = mistakePoolFor(ev, i)
-      if (!pool || seen.has(pool)) continue
-      seen.add(pool)
-      out.push({ pool, text: lines[i].replace(NUMBERED_RE, ""), from: ev.title })
+    for (const item of ev.items) {
+      if (!item.pool || !marked.has(item.id) || seen.has(item.pool)) continue // المُنجَز فقط
+      seen.add(item.pool)
+      out.push({ pool: item.pool, text: item.text, from: ev.title })
     }
   }
   return out
@@ -694,26 +656,29 @@ export function hasOldMistakes(poolKey: string): boolean {
 }
 
 // ── المهام اليدوية: تُضاف في بلوكات العمل والأسرة والراحة (الإضافة الوحيدة المسموحة) ──
-export function tasksFor(date: string, slot: string): string[] {
+export function tasksFor(date: string, slot: string): UserTask[] {
   return tasks[date]?.[slot] || []
 }
+let taskSeq = 0
 export function addTask(date: string, slot: string, text: string) {
   const day = { ...(tasks[date] || {}) }
-  day[slot] = [...(day[slot] || []), text]
+  const id = `${Date.now().toString(36)}${(taskSeq++).toString(36)}`
+  day[slot] = [...(day[slot] || []), { id, text }]
   tasks[date] = day
   save(K.tasks, tasks)
   notify()
 }
-export function removeTask(date: string, slot: string, idx: number) {
+// حذف مهمة لا يمسّ تأشير بقية البنود: كلٌّ مربوط بمعرّفه
+export function removeTask(date: string, slot: string, taskId: string) {
   const day = { ...(tasks[date] || {}) }
-  const rest = (day[slot] || []).filter((_, i) => i !== idx)
+  const rest = (day[slot] || []).filter((t) => t.id !== taskId)
   if (rest.length) day[slot] = rest
   else delete day[slot]
   if (Object.keys(day).length) tasks[date] = day
   else delete tasks[date]
-  delete checks[`${date}#${slot}`] // الفهارس تغيّرت
+  delete late[`${date}#${slot}:task:${taskId}`]
   save(K.tasks, tasks)
-  save(K.checks, checks)
+  save(K.late, late)
   notify()
 }
 

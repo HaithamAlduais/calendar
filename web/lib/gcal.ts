@@ -118,7 +118,7 @@ export async function pullAccount(
         start: g.start.dateTime.slice(0, 16),
         end: g.end.dateTime.slice(0, 16),
         colorId: [7, 3, 5, 4][accountIdx % 4], // لون مميز لكل حساب
-        desc: g.description || "",
+        items: g.description ? [{ id: "desc", text: g.description, note: true }] : [],
         external: true,
         account: email,
       })

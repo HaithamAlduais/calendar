@@ -4,8 +4,8 @@ import { CircleAlertIcon, CircleDotIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
-import { barColor, checklistLines, durMin, fmt12, fmtDur, timeOf } from "@/lib/format"
-import { checksFor, isMissed, lateCount, type Ev } from "@/lib/store"
+import { barColor, durMin, fmt12, fmtDur, timeOf } from "@/lib/format"
+import { checkable, checksFor, isMissed, lateCount, type Ev } from "@/lib/store"
 
 export function EventChip({
   ev,
@@ -22,10 +22,10 @@ export function EventChip({
   dayCount?: number
   onOpen: (ev: Ev) => void
 }) {
-  const lines = checklistLines(ev.desc).filter((l) => l.item)
+  const items = checkable(ev)
   const checked = new Set(checksFor(ev.id))
-  const total = lines.length
-  const doneItems = lines.filter((l) => checked.has(l.idx)).length
+  const total = items.length
+  const doneItems = items.filter((i) => checked.has(i.id)).length
   const missed = isMissed(ev, now)
   const lates = lateCount(ev)
   const halfDone = ev.done && lates > 0 // أُنجز لكن بعضه قضاءً

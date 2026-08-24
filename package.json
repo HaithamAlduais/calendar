@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "تقويم هيثم — جدول يومي مولّد فلكيًا بواجهة تشبه Google Calendar ومزامنة معه",
+  "description": "تقويم هيثم — جدول يومي مولّد فلكيًا، والتطبيق كله في web/",
   "scripts": {
-    "start": "python -m http.server 8080",
-    "test": "node test/verify.mjs"
+    "dev": "pnpm --dir web dev",
+    "build": "pnpm --dir web build",
+    "test": "node web/test/verify.mjs"
   }
 }
