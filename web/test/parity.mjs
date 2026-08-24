@@ -9,7 +9,7 @@ import { setPrayerConfig } from '../lib/engine/prayers.js';
 import { setQuranConfig } from '../lib/engine/quran.js';
 import { setWorkoutConfig } from '../lib/engine/workout.js';
 import { addDays } from '../lib/engine/dates.js';
-import { templates, weekPlan, prayer, quran, workout } from './haitham-config.mjs';
+import { templates, weekPlan, prayer, quran, workout, betweenLine } from './haitham-config.mjs';
 
 const golden = JSON.parse(readFileSync(new URL('./golden.json', import.meta.url), 'utf8'));
 
@@ -17,7 +17,7 @@ const golden = JSON.parse(readFileSync(new URL('./golden.json', import.meta.url)
 setPrayerConfig(prayer);
 setQuranConfig(quran);
 setWorkoutConfig(workout);
-setScheduleConfig({ templates, weekPlan });
+setScheduleConfig({ templates, weekPlan, betweenLine });
 
 let pass = 0;
 const fails = [];

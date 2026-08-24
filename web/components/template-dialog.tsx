@@ -114,18 +114,20 @@ function anchorOfKind(k: Kind, prev: Block["end"]): Block["end"] {
 
 function Tick({ on, label, help, onClick }: { on: boolean; label: string; help: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex items-start gap-2 text-start">
-      <span
-        className={cn(
-          "mt-0.5 flex size-4 flex-none items-center justify-center rounded border",
-          on ? "bg-primary border-primary text-primary-foreground" : "border-border"
-        )}
-      >
-        {on && <CheckIcon className="size-3" />}
-      </span>
-      <span className="text-xs">{label}</span>
+    <div className="flex items-start gap-2">
+      <button onClick={onClick} className="flex items-start gap-2 text-start">
+        <span
+          className={cn(
+            "mt-0.5 flex size-4 flex-none items-center justify-center rounded border",
+            on ? "bg-primary border-primary text-primary-foreground" : "border-border"
+          )}
+        >
+          {on && <CheckIcon className="size-3" />}
+        </span>
+        <span className="text-xs">{label}</span>
+      </button>
       <Help text={help} />
-    </button>
+    </div>
   )
 }
 
@@ -370,6 +372,7 @@ function BlockRow({
 
           {/* بلوك المهام: يقبل مهامك اليدوية ويستقبل القضاء والتقديم */}
           {!block.gen && !block.sleep && (
+            <div className="flex items-center gap-2">
             <button onClick={() => set({ task: !block.task })} className="flex items-center gap-2 text-start">
               <span
                 className={cn(
@@ -380,8 +383,9 @@ function BlockRow({
                 {block.task && <CheckIcon className="size-3" />}
               </span>
               <span className="text-xs">بلوك مهام</span>
-              <Help text="بلوك المهام يقبل ما تضيفه من مهام ومهام الخزانات، ويستقبل ما فاتك قضاءً وما تريد تقديمه. أما النوم والصلوات فلا." />
             </button>
+              <Help text="بلوك المهام يقبل ما تضيفه من مهام ومهام الخزانات، ويستقبل ما فاتك قضاءً وما تريد تقديمه. أما النوم والصلوات فلا." />
+            </div>
           )}
 
           {/* الترتيب: كان يُحدَّد مرة عند الإنشاء فلا يُصحَّح بعدها */}
@@ -433,7 +437,8 @@ function BlockRow({
 
 export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [openTpl, setOpenTpl] = useState<string | null>(null)
-  const [minutes, setMinutes] = useState(45)
+  // تُملأ من قالبك لا من رقمٍ مفترض — وكانت تقول ٤٥ ولو كانت صلاتك ٣٠
+  const [minutes, setMinutes] = useState(() => prayerMinutesOf().fajr ?? 45)
   const [adding, setAdding] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState("")
   const [newAfter, setNewAfter] = useState("dhuhr")
@@ -444,6 +449,8 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
   const [perPrayer, setPerPrayer] = useState(false)
   const [mins, setMins] = useState<Record<string, number>>(() => prayerMinutesOf())
   const [startErr, setStartErr] = useState("")
+  // الردّ لا بدّ أن يُرى: رفضٌ صامت يبدو زرًّا معطوبًا
+  const [durErr, setDurErr] = useState("")
   const ids = Object.keys(settings.templates)
   const ds = currentDayStart()
   const startOpts = dayStartOptions()
@@ -509,7 +516,7 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
           {/* مدة الصلاة لكل الصلوات دفعةً واحدة */}
           <div className="rounded-lg border p-2">
             <div className="mb-1 flex items-center gap-1 text-sm font-semibold">
-              مدة الصلاة
+              الصلاة
               <Help text="تبدأ الصلاة بالأذان، وبين الأذان والإقامة دعاءٌ مستجاب، ثم السنن، ثم الصلاة بتركيز، ثم أذكارها. اجعل الوقت يسع عباداتك في أهم فرصة في يومك." />
             </div>
             {!perPrayer && (
@@ -522,7 +529,7 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
                   onChange={(e) => setMinutes(Math.max(5, +e.target.value || 5))}
                   className="h-8 w-24"
                 />
-                <Button size="sm" onClick={() => setPrayerMinutes(minutes)}>
+                <Button size="sm" onClick={() => setDurErr(setPrayerMinutes(minutes) || "")}>
                   طبّق على كل الصلوات
                 </Button>
               </div>
@@ -547,6 +554,18 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
               <span className="text-xs">لكل صلاة مدتها</span>
             </button>
 
+            {durErr && <p className="text-destructive pt-1 text-[11px] leading-relaxed">{durErr}</p>}
+
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground flex-none text-xs">بين الأذان والإقامة</span>
+              <Help text="بندٌ يظهر في كل بلوك صلاة. وهو وقتٌ لا يُردّ فيه الدعاء — فاملأه بما شئت: دعاءً أو ذكرًا أو كتابةً." />
+            </div>
+            <Input
+              defaultValue={settings.betweenLine}
+              onBlur={(e) => saveSettings({ betweenLine: e.target.value.trim() || settings.betweenLine })}
+              className="h-8"
+            />
+
             {perPrayer && (
               <div className="mt-2 flex flex-col gap-1.5">
                 {PRAYER_DURATIONS.map(([key, name]) => (
@@ -563,7 +582,7 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
                     <span className="text-muted-foreground text-[11px]">دقيقة</span>
                   </div>
                 ))}
-                <Button size="sm" className="mt-1 self-start" onClick={() => setPrayerMinutes(mins)}>
+                <Button size="sm" className="mt-1 self-start" onClick={() => setDurErr(setPrayerMinutes(mins) || "")}>
                   احفظ المدد
                 </Button>
                 <p className="text-muted-foreground text-[11px] leading-relaxed">

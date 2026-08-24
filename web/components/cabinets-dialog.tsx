@@ -19,6 +19,7 @@ import {
   currentUnit,
   removeCab,
   reopenGoal,
+  updateCab,
   repeatLabel,
   taskBlocksOf,
   type CabItem,
@@ -150,7 +151,7 @@ function ItemForm({
               </Button>
             </div>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <label className="text-muted-foreground flex-none text-xs">من</label>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-8" />
             <label className="text-muted-foreground flex-none text-xs">حتى</label>
@@ -211,6 +212,123 @@ function GoalForm({
       <button onClick={onCancel} className="text-muted-foreground self-start text-xs">
         إلغاء
       </button>
+    </div>
+  )
+}
+
+// صفّ مهمة في الدرج: اسمُها يُحرَّر، ومهامُها الفرعية تُضاف وتُحذف.
+// وكانت المهام الفرعية في النموذج ولا سبيل إلى صنعها، وكان updateCab بلا مستدعٍ
+// فلا يُصحَّح خطأٌ في اسمٍ إلا بحذف المهمة وإنشائها من جديد.
+function ItemRow({ item, blocks }: { item: CabItem; blocks: { slot: string; title: string }[] }) {
+  const [open, setOpen] = useState(false)
+  const [sub, setSub] = useState("")
+  const subs = item.subtasks || []
+  return (
+    <div className={cn("rounded-md border p-1.5 text-xs", item.doneAt && "opacity-60")}>
+      <div className="flex items-start gap-1">
+        <button onClick={() => setOpen((v) => !v)} className="flex flex-1 items-start gap-1 text-start">
+          <ChevronDownIcon className={cn("mt-0.5 size-3.5 flex-none transition-transform", !open && "-rotate-90")} />
+          <span className="flex-1 leading-relaxed">
+            <span className={cn(item.doneAt && "line-through")}>{item.title}</span>
+            <span className="text-muted-foreground/80 block text-[11px]">
+              {[
+                blocks.find((b) => b.slot === item.slot)?.title,
+                repeatLabel(item.repeat, arab),
+                subs.length ? `${arab(subs.length)} خطوة` : null,
+                item.deadline && `حتى ${item.deadline}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </span>
+        </button>
+        <button
+          onClick={() => (item.doneAt ? reopenGoal("items", item.id) : completeGoal("items", item.id))}
+          className="text-muted-foreground hover:text-emerald-600 flex-none"
+          aria-label={item.doneAt ? "إعادة فتح" : "إتمام الهدف"}
+        >
+          {item.doneAt ? <RotateCcwIcon className="size-3.5" /> : <FlagIcon className="size-3.5" />}
+        </button>
+        <button
+          onClick={() => removeCab("items", item.id)}
+          className="text-muted-foreground hover:text-destructive flex-none"
+          aria-label="حذف المهمة"
+        >
+          <Trash2Icon className="size-3.5" />
+        </button>
+      </div>
+
+      {open && (
+        <div className="flex flex-col gap-1.5 ps-4 pt-2">
+          <Input
+            defaultValue={item.title}
+            onBlur={(e) => {
+              const t = e.target.value.trim()
+              if (t && t !== item.title) updateCab("items", item.id, { title: t })
+            }}
+            className="h-8"
+          />
+
+          <div className="text-muted-foreground flex items-center gap-1 text-[11px]">
+            خطوات المهمة
+            <Help text="تقسيم المهمة إلى خطوات تُؤشَّر واحدةً واحدة داخل البلوك — فتُرى الحركة فيها ولو لم تتمّ." />
+          </div>
+          {subs.map((t) => (
+            <div key={t.id} className="flex items-center gap-1">
+              <Input
+                defaultValue={t.title}
+                onBlur={(e) => {
+                  const v = e.target.value.trim()
+                  if (!v || v === t.title) return
+                  updateCab("items", item.id, {
+                    subtasks: subs.map((x) => (x.id === t.id ? { ...x, title: v } : x)),
+                  })
+                }}
+                className="h-7 text-[11px]"
+              />
+              <button
+                onClick={() =>
+                  updateCab("items", item.id, { subtasks: subs.filter((x) => x.id !== t.id) })
+                }
+                className="text-muted-foreground hover:text-destructive flex-none"
+                aria-label="حذف الخطوة"
+              >
+                <Trash2Icon className="size-3.5" />
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center gap-1">
+            <Input
+              value={sub}
+              onChange={(e) => setSub(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" || !sub.trim()) return
+                updateCab("items", item.id, {
+                  subtasks: [...subs, { id: Math.random().toString(36).slice(2, 8), title: sub.trim() }],
+                })
+                setSub("")
+              }}
+              placeholder="خطوة جديدة…"
+              className="h-7 text-[11px]"
+            />
+            <Button
+              size="icon"
+              variant="outline"
+              className="size-7"
+              aria-label="أضف خطوة"
+              onClick={() => {
+                if (!sub.trim()) return
+                updateCab("items", item.id, {
+                  subtasks: [...subs, { id: Math.random().toString(36).slice(2, 8), title: sub.trim() }],
+                })
+                setSub("")
+              }}
+            >
+              <PlusIcon />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -347,37 +465,7 @@ export function CabinetsDialog({
 
                           <div className="flex flex-col gap-1 pt-1">
                             {own.map((i) => (
-                              <div
-                                key={i.id}
-                                className={cn("flex items-start gap-1 text-xs", i.doneAt && "opacity-60 line-through")}
-                              >
-                                <span className="flex-1 leading-relaxed">
-                                  {i.title}
-                                  <span className="text-muted-foreground/80 block text-[11px]">
-                                    {[
-                                      blocks.find((b) => b.slot === i.slot)?.title,
-                                      repeatLabel(i.repeat, arab),
-                                      i.deadline && `حتى ${i.deadline}`,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(" · ")}
-                                  </span>
-                                </span>
-                                <button
-                                  onClick={() => (i.doneAt ? reopenGoal("items", i.id) : completeGoal("items", i.id))}
-                                  className="text-muted-foreground hover:text-emerald-600 flex-none"
-                                  aria-label={i.doneAt ? "إعادة فتح" : "إتمام الهدف"}
-                                >
-                                  {i.doneAt ? <RotateCcwIcon className="size-3.5" /> : <FlagIcon className="size-3.5" />}
-                                </button>
-                                <button
-                                  onClick={() => removeCab("items", i.id)}
-                                  className="text-muted-foreground hover:text-destructive flex-none"
-                                  aria-label="حذف المهمة"
-                                >
-                                  <Trash2Icon className="size-3.5" />
-                                </button>
-                              </div>
+                              <ItemRow key={i.id} item={i} blocks={blocks} />
                             ))}
                           </div>
 

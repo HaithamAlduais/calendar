@@ -5,11 +5,19 @@ import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { addDays, arab, parseIso } from "@/lib/engine/dates.js"
 import { dayName } from "@/lib/format"
-import { currentUnit, dayTasks, makeupMap, nowStamp, TASK_SLOTS, type Ev } from "@/lib/store"
+import {
+  currentUnit,
+  dayTasks,
+  earlyMap,
+  makeupMap,
+  nowStamp,
+  TASK_SLOTS,
+  unitParts,
+  type Ev,
+} from "@/lib/store"
 import { EventChip } from "@/components/event-chip"
 
 // الوحدة ثلاثة أشطر بالترتيب: نومة الثلث الأخير التي تفتح اليوم، ثم النهار، ثم الليل حتى القيام
-const NIGHT_SLOTS = new Set(["maghrib", "sleep1", "isha", "family", "rest", "qiyam"])
 
 function Section({
   label,
@@ -19,6 +27,7 @@ function Section({
   isCur,
   now,
   mk,
+  em,
   dayCount,
   onOpen,
 }: {
@@ -29,6 +38,7 @@ function Section({
   isCur: boolean
   now: string
   mk: Map<string, unknown[]>
+  em: Map<string, unknown[]>
   dayCount: number
   onOpen: (ev: Ev) => void
 }) {
@@ -55,6 +65,7 @@ function Section({
               now={now}
               current={isCur && e.start <= now && e.end > now}
               makeupCount={mk.get(e.id)?.length || 0}
+              earlyCount={em.get(e.id)?.length || 0}
               dayCount={TASK_SLOTS().includes(e.slot || "") && !e.external ? dayCount : 0}
               onOpen={onOpen}
             />
@@ -93,6 +104,7 @@ export function WeekView({
 
   const now = nowStamp()
   const mk = makeupMap(events, now) // شارة «قضاء N» على البلوكات المستقبِلة
+  const em = earlyMap(events, now) // وشارة «تقديم N» — وكان لا يُعرف إلا بفتح البلوك
 
   return (
     // سبعة أعمدة لا تُعرض إلا إذا اتّسع لها فعلًا (≥١٢٨٠ بكسل ≈ ١٧٠ لكل عمود)،
@@ -105,9 +117,7 @@ export function WeekView({
           .filter((e) => e.unit === d)
           .sort((a, b) => (a.start < b.start ? -1 : 1))
         const dayCount = dayTasks(unitEvs, d).length // مهمتا القرآن والتمرين ما لم تُنجزا
-        const wakePart = unitEvs.filter((e) => e.slot === "sleep2")
-        const dayPart = unitEvs.filter((e) => e.slot !== "sleep2" && !NIGHT_SLOTS.has(e.slot || ""))
-        const nightPart = unitEvs.filter((e) => NIGHT_SLOTS.has(e.slot || ""))
+        const parts = unitParts(unitEvs)
         return (
           <div
             key={d}
@@ -133,9 +143,21 @@ export function WeekView({
               <div className="text-muted-foreground/60 py-8 text-center text-xs">لا أحداث</div>
             ) : (
               <div className="flex flex-col gap-2">
-                <Section label="أول يومك — النوم الذي يصنعه" icon="🛌" night chips={wakePart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
-                <Section label="نهارك — من الفجر إلى المغرب" icon="☀️" night={false} chips={dayPart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
-                <Section label="ليلتك — من المغرب إلى القيام" icon="🌙" night chips={nightPart} isCur={isCur} now={now} mk={mk} dayCount={dayCount} onOpen={onOpen} />
+                {parts.map((part, pi) => (
+                  <Section
+                    key={pi}
+                    label={part.label}
+                    icon={part.icon}
+                    night={part.night}
+                    chips={part.chips}
+                    isCur={isCur}
+                    now={now}
+                    mk={mk}
+                    em={em}
+                    dayCount={dayCount}
+                    onOpen={onOpen}
+                  />
+                ))}
               </div>
             )}
           </div>

@@ -6,11 +6,14 @@ import {
   unitStart,
   setScheduleConfig,
   taskSlots,
+  DEFAULT_BETWEEN,
   DEFAULT_TEMPLATES,
   DEFAULT_WEEK_PLAN,
+  PLAIN_TEMPLATES,
+  PLAIN_WEEK_PLAN,
 } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
-import { setPrayerConfig } from "@/lib/engine/prayers.js"
+import { prayerTimes, setPrayerConfig } from "@/lib/engine/prayers.js"
 import { isMonotone, rotateTemplate, startCandidates } from "@/lib/engine/layout.js"
 import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
 import {
@@ -205,6 +208,8 @@ const DEFAULT_SETTINGS = {
   // بداية اليوم: أيّ بلوك يفتتح الوحدة وبأيّ مرساة — واحدة لكل القوالب، وإلا
   // تداخلت الوحدات. null = كما كُتب القالب (نومة الثلث الأخير في الجاهز).
   dayStart: null as { blockId?: string; anchor?: Anchor } | null,
+  // ما تكتبه أو تفعله بين الأذان والإقامة — بندٌ في كل بلوك صلاة
+  betweenLine: DEFAULT_BETWEEN as string,
   // القضاء والتقديم: القضاء أداءُ الفائت بعد وقته بنصف إنجاز، والتقديم أداءُ
   // اللاحق قبل وقته من يومه بإنجاز كامل.
   qada: {
@@ -237,6 +242,7 @@ function applyEngineConfig() {
     templates: settings.templates,
     weekPlan: settings.weekPlan,
     dayStart: settings.dayStart,
+    betweenLine: settings.betweenLine,
   })
 }
 applyEngineConfig()
@@ -1090,6 +1096,38 @@ export function wirdCandidates(): { slot: string; id: string; title: string }[] 
   return out
 }
 
+// ── تقسيم الوحدة إلى ليلٍ ونهار ──
+// كان التقسيم بأسماء البلوكات (sleep2 وقائمة «بلوكات الليل»)، فمن دار يومه على
+// المغرب أو بنى قالبه بأسماء من عنده رأى بلوكاته في غير مواضعها وعناوينَ تكذب
+// عليه. والحقّ أن الليل والنهار يعرفان من الوقت نفسه: ما بين الفجر والمغرب نهار،
+// وما سواه ليل — أيًّا كان اسم البلوك، وأيًّا كان موضع بداية اليوم.
+function isNightAt(stamp: string): boolean {
+  const p = prayerTimes(stamp.slice(0, 10)) as { fajr: number; maghrib: number }
+  const mins = +stamp.slice(11, 13) * 60 + +stamp.slice(14, 16)
+  return mins < p.fajr || mins >= p.maghrib
+}
+
+export type UnitPart = { label: string; icon: string; night: boolean; chips: Ev[] }
+
+export function unitParts(evs: Ev[]): UnitPart[] {
+  const runs: { night: boolean; chips: Ev[] }[] = []
+  for (const e of evs) {
+    const night = isNightAt(e.start)
+    const last = runs[runs.length - 1]
+    if (last && last.night === night) last.chips.push(e)
+    else runs.push({ night, chips: [e] })
+  }
+  const nights = runs.filter((r) => r.night).length
+  return runs.map((r, i) => {
+    if (!r.night) return { ...r, label: "نهارك — من الفجر إلى المغرب", icon: "☀️" }
+    // ليلتان في الوحدة: أولاهما نومةُ آخر الليل، وأخراهما ليلتك
+    if (nights > 1 && i === 0) return { ...r, label: "أول يومك — النوم الذي يصنعه", icon: "🛌" }
+    if (nights > 1 && i === runs.length - 1)
+      return { ...r, label: "ليلتك — من المغرب إلى القيام", icon: "🌙" }
+    return { ...r, label: "ليلك — من المغرب إلى الفجر", icon: "🌙" }
+  })
+}
+
 // ── بداية اليوم ──
 // اليومُ حلقةٌ: أيّ بلوك صلح أن يفتتحها ما دام سابقُه ينتهي بمرساة مطلقة.
 // والقالب لا يُحرَّك عند الاختيار — إنما يُدار عند البناء، فالرجوع بإلغاء الاختيار.
@@ -1185,6 +1223,16 @@ export function removeTemplate(id: string): string | null {
   return null
 }
 
+// يومٌ بسيط: نومٌ وصلواتٌ وبلوكات مهام — لمن أراد أن يبني جدوله بنفسه
+export function loadPlain() {
+  saveSettings({
+    templates: PLAIN_TEMPLATES as unknown as Record<string, Template>,
+    weekPlan: PLAIN_WEEK_PLAN,
+    dayStart: null,
+    betweenLine: DEFAULT_BETWEEN,
+  })
+}
+
 export function resetTemplates() {
   saveSettings({ templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN, dayStart: null })
 }
@@ -1227,6 +1275,7 @@ export function loadPreset(id: string) {
     templates: DEFAULT_TEMPLATES,
     weekPlan: DEFAULT_WEEK_PLAN,
     dayStart: null, // الجاهز يبدأ يومه بنومة الثلث الأخير كما كُتب قالبه
+    betweenLine: "بين الأذان والإقامة: كتابة شعر",
     wird: DEFAULT_WIRD,
     quran: { ...DEFAULT_QURAN, date: from },
     workout: { ...DEFAULT_WORKOUT, start: from },
@@ -1246,12 +1295,21 @@ export type FreshScope = {
   cabinets?: boolean // يحذف الخزانات والأدراج والمهام
   history?: boolean // يمسح التأشير والإنجاز وسجل التمرين والتغذية والمهام اليدوية
   mistakes?: boolean // يمسح أخطاء القرآن المتراكمة
+  templates?: boolean // يعيد قوالب أيامك وخطة أسبوعك وبداية يومك إلى الأصل
+  setup?: boolean // يعيد الإعداد الأول فتختار موقعك وجدولك من جديد
 }
 
 export function freshStart(date: string, scope: FreshScope) {
   settings.startDate = date
   if (scope.quran) settings.quran = { ...settings.quran, date }
   if (scope.workout) settings.workout = { ...settings.workout, start: date }
+  // «بداية جديدة» كانت تمسح التاريخ وتُبقي الشكل، فلم تكن بدايةً من كل وجه
+  if (scope.templates) {
+    settings.templates = DEFAULT_TEMPLATES as unknown as Record<string, Template>
+    settings.weekPlan = DEFAULT_WEEK_PLAN
+    settings.dayStart = null
+  }
+  if (scope.setup) settings.onboarded = false // فيُعرض الإعداد الأول من جديد
   save(K.settings, settings)
   if (scope.history) {
     done = {}

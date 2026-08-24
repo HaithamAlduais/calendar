@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Help } from "@/components/help"
 import { arab } from "@/lib/format"
 import {
+  loadPlain,
   loadPreset,
   prayerMinutesOf,
   presetPrayerMinutes,
@@ -102,6 +103,7 @@ export function Onboarding() {
   const [feats, setFeats] = useState({ wird: true, hifz: true, workout: true })
   const [geoMsg, setGeoMsg] = useState("")
   const [preset, setPreset] = useState<string | null>(null)
+  const [durErr, setDurErr] = useState("")
 
   if (settings.onboarded) return null
 
@@ -109,6 +111,8 @@ export function Onboarding() {
   // فيراها ويعدّلها إن شاء. وبهذا لا يُطمس اختياره ولا تُطمس مدد الجاهز —
   // لأن اللاحق يرى السابق بدل أن يمحوه في صمت.
   const enterDurations = () => {
+    if (preset) loadPreset(preset)
+    else loadPlain() // «ابدأ فارغًا» يومٌ بسيط حقًّا: نومٌ وصلواتٌ وبلوكات مهام
     const src = (preset && presetPrayerMinutes(preset)) || prayerMinutesOf()
     const filled = Object.fromEntries(PRAYER_NAMES.map(([k]) => [k, src[k] ?? 45]))
     setMins(filled)
@@ -119,11 +123,16 @@ export function Onboarding() {
 
   const next = () => {
     if (step === 1) enterDurations()
+    // المدد تُطبَّق ويُتحقَّق منها قبل مغادرة خطوتها، فتظهر الرسالة عند خاناتها
+    if (step === 2) {
+      const e = setPrayerMinutes(perPrayer ? mins : minutes)
+      if (e) return setDurErr(e)
+      setDurErr("")
+    }
     setStep((s) => s + 1)
   }
 
   const finish = () => {
-    if (preset) loadPreset(preset) // الجاهز أولًا، ثم تفضيلاتك فوقه
     saveSettings({
       ...loc,
       method,
@@ -132,7 +141,6 @@ export function Onboarding() {
       workoutEnabled: feats.workout,
       onboarded: true,
     })
-    setPrayerMinutes(perPrayer ? mins : minutes)
   }
 
   const useMyLocation = () => {
@@ -328,6 +336,8 @@ export function Onboarding() {
               </div>
             )}
 
+            {durErr && <p className="text-destructive text-[11px] leading-relaxed">{durErr}</p>}
+
             <p className="text-muted-foreground text-xs leading-relaxed">
               من تصلّي في بيتها أو من يصلّي منفردًا قد يكفيه أقلّ.
             </p>
@@ -359,7 +369,9 @@ export function Onboarding() {
               </button>
             ))}
             <p className="text-muted-foreground pt-1 text-xs leading-relaxed">
-              وستجد بعدها «قالب يومك» لتشكيل بلوكاتك وبداية يومك، و«الخزانات» لمشاريعك وأهدافك.
+              وما فات وقته لا يسقط: ينتقل إلى بلوك المهام التالي فتقضيه بنصف إنجاز، ولك أن تقدّم
+              مهام بلوكٍ لاحق فتُحتسب كاملة. وستجد «قالب يومك» لتشكيل بلوكاتك وبداية يومك،
+              و«الخزانات» لمشاريعك، و«الإعدادات» لأنظمتك كلها.
             </p>
           </div>
         )}

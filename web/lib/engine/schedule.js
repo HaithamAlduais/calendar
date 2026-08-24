@@ -29,8 +29,12 @@ export const TASKS_TITLE = 'مهام'; // بلوكات المهام كلها ب�
 const it = (id, text, extra) => ({ id, text, ...extra });
 const note = (text) => ({ id: 'note', text, note: true });
 
-const POETRY_LINE = 'بين الأذان والإقامة: كتابة شعر';
+// ما بين الأذان والإقامة: دعاءٌ لا يُردّ. وصاحبُ الجدول يملؤه بما شاء —
+// وكان نصُّه مكتوبًا في الشيفرة، فيقرأ كلُّ مستخدمٍ عادةَ غيره.
+export const DEFAULT_BETWEEN = 'بين الأذان والإقامة: دعاء — فإنه لا يُردّ';
 const KAHF_LINE = 'بين الأذان والإقامة: قراءة سورة الكهف';
+let betweenLine = DEFAULT_BETWEEN;
+const POETRY = { get line() { return betweenLine; } };
 
 // نصّ بند السنّة: اسمُها، ومعها موضعُ وردها إن كانت من سننه المختارة
 const wirdText = (name, t, slot, id) => {
@@ -42,7 +46,7 @@ const GEN = {
   fajr: (t) => [
     it('adhan', 'ترديد الأذان ودعاء ما بعد الأذان'),
     it('sunnah', wirdText('سنة الفجر', t, 'fajr', 'sunnah')),
-    it('between', POETRY_LINE),
+    it('between', POETRY.line),
     it('pray', 'صلاة الفجر'),
     it('dhikr', 'أذكار الصلاة'),
     it('morning', 'أذكار الصباح'),
@@ -56,7 +60,7 @@ const GEN = {
   dhuhr: (t) => [
     it('adhan', 'ترديد الأذان'),
     it('sunnahBefore', wirdText('سنة الظهر القبلية', t, 'dhuhr', 'sunnahBefore')),
-    it('between', POETRY_LINE),
+    it('between', POETRY.line),
     it('pray', 'صلاة الظهر'),
     it('dhikr', 'أذكار الصلاة'),
     it('sunnahAfter', wirdText('سنة الظهر البعدية', t, 'dhuhr', 'sunnahAfter')),
@@ -74,7 +78,7 @@ const GEN = {
   asr: (t) => [
     it('adhan', 'ترديد الأذان'),
     it('sunnah', wirdText('سنة العصر', t, 'asr', 'sunnah')),
-    it('between', POETRY_LINE),
+    it('between', POETRY.line),
     it('pray', 'صلاة العصر'),
     it('dhikr', 'أذكار الصلاة'),
     it('sadaqah', 'صدقة أو صلاة على ميت'),
@@ -88,13 +92,13 @@ const GEN = {
   ],
   maghribWeekend: (t) => [
     it('adhan', 'ترديد الأذان ودعاء ما بعد الأذان'),
-    it('between', POETRY_LINE),
+    it('between', POETRY.line),
     ...MAGHRIB_TAIL(t),
   ],
   isha: (t) => [
     it('adhan', 'ترديد الأذان'),
     it('sunnahBefore', wirdText('سنة العشاء القبلية', t, 'isha', 'sunnahBefore')),
-    it('between', POETRY_LINE),
+    it('between', POETRY.line),
     it('pray', 'صلاة العشاء'),
     it('dhikr', 'أذكار الصلاة'),
     it('sunnahAfter', wirdText('سنة العشاء البعدية', t, 'isha', 'sunnahAfter')),
@@ -192,6 +196,37 @@ export const DEFAULT_TEMPLATES = {
 };
 
 // خطة الأسبوع: 0=الأحد … 5=الجمعة، 6=السبت
+// ── القالب البسيط: لمن بدأ فارغًا ──
+// نومٌ وصلواتٌ خمس وثلاثة بلوكات مهام — يومٌ قائم بنفسه يبني عليه صاحبه.
+// وكان «ابدأ فارغًا» يُسلّمه جدول صاحب البرنامج بتمامه، فلم يكن فارغًا في شيء.
+function plainTemplate() {
+  return {
+    name: 'يومي',
+    start: { lastThirdPrev: true },
+    blocks: [
+      { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'fajr' } },
+      { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
+      { id: 'quran', title: TASKS_TITLE, colorId: 10, gen: 'quran', task: true, end: { prayer: 'sunrise', offset: 90 } },
+      { id: 'nap', title: 'نوم', colorId: 8, sleep: true, end: { balance: SLEEP_BALANCE } },
+      { id: 'work1', title: TASKS_TITLE, colorId: 6, items: [], task: true, end: { prayer: 'dhuhr' } },
+      { id: 'dhuhr', title: 'الظهر', colorId: 9, gen: 'dhuhr', end: { prayer: 'dhuhr', offset: 45 } },
+      { id: 'work2', title: TASKS_TITLE, colorId: 6, items: [], task: true, end: { prayer: 'asr' } },
+      { id: 'asr', title: 'العصر', colorId: 9, gen: 'asr', end: { len: 45 } },
+      { id: 'work3', title: TASKS_TITLE, colorId: 6, items: [], task: true, end: { prayer: 'maghrib' } },
+      // مدد القالب البسيط موحّدة، فيُعرض للمبتدئ رقمٌ واحد لا خمسة
+      { id: 'maghrib', title: 'المغرب', colorId: 9, gen: 'maghribWeekend', end: { len: 45 } },
+      { id: 'sleep1', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'isha' } },
+      { id: 'isha', title: 'العشاء', colorId: 9, gen: 'isha', end: { len: 45 } },
+      { id: 'family', title: 'وقتك', colorId: 6, items: [], task: true, end: { nightFraction: 1 } },
+      { id: 'rest', title: 'راحة', colorId: 8, items: [], task: true, transparent: true, end: { nightFraction: 2, offset: -45 } },
+      { id: 'qiyam', title: 'صلاة القيام', colorId: 9, gen: 'qiyamWeekend', end: { nightFraction: 2 } },
+    ],
+  };
+}
+
+export const PLAIN_TEMPLATES = { day: plainTemplate() };
+export const PLAIN_WEEK_PLAN = ['day', 'day', 'day', 'day', 'day', 'day', 'day'];
+
 export const DEFAULT_WEEK_PLAN = ['weekday', 'weekday', 'weekday', 'weekday', 'weekday', 'friday', 'saturday'];
 
 // القوالب وخطة الأسبوع من إعدادات المستخدم
@@ -205,6 +240,7 @@ export function taskSlots() {
   return out;
 }
 export function setScheduleConfig(next) {
+  betweenLine = (next && next.betweenLine) || DEFAULT_BETWEEN;
   cfg = {
     templates: (next && next.templates) || DEFAULT_TEMPLATES,
     weekPlan: (next && next.weekPlan) || DEFAULT_WEEK_PLAN,

@@ -25,11 +25,13 @@ export function Section({
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="border-t pt-3">
-      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-1 text-start">
-        <ChevronDownIcon className={cn("size-4 flex-none transition-transform", !open && "-rotate-90")} />
-        <h3 className="text-sm font-semibold">{title}</h3>
+      <div className="flex w-full items-center gap-1">
+        <button onClick={() => setOpen((v) => !v)} className="flex flex-1 items-center gap-1 text-start">
+          <ChevronDownIcon className={cn("size-4 flex-none transition-transform", !open && "-rotate-90")} />
+          <h3 className="text-sm font-semibold">{title}</h3>
+        </button>
         {help && <Help text={help} />}
-      </button>
+      </div>
       {open && <div className="flex flex-col gap-2 pt-2">{children}</div>}
     </div>
   )

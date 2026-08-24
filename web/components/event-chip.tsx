@@ -12,6 +12,7 @@ export function EventChip({
   current,
   now,
   makeupCount = 0,
+  earlyCount = 0,
   dayCount = 0,
   onOpen,
 }: {
@@ -19,6 +20,7 @@ export function EventChip({
   current: boolean
   now: string
   makeupCount?: number
+  earlyCount?: number
   dayCount?: number
   onOpen: (ev: Ev) => void
 }) {
@@ -85,6 +87,11 @@ export function EventChip({
         {makeupCount > 0 && !missed && (
           <span className="rounded bg-amber-500/15 px-1 font-medium text-amber-600 dark:text-amber-400">
             قضاء {arab(makeupCount)}
+          </span>
+        )}
+        {earlyCount > 0 && !missed && (
+          <span className="rounded bg-sky-500/15 px-1 font-medium text-sky-700 dark:text-sky-400">
+            تقديم {arab(earlyCount)}
           </span>
         )}
         {ev.external && <span className="text-sky-600">Google</span>}

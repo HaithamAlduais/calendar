@@ -76,6 +76,9 @@ export const templates = {
 // 0=الأحد … 5=الجمعة، 6=السبت
 export const weekPlan = ['weekday', 'weekday', 'weekday', 'weekday', 'weekday', 'friday', 'saturday'];
 
+// ما بين الأذان والإقامة عنده: كتابة شعر — بندٌ من جدوله لا من افتراض البرنامج
+export const betweenLine = 'بين الأذان والإقامة: كتابة شعر';
+
 export const prayer = { lat: 24.7136, lng: 46.6753, tz: 3, method: 'ummAlQura', asrFactor: 1, roundMaghribUp: true };
 
 export const quran = {

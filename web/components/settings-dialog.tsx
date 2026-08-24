@@ -83,7 +83,15 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const [busy, setBusy] = useState(false)
   // «بداية جديدة»: تاريخ ونطاق — كان تعديل شيفرة، وصار زرًّا
   const [freshDate, setFreshDate] = useState(todayIso())
-  const [scope, setScope] = useState({ quran: true, workout: true, history: true, cabinets: false, mistakes: false })
+  const [scope, setScope] = useState({
+    quran: true,
+    workout: true,
+    history: true,
+    cabinets: false,
+    mistakes: false,
+    templates: false,
+    setup: false,
+  })
   const [confirming, setConfirming] = useState(false)
   const [email, setEmail] = useState("")
   // حالة الحساب والمزامنة
@@ -172,6 +180,10 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             title="حسابات Google Calendar"
             help="أحداث Google تُعرض شفافةً داخل بلوكاتها ولا أثر لها في جدولك: لا تزيح بلوكًا ولا تُحتسب في إنجازك. وهي قراءةٌ فقط — لا يكتب البرنامج في تقويمك شيئًا."
           >
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground text-xs">Google Client ID</span>
+            <Help text="معرّفٌ تأخذه من Google Cloud Console: أنشئ مشروعًا، ثم OAuth client ID من نوع Web، وأضف عنوان هذا الموقع في Authorized JavaScript origins. وهو لعرض أحداث تقويمك فقط — ولستَ محتاجًا إليه إن لم ترد ذلك." />
+          </div>
           <Input
             dir="ltr"
             placeholder="xxxxx.apps.googleusercontent.com"
@@ -389,6 +401,8 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
                 ["history", "السجل — التأشير والإنجاز والتغذية والمهام اليدوية"],
                 ["cabinets", "الخزانات — تُحذف بأدراجها ومهامها"],
                 ["mistakes", "أخطاء القرآن المتراكمة"],
+                ["templates", "قوالب أيامك — ترجع إلى الأصل بخطة أسبوعك وبداية يومك"],
+                ["setup", "الإعداد الأول — يُعرض من جديد فتختار موقعك وجدولك"],
               ] as [keyof typeof scope, string][]).map(([k, label]) => (
                 <label key={k} className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md p-1 text-xs">
                   <Checkbox
