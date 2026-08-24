@@ -222,8 +222,27 @@ const DEFAULT_SETTINGS = {
 export type Settings = typeof DEFAULT_SETTINGS
 const stored = load<Partial<Settings> | null>(K.settings, null)
 export const settings: Settings = Object.assign({} as Settings, DEFAULT_SETTINGS, stored || {})
-// من كان له إعدادات محفوظة فهو مستخدم قائم — لا يُعرض عليه الإعداد الأول
-if (stored && stored.onboarded === undefined) settings.onboarded = true
+// ── ترقية إعداداتٍ حُفظت قبل هذه الإضافات ──
+// المستخدم القائم لا يُفاجأ بتغيّر جدوله لأن البرنامج تعلّم شيئًا جديدًا:
+// ما كان مكتوبًا في الشيفرة وصار إعدادًا يُنقل إليه بقيمته التي كان عليها.
+if (stored) {
+  // من كان له إعدادات محفوظة فهو مستخدم قائم — لا يُعرض عليه الإعداد الأول
+  if (stored.onboarded === undefined) settings.onboarded = true
+
+  // سطر ما بين الأذان والإقامة كان «كتابة شعر» للجميع، فيبقى لمن كان عليه
+  if (stored.betweenLine === undefined) settings.betweenLine = "بين الأذان والإقامة: كتابة شعر"
+
+  // وبلوكات المهام كانت قائمة معرّفات في الواجهة، فصارت علَمًا في البيانات.
+  // ولولا هذا النقل لخلت قوالبُ القدماء من بلوكات مهام، فلا مهمةً تُضاف
+  // ولا قضاءً يُستقبل ولا تقديمًا — والجدول يبدو سليمًا وهو أجوف.
+  const LEGACY_TASK = ["quran", "work1", "work2", "work3", "family", "rest"]
+  if (stored.templates)
+    for (const tpl of Object.values(settings.templates)) {
+      if (tpl.blocks.some((b) => b.task)) continue
+      for (const b of tpl.blocks) if (LEGACY_TASK.includes(b.id)) b.task = true
+    }
+  save(K.settings, settings)
+}
 
 // المحركات تقرأ إعداداتها من هنا، فتُطبَّق عند الإقلاع وعند كل حفظ
 function applyEngineConfig() {
