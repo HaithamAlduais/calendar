@@ -9,5 +9,6 @@
     "build": "pnpm --dir web build",
     "test": "node web/test/verify.mjs && node web/test/parity.mjs",
     "test:golden": "node web/test/make-golden.mjs"
-  }
+  },
+  "packageManager": "pnpm@11.9.0"
 }

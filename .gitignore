@@ -12,3 +12,6 @@ web/out/
 .claude/worktrees/
 .claude/settings.local.json
 supabase/.temp/
+
+.vercel
+.vercel/
