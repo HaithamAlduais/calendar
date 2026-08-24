@@ -3,6 +3,7 @@
 // المخزن — يربط المحرك المُتحقَّق منه بالواجهة، وكل الحالة في localStorage
 import { buildRange, unitStart } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
+import { setPrayerConfig } from "@/lib/engine/prayers.js"
 import {
   setQuranCompletion,
   clearQuranCache,
@@ -85,13 +86,32 @@ let late = load<Record<string, boolean>>(K.late, {})
 // أخطاء القرآن: مجمع (rv:جزء / hz:جزء:ربع / tb:جزء:نصف) ← قائمة أخطاء
 export type Mistake = { id: string; ayah: string; word: string; addedDate: string }
 let mistakes = load<Record<string, Mistake[]>>(K.mistakes, {})
-export const settings = Object.assign(
-  { clientId: "", weight: 70, accounts: [] as string[], notify: false, push: false },
-  load<{ clientId: string; weight: number; accounts: string[]; notify: boolean; push: boolean }>(
-    K.settings,
-    { clientId: "", weight: 70, accounts: [], notify: false, push: false }
-  )
+// الموقع وطريقة الحساب من إعدادات المستخدم — والافتراض الرياض بمعايير أم القرى
+const DEFAULT_SETTINGS = {
+  clientId: "",
+  weight: 70,
+  accounts: [] as string[],
+  notify: false,
+  push: false,
+  lat: 24.7136,
+  lng: 46.6753,
+  tz: 3,
+  method: "ummAlQura",
+  asrFactor: 1, // ظل المثل، و٢ للحنفية
+}
+export type Settings = typeof DEFAULT_SETTINGS
+export const settings: Settings = Object.assign(
+  {} as Settings,
+  DEFAULT_SETTINGS,
+  load<Partial<Settings>>(K.settings, {})
 )
+
+// المحرك يقرأ الموقع من هنا، فيُطبَّق عند الإقلاع وعند كل حفظ
+function applyPrayerConfig() {
+  const { lat, lng, tz, method, asrFactor } = settings
+  setPrayerConfig({ lat, lng, tz, method, asrFactor })
+}
+applyPrayerConfig()
 
 // ── إشعار React بالتغييرات ──
 let version = 0
@@ -704,9 +724,10 @@ export function resetFood(d: string) {
   notify()
 }
 
-export function saveSettings(patch: Partial<typeof settings>) {
+export function saveSettings(patch: Partial<Settings>) {
   Object.assign(settings, patch)
   save(K.settings, settings)
+  applyPrayerConfig() // تغيّر الموقع أو الطريقة يعيد حساب الجدول كله
   notify()
 }
 
