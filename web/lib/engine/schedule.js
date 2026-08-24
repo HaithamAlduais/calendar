@@ -1,23 +1,19 @@
-// باني وحدة اليوم — تبدأ بنومة الثلث الأخير التي تسبق الفجر وتنتهي بنهاية قيام ليلتها
-// القاعدة (٢٢ أغسطس ٢٠٢٦): «أول مهمة في اليوم هي النوم» — فمن أخلّ بنومة الثلث الأخير
-// خرب يومه كله، فجُعلت أول بلوك في الوحدة لا آخرها.
-// ترتيب الوحدة: نوم (الثلث الأخير) ← الفجر ← مهام ← نوم الضحى ← نهار ← المغرب ← ليل ← القيام
+// جدول هيثم مُعبَّرًا عنه بقوالب أيام (بيانات) يقرأها محرك القالب في layout.js.
+// لم يعد هنا بناءُ أوقاتٍ ولا حسابُ مراسٍ — إنما قالبٌ لكل نوع يوم وبنودُ بلوكاته.
 //
-// بنود البلوك مصفوفة كائنات لا نصًّا مرقّمًا: لكل بند معرّف ثابت، فالتأشير والقضاء
-// والتقديم ومجمعات الأخطاء تُمسك بالمعرّف لا بموضع السطر — فلا تنزاح بحذف مهمة أو إضافتها.
-import { addDays, dow, minToDateTime } from './dates.js';
-import { prayerTimes } from './prayers.js';
+// اليوم يبدأ بنومة الثلث الأخير التي تسبق الفجر وينتهي بنهاية قيام ليلته:
+// «أول مهمة في اليوم هي النوم» — فمن أخلّ بها خرب يومه كله.
+// ترتيب الوحدة: نوم ← الفجر ← مهام ← نومة الضحى ← نهار ← المغرب ← ليل ← القيام
+import { addDays, dow } from './dates.js';
 import { quranStateFor, quranTaskLines, tathbeetLabels } from './quran.js';
+import { buildDay, unitStart as layoutUnitStart } from './layout.js';
 
 const PRAYER_NOTE =
   'ملاحظات: التركيز وتدوين ما قُرئ في كل ركعة (أو ما قرأ الإمام) • تنويع أذكار الركوع والسجود بين الركعات • الدعاء في كل سجدة.';
 
-// مجموع نوم اليوم المستهدف: نومة الضحى تكمّل ما نقص من نوم الليل
-const SLEEP_TARGET = 395; // ٦ س ٣٥ د
-const NAP_MIN = 45; // حدّا نومة الضحى
-const NAP_MAX = 240;
-const WORK_MIN = 45; // أقل فترة عمل صباحية
-const QIYAM_MINUTES = 45; // القيام: آخر ٤٥ دقيقة من الثلث الثاني من الليل
+// مجموع نوم اليوم المستهدف: نومة الضحى تكمّل ما نقص من نوم الليل،
+// فإن قلّ ليلُك طالت نومتك وقصر عملك — ولا تنزل عن ٤٥ د ولا تأكل آخر ٤٥ د من العمل
+const SLEEP_BALANCE = { target: 395, min: 45, max: 240, keepAfter: 45 };
 
 // الألوان (لوحة Google Calendar): 10 ريحان أخضر، 9 توت أزرق، 6 يوسفي برتقالي، 8 غرافيت رمادي
 export const COLOR_HEX = {
@@ -27,16 +23,17 @@ export const COLOR_HEX = {
   10: '#0b8043',
 };
 
-// بند قابل للتأشير، وسطر شرح لا يُؤشَّر
+export const TASKS_TITLE = 'مهام'; // بلوكات المهام كلها بهذا الاسم أيام العمل
+
+// ── البنود: لكل بند معرّف ثابت، وسطر الشرح لا يُؤشَّر ──
 const it = (id, text, extra) => ({ id, text, ...extra });
 const note = (text) => ({ id: 'note', text, note: true });
 
-// ما بين الأذان والإقامة: شعر في كل الصلوات، وسورة الكهف في صلاة الجمعة وحدها
 const POETRY_LINE = 'بين الأذان والإقامة: كتابة شعر';
 const KAHF_LINE = 'بين الأذان والإقامة: قراءة سورة الكهف';
 
-function fajrItems(t) {
-  return [
+const GEN = {
+  fajr: (t) => [
     it('adhan', 'ترديد الأذان ودعاء ما بعد الأذان'),
     it('sunnah', `سنة الفجر — ${t[0]}`),
     it('between', POETRY_LINE),
@@ -46,28 +43,29 @@ function fajrItems(t) {
     it('tahlil', 'لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير (١٠٠ مرة)'),
     it('duha', `سنة الضحى — ${t[1]}`),
     note(PRAYER_NOTE),
-  ];
-}
-
-// بلوك «مهام» الصباحي: بنود القرآن وحدها — والتمرين مهمة يومية عائمة تُعرض في كل بلوك مهام
-function quranItems(st) {
-  return quranTaskLines(st).map((l) => it(l.key, l.text, { pool: l.pool || undefined, quran: true }));
-}
-
-function dhuhrItems(t, friday) {
-  return [
+  ],
+  // بلوك «مهام» الصباحي: بنود القرآن وحدها — والتمرين مهمة يومية عائمة تظهر في كل بلوك مهام
+  quran: (t, st) =>
+    quranTaskLines(st).map((l) => it(l.key, l.text, { pool: l.pool || undefined, quran: true })),
+  dhuhr: (t) => [
     it('adhan', 'ترديد الأذان'),
     it('sunnahBefore', `سنة الظهر القبلية — ${t[2]}`),
-    it('between', friday ? KAHF_LINE : POETRY_LINE),
-    it('pray', friday ? 'صلاة الجمعة' : 'صلاة الظهر'),
+    it('between', POETRY_LINE),
+    it('pray', 'صلاة الظهر'),
     it('dhikr', 'أذكار الصلاة'),
     it('sunnahAfter', `سنة الظهر البعدية — ${t[3]}`),
     note(PRAYER_NOTE),
-  ];
-}
-
-function asrItems(t) {
-  return [
+  ],
+  jumua: (t) => [
+    it('adhan', 'ترديد الأذان'),
+    it('sunnahBefore', `سنة الظهر القبلية — ${t[2]}`),
+    it('between', KAHF_LINE),
+    it('pray', 'صلاة الجمعة'),
+    it('dhikr', 'أذكار الصلاة'),
+    it('sunnahAfter', `سنة الظهر البعدية — ${t[3]}`),
+    note(PRAYER_NOTE),
+  ],
+  asr: (t) => [
     it('adhan', 'ترديد الأذان'),
     it('sunnah', `سنة العصر — ${t[4]}`),
     it('between', POETRY_LINE),
@@ -75,25 +73,19 @@ function asrItems(t) {
     it('dhikr', 'أذكار الصلاة'),
     it('sadaqah', 'صدقة أو صلاة على ميت'),
     note(PRAYER_NOTE),
-  ];
-}
-
-function maghribItems(t, weekend) {
-  // لا سنة قبلية للمغرب — وبين الأذان والإقامة وجبة رقم ٢ (وفي الجمعة والسبت شعر، فالوجبة نهارًا)
-  return [
+  ],
+  // لا سنة قبلية للمغرب — وبين الأذان والإقامة وجبة رقم ٢ (وفي ليلتي الجمعة والسبت شعر)
+  maghrib: (t) => [
     it('adhan', 'ترديد الأذان ودعاء ما بعد الأذان'),
-    it('between', weekend ? POETRY_LINE : 'بين الأذان والإقامة: وجبة رقم ٢'),
-    it('pray', 'صلاة المغرب'),
-    it('dhikr', 'أذكار الصلاة'),
-    it('evening', 'أذكار المساء'),
-    it('tasbih', 'سبحان الله وبحمده (١٠٠ مرة)'),
-    it('sunnah', `سنة المغرب — ${t[5]}`),
-    note(PRAYER_NOTE),
-  ];
-}
-
-function ishaItems(t) {
-  return [
+    it('between', 'بين الأذان والإقامة: وجبة رقم ٢'),
+    ...MAGHRIB_TAIL(t),
+  ],
+  maghribWeekend: (t) => [
+    it('adhan', 'ترديد الأذان ودعاء ما بعد الأذان'),
+    it('between', POETRY_LINE),
+    ...MAGHRIB_TAIL(t),
+  ],
+  isha: (t) => [
     it('adhan', 'ترديد الأذان'),
     it('sunnahBefore', `سنة العشاء القبلية — ${t[6]}`),
     it('between', POETRY_LINE),
@@ -101,136 +93,113 @@ function ishaItems(t) {
     it('dhikr', 'أذكار الصلاة'),
     it('sunnahAfter', `سنة العشاء البعدية — ${t[7]}`),
     note(PRAYER_NOTE),
-  ];
-}
+  ],
+  // القيام: وجبة رقم ١ (السحور) أيام العمل، وفي الجمعة والسبت تنتقل إلى نهارهما
+  qiyam: () => [...QIYAM_BASE, it('meal1', 'وجبة رقم ١ (سحور)')],
+  qiyamWeekend: () => [...QIYAM_BASE],
+};
 
-// القيام: وجبة رقم ١ (السحور) أيام الأحد–الخميس، وفي الجمعة والسبت تنتقل إلى نهارهما
-function qiyamItems(weekend) {
-  const base = [
-    it('witr', 'صلاة الوتر'),
-    it('dua', 'دعاء شامل'),
-    it('tawbah', 'توبة'),
-    it('istighfar', 'استغفار'),
-  ];
-  return weekend ? base : [...base, it('meal1', 'وجبة رقم ١ (سحور)')];
-}
+const MAGHRIB_TAIL = (t) => [
+  it('pray', 'صلاة المغرب'),
+  it('dhikr', 'أذكار الصلاة'),
+  it('evening', 'أذكار المساء'),
+  it('tasbih', 'سبحان الله وبحمده (١٠٠ مرة)'),
+  it('sunnah', `سنة المغرب — ${t[5]}`),
+  note(PRAYER_NOTE),
+];
+const QIYAM_BASE = [
+  it('witr', 'صلاة الوتر'),
+  it('dua', 'دعاء شامل'),
+  it('tawbah', 'توبة'),
+  it('istighfar', 'استغفار'),
+];
 
-// بلوك ما بعد العشاء: «عائلة» أيام العمل و«أسرة» في الجمعة والسبت
-const AILA_ITEMS = [it('aila', 'وقت مع العائلة')];
-const ASRA_ITEMS = [it('asra', 'وقت مع الأسرة')];
+const AILA = [it('aila', 'وقت مع العائلة')];
+const ASRA = [it('asra', 'وقت مع الأسرة')];
 // نهارا الجمعة والسبت: وجبة ١ قبل الظهر، ووجبة ٢ بعده، والجمعة وحدها فيها صلة رحم
 const ASRA_DAY_FRI = [it('meal1', 'وجبة رقم ١'), it('asra', 'وقت مع الأسرة'), it('silah', 'صلة رحم')];
 const ASRA_DAY_SAT = [it('meal1', 'وجبة رقم ١'), it('asra', 'وقت مع الأسرة')];
-const MEAL2_WEEKEND = [it('meal2', 'وجبة رقم ٢')]; // الظهر←العصر، وتنتقل للعصر إن فاتت
-const MEAL3_WEEKEND = [it('meal3', 'وجبة رقم ٣')]; // بلوك «أصدقاء» ما بعد العشاء
+const MEAL2 = [it('meal2', 'وجبة رقم ٢')]; // الظهر←العصر، وتنتقل للعصر إن فاتت
+const MEAL3 = [it('meal3', 'وجبة رقم ٣')]; // بلوك «أصدقاء» ما بعد العشاء
 // الجمعة بعد العصر: عائلة وساعة استجابة الدعاء قبل المغرب في بلوك واحد
-const AILA_DUAA_ITEMS = [
+const AILA_DUAA = [
   it('aila', 'وقت مع العائلة'),
   it('duaa', 'ساعة استجابة الدعاء قبل المغرب — تفرّغ للدعاء'),
 ];
-export const TASKS_TITLE = 'مهام'; // كل بلوكات العمل صارت «مهام»
 
-// بداية الوحدة: مطلع الثلث الأخير من الليلة التي تسبق فجر dIso (دقائق من منتصف ليل dIso)
-function lastThirdBefore(dIso) {
-  const prevM = prayerTimes(addDays(dIso, -1)).maghrib - 1440; // مغرب أمس (قيمة سالبة)
-  const F = prayerTimes(dIso).fajr;
-  return prevM + Math.round((2 * (F - prevM)) / 3);
+// ── القوالب: قالبٌ لكل نوع يوم، وخطة الأسبوع تسنِد لكل يوم قالبه ──
+// (المرحلة القادمة تُخرجها إلى إعدادات المستخدم فيحرّرها من الواجهة)
+function makeTemplate({ day1, day2, day3, eve, rest, jumua, restFree }) {
+  return {
+    start: { lastThirdPrev: true },
+    blocks: [
+      { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'fajr' } },
+      { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
+      { id: 'quran', title: TASKS_TITLE, colorId: 10, gen: 'quran', end: { prayer: 'sunrise', offset: 90 } },
+      { id: 'nap', title: 'نوم', colorId: 8, sleep: true, end: { balance: SLEEP_BALANCE } },
+      // يوم الجمعة يبدأ بلوك الصلاة مبكرًا بساعة (تبكير الجمعة) فيقصر العمل قبله
+      { id: 'work1', title: day1.title, colorId: 6, items: day1.items, end: { prayer: 'dhuhr', offset: jumua ? -60 : 0 } },
+      { id: 'dhuhr', title: jumua ? 'الجمعة' : 'الظهر', colorId: 9, gen: jumua ? 'jumua' : 'dhuhr', end: { prayer: 'dhuhr', offset: 45 } },
+      { id: 'work2', title: day2.title, colorId: 6, items: day2.items, end: { prayer: 'asr' } },
+      { id: 'asr', title: 'العصر', colorId: 9, gen: 'asr', end: { len: 45 } },
+      { id: 'work3', title: day3.title, colorId: 6, items: day3.items, end: { prayer: 'maghrib' } },
+      { id: 'maghrib', title: 'المغرب', colorId: 9, gen: rest.weekend ? 'maghribWeekend' : 'maghrib', end: { len: 30 } },
+      { id: 'sleep1', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'isha' } },
+      { id: 'isha', title: 'العشاء', colorId: 9, gen: 'isha', end: { len: 45 } },
+      { id: 'family', title: eve.title, colorId: 6, items: eve.items, end: { nightFraction: 1 } },
+      { id: 'rest', title: rest.title, colorId: 8, items: rest.items, transparent: restFree, end: { nightFraction: 2, offset: -45 } },
+      { id: 'qiyam', title: 'صلاة القيام', colorId: 9, gen: rest.weekend ? 'qiyamWeekend' : 'qiyam', end: { nightFraction: 2 } },
+    ],
+  };
+}
+
+const T = TASKS_TITLE;
+const TEMPLATES = {
+  // أيام العمل: البلوكات الثلاثة «مهام»، وما بعد العشاء «عائلة»، والراحة «أسرة» (وقت الزوجة)
+  weekday: makeTemplate({
+    day1: { title: T, items: [] },
+    day2: { title: T, items: [] },
+    day3: { title: T, items: [] },
+    eve: { title: 'عائلة', items: AILA },
+    rest: { title: 'أسرة', items: [], weekend: false },
+    restFree: true,
+  }),
+  // نهار الجمعة: الصباح «أسرة»، والظهر والعصر «عائلة» (وفيه ساعة الاستجابة)
+  friday: makeTemplate({
+    jumua: true,
+    day1: { title: 'أسرة', items: ASRA_DAY_FRI },
+    day2: { title: 'عائلة', items: MEAL2 },
+    day3: { title: 'عائلة ودعاء', items: AILA_DUAA },
+    eve: { title: 'أسرة', items: ASRA },
+    rest: { title: 'أصدقاء', items: MEAL3, weekend: true },
+    restFree: false,
+  }),
+  saturday: makeTemplate({
+    day1: { title: 'أسرة', items: ASRA_DAY_SAT },
+    day2: { title: 'عائلة', items: MEAL2 },
+    day3: { title: 'عائلة', items: [] },
+    eve: { title: 'أسرة', items: ASRA },
+    rest: { title: 'أصدقاء', items: MEAL3, weekend: true },
+    restFree: false,
+  }),
+};
+
+// خطة الأسبوع: 0=الأحد … 5=الجمعة، 6=السبت
+const WEEK_PLAN = ['weekday', 'weekday', 'weekday', 'weekday', 'weekday', 'friday', 'saturday'];
+const templateFor = (dIso) => TEMPLATES[WEEK_PLAN[dow(dIso)]];
+
+// بنود البلوك: إمّا ثابتة في القالب، وإمّا مولّدة (صلوات وقرآن) من حالة يومها
+function itemsFor(block, dIso) {
+  if (!block.gen) return block.items || [];
+  const st = quranStateFor(dIso);
+  return GEN[block.gen](tathbeetLabels(st), st);
 }
 
 // وقت بداية وحدة dIso نصًّا — تستعمله الواجهة لتحديد الوحدة الجارية
-export function unitStart(dIso) {
-  return minToDateTime(dIso, lastThirdBefore(dIso));
-}
+export const unitStart = (dIso) => layoutUnitStart(dIso, templateFor(dIso));
 
-// وحدة اليوم dIso: من نومة الثلث الأخير التي تسبق فجره إلى نهاية قيام ليلته — ١٥ حدثًا
-export function buildUnit(dIso) {
-  const nextIso = addDays(dIso, 1);
-  const P1 = prayerTimes(dIso); // مواقيت اليوم كاملة
-  const P2 = prayerTimes(nextIso); // فجر الغد (نهاية الوحدة)
-
-  // كل الأزمنة دقائق منسوبة إلى منتصف ليل dIso (قد تتجاوز 1440)
-  const F = P1.fajr;
-  const SR = P1.sunrise;
-  const DH = P1.dhuhr;
-  const AS = P1.asr;
-  const M = P1.maghrib;
-  const ISH = P1.isha;
-  const F2 = P2.fajr + 1440;
-  const wake = lastThirdBefore(dIso); // أول الوحدة: النومة التي تصنع اليوم
-
-  const night = F2 - M;
-  const third1 = M + Math.round(night / 3); // نهاية بلوك ما بعد العشاء
-  const third2 = M + Math.round((2 * night) / 3); // نهاية الثلث الثاني = نهاية الوحدة
-  const qiyamStart = third2 - QIYAM_MINUTES; // آخر ٤٥ دقيقة من الثلث الثاني
-  const day = dow(dIso); // 0=الأحد … 5=الجمعة، 6=السبت
-  const friday = day === 5;
-  const saturday = day === 6;
-  const weekend = friday || saturday;
-
-  // النومة ملاصقة للتمرين (ينام بعده مباشرة)، ثم العمل متصل منها إلى بلوك الظهر.
-  // النومة تكمّل نوم الوحدة حتى مجموع ثابت: فإن قلّ ليلُك طالت نومتك وقصر عملك
-  // ويوم الجمعة يبدأ بلوك الظهر مبكرًا بساعة (تبكير الجمعة) فيقصر العمل قبله
-  const dhuhrStart = friday ? DH - 60 : DH;
-  const trainEnd = SR + 90;
-  const nightSleep = ISH - (M + 30) + (F - wake);
-  const napLen = Math.max(
-    NAP_MIN,
-    Math.min(NAP_MAX, SLEEP_TARGET - nightSleep, dhuhrStart - trainEnd - WORK_MIN)
-  );
-  const napEnd = trainEnd + napLen;
-
-  // كل سنن الوحدة (من الفجر إلى العشاء) على تثبيت يومها نفسه
-  const st = quranStateFor(dIso);
-  const t = tathbeetLabels(st);
-
-  // نهارا الجمعة والسبت للأهل: الصباح «أسرة»، والظهر والعصر «عائلة»،
-  // وبعد عصر الجمعة «عائلة ودعاء» (ساعة الاستجابة داخله)
-  const workTitle = weekend ? 'أسرة' : TASKS_TITLE;
-  const midTitle = weekend ? 'عائلة' : TASKS_TITLE;
-  const lateTitle = friday ? 'عائلة ودعاء' : saturday ? 'عائلة' : TASKS_TITLE;
-  // ما بعد العشاء: «عائلة» أيام العمل و«أسرة» في الجمعة والسبت
-  const eveTitle = weekend ? 'أسرة' : 'عائلة';
-  // الراحة: «أسرة» من الأحد إلى الخميس، و«أصدقاء» في الجمعة والسبت
-  const restTitle = weekend ? 'أصدقاء' : 'أسرة';
-
-  const ev = [];
-  const push = (slot, title, start, end, colorId, items = [], transparent = false) => {
-    ev.push({
-      id: `${dIso}#${slot}`,
-      unit: dIso,
-      slot,
-      title,
-      start: minToDateTime(dIso, start),
-      end: minToDateTime(dIso, end),
-      colorId,
-      items: items.map((x) => ({ ...x })), // نسخة لكل يوم: الثوابت المشتركة لا تُعدَّل
-      transparent,
-    });
-  };
-
-  // ── أول اليوم: نومة الثلث الأخير التي تسبق الفجر ──
-  push('sleep2', 'نوم', wake, F, 8);
-  // ── النهار: من الفجر إلى المغرب ──
-  push('fajr', 'الفجر', F, F + 45, 10, fajrItems(t));
-  // بلوك مهام واحد بدل بلوكي القرآن والتمرين — ومهمتا اليوم (القرآن والتمرين) تُعرضان في كل بلوك مهام
-  push('quran', TASKS_TITLE, F + 45, trainEnd, 10, quranItems(st));
-  // النومة تلي التمرين مباشرة، ثم العمل متصل منها حتى بلوك الظهر
-  push('nap', 'نوم', trainEnd, napEnd, 8);
-  push('work1', workTitle, napEnd, dhuhrStart, 6, friday ? ASRA_DAY_FRI : saturday ? ASRA_DAY_SAT : []);
-  push('dhuhr', friday ? 'الجمعة' : 'الظهر', dhuhrStart, DH + 45, 9, dhuhrItems(t, friday));
-  push('work2', midTitle, DH + 45, AS, 6, weekend ? MEAL2_WEEKEND : []);
-  push('asr', 'العصر', AS, AS + 45, 9, asrItems(t));
-  push('work3', lateTitle, AS + 45, M, 6, friday ? AILA_DUAA_ITEMS : []);
-  // ── الليل: من المغرب إلى نهاية القيام (آخر الوحدة) ──
-  push('maghrib', 'المغرب', M, M + 30, 9, maghribItems(t, weekend));
-  push('sleep1', 'نوم', M + 30, ISH, 8); // من المغرب إلى العشاء
-  push('isha', 'العشاء', ISH, ISH + 45, 9, ishaItems(t));
-  push('family', eveTitle, ISH + 45, third1, 6, weekend ? ASRA_ITEMS : AILA_ITEMS);
-  push('rest', restTitle, third1, qiyamStart, 8, weekend ? MEAL3_WEEKEND : [], !weekend);
-  // آخر الوحدة: القيام — والنوم الذي يليه هو أول وحدة الغد
-  push('qiyam', 'صلاة القيام', qiyamStart, third2, 9, qiyamItems(weekend));
-  return ev;
-}
+// وحدة اليوم dIso: من نومة الثلث الأخير التي تسبق فجره إلى نهاية قيام ليلته
+export const buildUnit = (dIso) => buildDay(dIso, templateFor(dIso), itemsFor);
 
 // كل الأحداث في نطاق [fromIso, toIso] من وحدات الأيام (شاملة الطرفين)
 export function buildRange(fromIso, toIso) {
