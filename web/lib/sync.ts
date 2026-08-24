@@ -36,12 +36,20 @@ export function syncState() {
 }
 
 // ── الدخول ──
+// الرابط يولّده Supabase وترسله دالة auth-email عبر Resend برسالة عربية
 export async function sendMagicLink(email: string): Promise<string> {
-  const { error } = await sb().auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
-  })
-  return error ? `❌ ${error.message}` : "✅ أرسلنا رابط الدخول إلى بريدك"
+  try {
+    const res = await fetch(`${URL}/functions/v1/auth-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON}`, apikey: ANON },
+      body: JSON.stringify({ email, redirectTo: window.location.origin }),
+    })
+    const out = await res.json()
+    if (!res.ok || out.error) return `❌ ${out.error || res.status}`
+    return "✅ أرسلنا رابط الدخول إلى بريدك — تفقّد صندوقك"
+  } catch (e) {
+    return `❌ ${String(e)}`
+  }
 }
 
 export async function signInWithGoogle() {
