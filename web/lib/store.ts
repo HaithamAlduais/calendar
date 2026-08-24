@@ -7,13 +7,15 @@ import { setPrayerConfig } from "@/lib/engine/prayers.js"
 import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
 import {
   setQuranCompletion,
+  setQuranConfig,
+  DEFAULT_QURAN,
   clearQuranCache,
   quranStateFor,
   quranTaskLines,
   tathbeetLabels,
   tathbeetPoolKey,
 } from "@/lib/engine/quran.js"
-import { setWorkoutCompletion, workoutPlan, workoutDayType, workoutTitle } from "@/lib/engine/workout.js"
+import { setWorkoutCompletion, setWorkoutConfig, DEFAULT_WORKOUT, workoutPlan, workoutDayType, workoutTitle } from "@/lib/engine/workout.js"
 
 // بند داخل بلوك: معرّفه ثابت، فالتأشير والقضاء والتقديم تُمسك به لا بموضع السطر
 export type Item = {
@@ -126,6 +128,19 @@ const DEFAULT_SETTINGS = {
   tz: 3,
   method: "ummAlQura",
   asrFactor: 1, // ظل المثل، و٢ للحنفية
+  // ورد التثبيت: السنن المشاركة بترتيبها الزمني [slot البلوك، معرّف البند]
+  wird: [
+    ["fajr", "sunnah"],
+    ["fajr", "duha"],
+    ["dhuhr", "sunnahBefore"],
+    ["dhuhr", "sunnahAfter"],
+    ["asr", "sunnah"],
+    ["maghrib", "sunnah"],
+    ["isha", "sunnahBefore"],
+    ["isha", "sunnahAfter"],
+  ] as [string, string][],
+  quran: DEFAULT_QURAN as typeof DEFAULT_QURAN,
+  workout: DEFAULT_WORKOUT as typeof DEFAULT_WORKOUT,
 }
 export type Settings = typeof DEFAULT_SETTINGS
 export const settings: Settings = Object.assign(
@@ -134,12 +149,14 @@ export const settings: Settings = Object.assign(
   load<Partial<Settings>>(K.settings, {})
 )
 
-// المحرك يقرأ الموقع من هنا، فيُطبَّق عند الإقلاع وعند كل حفظ
-function applyPrayerConfig() {
+// المحركات تقرأ إعداداتها من هنا، فتُطبَّق عند الإقلاع وعند كل حفظ
+function applyEngineConfig() {
   const { lat, lng, tz, method, asrFactor } = settings
   setPrayerConfig({ lat, lng, tz, method, asrFactor })
+  setQuranConfig({ ...settings.quran, wirdSlots: settings.wird.length })
+  setWorkoutConfig(settings.workout)
 }
-applyPrayerConfig()
+applyEngineConfig()
 
 // ── إشعار React بالتغييرات ──
 let version = 0
@@ -321,17 +338,9 @@ function fmt12Short(hhmm: string): string {
 export const checkable = (ev: Ev): Item[] => ev.items.filter((i) => !i.note)
 
 // ── التثبيت متتابع: أنصاف الأحزاب الثمانية تُقرأ بالترتيب لا بحسب موضع السنّة ──
-// ترتيب السنن زمنيًا: [slot الحدث، معرّف البند] — لا يتأثر بتغيّر ترتيب البنود
-const TATHBEET_SEQ: [string, string][] = [
-  ["fajr", "sunnah"],
-  ["fajr", "duha"], // سنة الضحى داخل بلوك الفجر
-  ["dhuhr", "sunnahBefore"],
-  ["dhuhr", "sunnahAfter"],
-  ["asr", "sunnah"],
-  ["maghrib", "sunnah"],
-  ["isha", "sunnahBefore"],
-  ["isha", "sunnahAfter"],
-]
+// ترتيب السنن زمنيًا: [slot الحدث، معرّف البند] — من إعدادات المستخدم،
+// فمن غيّر قالبه أو أراد ورده في سنن أخرى عدّل القائمة ولم يمسّ الشيفرة
+const wirdSeq = (): [string, string][] => settings.wird
 
 
 
@@ -340,12 +349,13 @@ const TATHBEET_SEQ: [string, string][] = [
 function computeShift(unitEvents: Ev[], st: { hifzMode: string }, now: string): number[] {
   const out: number[] = []
   let missed = 0
-  for (let i = 0; i < 8; i++) {
+  const seq = wirdSeq()
+  for (let i = 0; i < seq.length; i++) {
     out[i] = i - missed
-    const [slot] = TATHBEET_SEQ[i]
+    const [slot] = seq[i]
     const ev = unitEvents.find((e) => e.slot === slot)
     if (!ev) continue
-    const itemId = TATHBEET_SEQ[i][1]
+    const itemId = seq[i][1]
     if (ev.end <= now && !checksFor(ev.id).includes(itemId)) missed++ // فاتت ولم تُقرأ
   }
   return out
@@ -574,10 +584,11 @@ export function allEvents(): Ev[] {
   // إزاحة التثبيت: ما فات من السنن لا يُتخطّى، فالصلاة التالية تبدأ من حيث توقّف
   for (const [unit, evs] of byUnit) {
     const st = quranStateFor(unit)
-    const labels = tathbeetLabels(st) as string[]
+    const seq = wirdSeq()
+    const labels = tathbeetLabels(st, seq.length) as string[]
     const shift = computeShift(evs, st, now)
-    for (let i = 0; i < 8; i++) {
-      const [slot, itemId] = TATHBEET_SEQ[i]
+    for (let i = 0; i < seq.length; i++) {
+      const [slot, itemId] = seq[i]
       const item = evs.find((e) => e.slot === slot)?.items.find((x) => x.id === itemId)
       if (!item) continue
       const cut = item.text.indexOf(" — ") // ما قبل أول شرطة هو اسم السنّة
@@ -854,7 +865,7 @@ export function resetFood(d: string) {
 export function saveSettings(patch: Partial<Settings>) {
   Object.assign(settings, patch)
   save(K.settings, settings)
-  applyPrayerConfig() // تغيّر الموقع أو الطريقة يعيد حساب الجدول كله
+  applyEngineConfig() // تغيّر الموقع أو المحرّكات يعيد حساب الجدول كله
   notify()
 }
 

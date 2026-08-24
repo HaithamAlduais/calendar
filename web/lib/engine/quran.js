@@ -2,15 +2,28 @@
 // الحفظ (ربع حزب: يوم حفظ ويوم تكرار). مصحف المدينة 604 صفحات.
 import { addDays, arab } from './dates.js';
 
-// بداية جديدة حدّدها هيثم: الاثنين ٢٤ أغسطس ٢٠٢٦:
-// المراجعة من الجزء ١، والحفظ من الربع الأول من الجزء ١٠ يوم حفظ
-export const QURAN_SEED = {
+// إعداد المستخدم: موضع البداية، وعدد مرات التكرار، ونمط النظام.
+// 'managed' نظام مُدار يتقدّم وحده ويطالبك بموضع بعينه، و'free' نصٌّ حرّ تكتبه بلا مطالبة.
+export const DEFAULT_QURAN = {
+  mode: 'managed',
   date: '2026-08-24',
   reviewJuz: 1,
   hifzJuz: 10,
   hifzQuarter: 1, // ١..٨ داخل الجزء
   hifzMode: 'حفظ', // 'حفظ' أو 'تكرار'
+  repeats: 5, // مرات تكرار ربع الحفظ في يوم التكرار
+  wirdSlots: 8, // عدد السنن التي يُوزَّع عليها ورد التثبيت
 };
+
+export let QURAN_SEED = DEFAULT_QURAN;
+
+export function setQuranConfig(next) {
+  QURAN_SEED = { ...DEFAULT_QURAN, ...(next || {}) };
+  stateCache.clear();
+}
+export function quranConfig() {
+  return QURAN_SEED;
+}
 
 export function juzPages(j) {
   const start = j === 1 ? 1 : 20 * j - 18;
@@ -105,9 +118,10 @@ export function hifzLine(st) {
 // فتتراكم عليه الأخطاء عبر الزمن بصرف النظر عن السياق (حفظ/تكرار/مراجعة/تثبيت)
 export const reviewPoolKey = (juz) => `rv:${juz}`;
 export const hifzPoolKey = (juz, quarter) => `hz:${juz}:${quarter}`;
-export function tathbeetPoolKey(st, slotIndex) {
-  const juz = slotIndex < 4 ? st.hifzJuz - 2 : st.hifzJuz - 1;
-  const half = (slotIndex % 4) + 1;
+export function tathbeetPoolKey(st, slotIndex, count = QURAN_SEED.wirdSlots) {
+  const perJuz = Math.max(1, Math.round(count / 2));
+  const juz = slotIndex < perJuz ? st.hifzJuz - 2 : st.hifzJuz - 1;
+  const half = (slotIndex % perJuz) + 1;
   return `tb:${juz}:${half}`;
 }
 
@@ -116,9 +130,15 @@ export function tathbeetPoolKey(st, slotIndex) {
 // كل بند بمجمع أخطائه الخاص (نفس المجمع يُعاد استخدامه كل مرة يُقرأ فيه هذا الربع لاحقًا)
 // لكل بند مفتاح ثابت (key) تتعلّق به علامات التأشير، فلا تنزاح بتغيّر عدد البنود
 export function quranTaskLines(st) {
+  // النظام الحرّ: بندان بلا موضع ولا تتبّع — تكتب ما قرأته بنفسك
+  if (QURAN_SEED.mode === 'free')
+    return [
+      { key: 'review', text: 'تسميع المراجعة', pool: null },
+      { key: 'hifz', text: 'الحفظ', pool: null },
+    ];
   const lines = [{ key: 'review', text: reviewLine(st), pool: reviewPoolKey(st.reviewJuz) }];
   if (st.hifzMode === 'تكرار') {
-    lines.push({ key: 'hifz', text: `${hifzLine(st)} × ٥ مرات`, pool: hifzPoolKey(st.hifzJuz, st.hifzQuarter) });
+    lines.push({ key: 'hifz', text: `${hifzLine(st)} × ${arab(QURAN_SEED.repeats)} مرات`, pool: hifzPoolKey(st.hifzJuz, st.hifzQuarter) });
     for (let k = 1; k < st.hifzQuarter; k++) {
       const hizb = k <= 4 ? 2 * st.hifzJuz - 1 : 2 * st.hifzJuz;
       const { s, e } = quarterPages(st.hifzJuz, k);
@@ -136,12 +156,13 @@ export function quranTaskLines(st) {
 
 // أنصاف أحزاب التثبيت الثمانية بترتيب السنن:
 // [الفجر، الضحى، الظهر القبلية، الظهر البعدية، العصر، المغرب، العشاء القبلية، العشاء البعدية]
-export function tathbeetLabels(st) {
+export function tathbeetLabels(st, count = QURAN_SEED.wirdSlots) {
   const [a, b] = [st.hifzJuz - 2, st.hifzJuz - 1];
+  const perJuz = Math.max(1, Math.round(count / 2));
   const out = [];
-  for (let i = 0; i < 8; i++) {
-    const j = i < 4 ? a : b;
-    const k = (i % 4) + 1;
+  for (let i = 0; i < count; i++) {
+    const j = i < perJuz ? a : b;
+    const k = (i % perJuz) + 1;
     const hizb = k <= 2 ? 2 * j - 1 : 2 * j;
     const half = k % 2 === 1 ? 'النصف الأول' : 'النصف الثاني';
     const { s, e } = halfHizbPages(j, k);
