@@ -5,6 +5,7 @@ import {
   CheckIcon,
   CircleAlertIcon,
   ClockAlertIcon,
+  FlagIcon,
   DumbbellIcon,
   FastForwardIcon,
   ListChecksIcon,
@@ -26,6 +27,7 @@ import {
   addTask,
   checkable,
   checksFor,
+  completeGoal,
   dayTasks,
   earlyMap,
   hasOldMistakes,
@@ -151,7 +153,7 @@ export function EventSheet({
                 const pool = l.pool
                 const num = ev.items.slice(0, li).filter((x) => !x.note).length + 1
                 return (
-                  <div key={l.id} className="flex flex-col gap-1">
+                  <div key={l.id} className="flex flex-col gap-1" style={l.depth ? { marginInlineStart: l.depth * 22 } : undefined}>
                     <label
                       className={cn(
                         "flex items-start gap-3 rounded-md p-2 text-sm",
@@ -175,9 +177,27 @@ export function EventSheet({
                         </span>
                       )}
                       <span className="leading-relaxed">
-                        <span className="text-muted-foreground me-1">{arab(num)}.</span>
+                        {!l.depth && <span className="text-muted-foreground me-1">{arab(num)}.</span>}
                         {l.text}
+                        {l.hint && (
+                          <span className="text-muted-foreground/70 block text-[11px] no-underline">
+                            {l.hint}
+                          </span>
+                        )}
                       </span>
+                      {l.cabItemId && !l.depth && (
+                        <button
+                          onClick={(e2) => {
+                            e2.preventDefault()
+                            completeGoal("items", l.cabItemId!)
+                          }}
+                          className="text-muted-foreground hover:text-emerald-600 ms-auto flex-none"
+                          title="إتمام الهدف — تختفي المهمة من الجدول"
+                          aria-label="إتمام الهدف"
+                        >
+                          <FlagIcon className="size-3.5" />
+                        </button>
+                      )}
                       {l.taskId && (
                         <button
                           onClick={(e2) => {

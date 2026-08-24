@@ -336,6 +336,43 @@ check('معرّفات السنن الثمانية موجودة', TB.every(([sl, 
 check('كل بند له معرّف ونص', u8.every((e) => e.items.every((i) => i.id && i.text)), true);
 check('معرّفات البنود فريدة داخل البلوك', u8.every((e) => new Set(e.items.map((i) => i.id)).size === e.items.length), true);
 
+// ── الخزانات: خزانة ← أدراج ← مهام، بتكرار ومواعيد متوارثة ─────────
+const { itemsForDay, repeatLabel, dueOn } = await import('../lib/engine/cabinets.js');
+const cabData = (item, drawer = {}, cabinet = {}) => ({
+  cabinets: [{ id: 'c', name: 'بفر', ...cabinet }],
+  drawers: [{ id: 'd', cabinetId: 'c', name: 'الفيز الأول', ...drawer }],
+  items: [{ id: 'i', drawerId: 'd', title: 'الفرونت إند', slot: 'work2', from: '2026-08-24', ...item }],
+});
+const due = (d, item, drawer, cabinet) => (itemsForDay(d, cabData(item, drawer, cabinet), 'quran').get('work2') || []).length > 0;
+
+// كل يومين: يوم نعم ويوم لا، لا علاقة له بأيام الأسبوع
+const everyTwo = { repeat: { mode: 'everyN', n: 2 } };
+check('كل يومين: يوم البداية', due('2026-08-24', everyTwo), true);
+check('كل يومين: الغد لا', due('2026-08-25', everyTwo), false);
+check('كل يومين: بعد الغد نعم', due('2026-08-26', everyTwo), true);
+check('قبل تاريخ البداية لا شيء', due('2026-08-23', everyTwo), false);
+// أيام الأسبوع: أحد وثلاثاء وخميس
+const weekly = { repeat: { mode: 'weekly', days: [0, 2, 4] } };
+check('أسبوعي: الأحد نعم', due('2026-08-30', weekly), true);
+check('أسبوعي: الاثنين لا', due('2026-08-31', weekly), false);
+check('مرة واحدة: يومها فقط', due('2026-08-24', { repeat: { mode: 'once' } }), true);
+check('مرة واحدة: لا تتكرر', due('2026-08-26', { repeat: { mode: 'once' } }), false);
+// توارث الموعد النهائي: المهمة ← الدرج ← الخزانة
+check('موعد الدرج يقطع', due('2026-08-28', everyTwo, { deadline: '2026-08-26' }), false);
+check('وقبله يستمر', due('2026-08-26', everyTwo, { deadline: '2026-08-26' }), true);
+check('موعد الخزانة يُورَّث', due('2026-08-28', everyTwo, {}, { deadline: '2026-08-26' }), false);
+check('موعد المهمة يسبق الجميع', due('2026-08-28', { ...everyTwo, deadline: '2026-09-30' }, { deadline: '2026-08-26' }), true);
+check('بلا موعد يستمر بلا حد', due('2027-08-25', everyTwo), true); // إزاحة ٣٦٦ يومًا
+// «إتمام الهدف» يُخفي المهمة أو الدرج أو الخزانة
+check('إتمام المهمة يُخفيها', due('2026-08-26', { ...everyTwo, doneAt: '2026-08-24' }), false);
+check('إتمام الدرج يُخفي مهامه', due('2026-08-26', everyTwo, { doneAt: '2026-08-24' }), false);
+check('إتمام الخزانة يُخفي كل شيء', due('2026-08-26', everyTwo, {}, { doneAt: '2026-08-24' }), false);
+// المهمة بلا بلوك محدَّد تذهب إلى البلوك الافتراضي
+check('بلا بلوك ← الافتراضي', (itemsForDay('2026-08-24', cabData({ slot: undefined, ...everyTwo }), 'quran').get('quran') || []).length, 1);
+check('وصف التكرار: يومًا بعد يوم', repeatLabel({ mode: 'everyN', n: 2 }, (x) => x), 'يومًا بعد يوم');
+check('وصف التكرار: كل يوم', repeatLabel({ mode: 'weekly', days: [0, 1, 2, 3, 4, 5, 6] }, (x) => x), 'كل يوم');
+check('dueOn مُصدَّرة للواجهة', typeof dueOn, 'function');
+
 // ── عينة عرض ───────────────────────────────────────────────────────
 console.log('\n── وحدة اليوم الجمعة ٣١ يوليو ──');
 for (const e of byUnit.get('2026-07-31')) console.log(`${e.start.slice(5)} → ${e.end.slice(11)}  ${e.title}`);

@@ -4,6 +4,7 @@
 import { buildRange, unitStart } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { setPrayerConfig } from "@/lib/engine/prayers.js"
+import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
 import {
   setQuranCompletion,
   clearQuranCache,
@@ -22,6 +23,9 @@ export type Item = {
   pool?: string // مجمع أخطاء القرآن
   quran?: boolean // بند من بنود القرآن (مهمة يومية عائمة)
   taskId?: string // مهمة يدوية أضافها المستخدم
+  cabItemId?: string // مهمة من خزانة
+  depth?: number // مهمة فرعية تُزاح للداخل
+  hint?: string // سطر تعريفي صغير (الخزانة والدرج والموعد النهائي)
   external?: boolean // بند مسحوب من Google
 }
 
@@ -56,6 +60,7 @@ const K = {
   gym: "hc.gym.v6",
   late: "hc.late.v6",
   mistakes: "hc.mistakes.v6",
+  cabinets: "hc.cabinets.v1", // الخزانات والأدراج والمهام — بنية جديدة
 }
 
 const isClient = typeof window !== "undefined"
@@ -86,6 +91,29 @@ let late = load<Record<string, boolean>>(K.late, {})
 // أخطاء القرآن: مجمع (rv:جزء / hz:جزء:ربع / tb:جزء:نصف) ← قائمة أخطاء
 export type Mistake = { id: string; ayah: string; word: string; addedDate: string }
 let mistakes = load<Record<string, Mistake[]>>(K.mistakes, {})
+
+// ── الخزانات: خزانة (أمر جلل) ← أدراج (أهداف جزئية) ← مهام في بلوكات المهام ──
+export type Repeat =
+  | { mode: "once" }
+  | { mode: "weekly"; days: number[] }
+  | { mode: "everyN"; n: number }
+export type Cabinet = { id: string; name: string; goal?: string; deadline?: string; doneAt?: string }
+export type Drawer = Cabinet & { cabinetId: string }
+export type CabItem = {
+  id: string
+  drawerId: string
+  title: string
+  subtasks?: { id: string; title: string }[]
+  slot?: string // بلوك المهام الذي توضع فيه — وبلا تحديد تذهب إلى أول بلوك
+  repeat?: Repeat
+  from: string
+  deadline?: string
+  doneAt?: string
+}
+export type CabData = { cabinets: Cabinet[]; drawers: Drawer[]; items: CabItem[] }
+// مهمة مستحقّة اليوم مع سياقها
+export type Due = { item: CabItem; drawer?: Drawer; cabinet?: Cabinet; deadline: string | null }
+let cab = load<CabData>(K.cabinets, emptyCabinets())
 // الموقع وطريقة الحساب من إعدادات المستخدم — والافتراض الرياض بمعايير أم القرى
 const DEFAULT_SETTINGS = {
   clientId: "",
@@ -558,11 +586,29 @@ export function allEvents(): Ev[] {
       item.pool = tathbeetPoolKey(st, shift[i]) // المجمع يتبع النصف المعروض فعلًا
     }
   }
+  // أول بلوك مهام في الوحدة هو وجهة المهام التي لم يُحدَّد لها بلوك
+  const cabByUnit = new Map<string, Map<string, Due[]>>()
+  for (const [unit, evs] of byUnit) {
+    const firstTaskSlot = evs.find((e) => WORK_SLOTS.includes(e.slot || ""))?.slot
+    cabByUnit.set(unit, itemsForDay(unit, cab, firstTaskSlot))
+  }
   for (const ev of [...byUnit.values()].flat()) {
     // مهامك اليدوية تُلحق ببنود البلوك الثابتة، كلٌّ بمعرّفه فلا ينزاح التأشير بحذف غيره
     if (WORK_SLOTS.includes(ev.slot || ""))
       for (const t of tasksFor(ev.unit!, ev.slot!))
         ev.items.push({ id: `task:${t.id}`, text: t.text, taskId: t.id })
+    // مهام الخزانات المستحقّة اليوم — كلٌّ في البلوك الذي اخترتَه لها
+    for (const { item, drawer, cabinet, deadline } of cabByUnit.get(ev.unit!)?.get(ev.slot!) || []) {
+      const where = [cabinet?.name, drawer?.name].filter(Boolean).join(" › ")
+      ev.items.push({
+        id: `cab:${item.id}`,
+        text: item.title,
+        cabItemId: item.id,
+        hint: deadline ? `${where} · حتى ${deadline}` : where,
+      })
+      for (const sub of item.subtasks || [])
+        ev.items.push({ id: `cab:${item.id}:${sub.id}`, text: sub.title, cabItemId: item.id, depth: 1 })
+    }
     // أحداث Google التي تبدأ داخل هذا البلوك تصير بنودًا فيه (وما خارج هذه البلوكات يُهمل)
     if (GOOGLE_HOST_SLOTS.includes(ev.slot || ""))
       for (const g of pulledEvents
@@ -700,6 +746,87 @@ export function removeTask(date: string, slot: string, taskId: string) {
   save(K.tasks, tasks)
   save(K.late, late)
   notify()
+}
+
+// ── الخزانات ──
+let uidSeq = 0
+const uid = () => `${Date.now().toString(36)}${(uidSeq++).toString(36)}`
+
+export function cabinetsData(): CabData {
+  return cab
+}
+
+function saveCab() {
+  save(K.cabinets, cab)
+  notify()
+}
+
+export function addCabinet(name: string, patch: Partial<Cabinet> = {}): string {
+  const id = uid()
+  cab = { ...cab, cabinets: [...cab.cabinets, { ...patch, id, name }] }
+  saveCab()
+  return id
+}
+
+export function addDrawer(cabinetId: string, name: string, patch: Partial<Drawer> = {}): string {
+  const id = uid()
+  cab = { ...cab, drawers: [...cab.drawers, { ...patch, id, cabinetId, name }] }
+  saveCab()
+  return id
+}
+
+export function addCabItem(drawerId: string, title: string, patch: Partial<CabItem> = {}): string {
+  const id = uid()
+  const item: CabItem = { from: currentUnit(), repeat: { mode: "once" }, ...patch, id, drawerId, title }
+  cab = { ...cab, items: [...cab.items, item] }
+  saveCab()
+  return id
+}
+
+type CabKind = "cabinets" | "drawers" | "items"
+
+export function updateCab(kind: CabKind, id: string, patch: Record<string, unknown>) {
+  cab = { ...cab, [kind]: cab[kind].map((x) => (x.id === id ? { ...x, ...patch } : x)) } as CabData
+  saveCab()
+}
+
+// الحذف يجرّ ما تحته: حذف الخزانة يحذف أدراجها ومهامها
+export function removeCab(kind: CabKind, id: string) {
+  if (kind === "cabinets") {
+    const drawerIds = cab.drawers.filter((d) => d.cabinetId === id).map((d) => d.id)
+    cab = {
+      cabinets: cab.cabinets.filter((c) => c.id !== id),
+      drawers: cab.drawers.filter((d) => d.cabinetId !== id),
+      items: cab.items.filter((i) => !drawerIds.includes(i.drawerId)),
+    }
+  } else if (kind === "drawers") {
+    cab = {
+      ...cab,
+      drawers: cab.drawers.filter((d) => d.id !== id),
+      items: cab.items.filter((i) => i.drawerId !== id),
+    }
+  } else {
+    cab = { ...cab, items: cab.items.filter((i) => i.id !== id) }
+  }
+  saveCab()
+}
+
+// «إتمام الهدف»: تختفي المهمة (أو الدرج أو الخزانة بكاملها) من الجدول ويبقى سجلّها
+export function completeGoal(kind: CabKind, id: string) {
+  updateCab(kind, id, { doneAt: currentUnit() })
+}
+export function reopenGoal(kind: CabKind, id: string) {
+  updateCab(kind, id, { doneAt: undefined })
+}
+
+export { repeatLabel }
+
+// بلوكات المهام في وحدةٍ ما — لاختيار مكان مهمة الخزانة
+export function taskBlocksOf(events: Ev[], unit: string): { slot: string; title: string; start: string }[] {
+  return events
+    .filter((e) => e.unit === unit && !e.external && TASK_SLOTS.includes(e.slot || ""))
+    .sort((a, b) => (a.start < b.start ? -1 : 1))
+    .map((e) => ({ slot: e.slot!, title: e.title, start: e.start }))
 }
 
 // ── التغذية ──
