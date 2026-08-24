@@ -127,6 +127,18 @@ export type CabData = { cabinets: Cabinet[]; drawers: Drawer[]; items: CabItem[]
 // مهمة مستحقّة اليوم مع سياقها
 export type Due = { item: CabItem; drawer?: Drawer; cabinet?: Cabinet; deadline: string | null }
 let cab = load<CabData>(K.cabinets, emptyCabinets())
+// ورد التثبيت: السنن المشاركة بترتيبها الزمني [slot البلوك، معرّف البند]
+const DEFAULT_WIRD: [string, string][] = [
+  ["fajr", "sunnah"],
+  ["fajr", "duha"],
+  ["dhuhr", "sunnahBefore"],
+  ["dhuhr", "sunnahAfter"],
+  ["asr", "sunnah"],
+  ["maghrib", "sunnah"],
+  ["isha", "sunnahBefore"],
+  ["isha", "sunnahAfter"],
+]
+
 // الموقع وطريقة الحساب من إعدادات المستخدم — والافتراض الرياض بمعايير أم القرى
 const DEFAULT_SETTINGS = {
   clientId: "",
@@ -145,16 +157,7 @@ const DEFAULT_SETTINGS = {
   hifzEnabled: true, // نظام الحفظ والمراجعة
   workoutEnabled: true, // نظام التمرين
   // ورد التثبيت: السنن المشاركة بترتيبها الزمني [slot البلوك، معرّف البند]
-  wird: [
-    ["fajr", "sunnah"],
-    ["fajr", "duha"],
-    ["dhuhr", "sunnahBefore"],
-    ["dhuhr", "sunnahAfter"],
-    ["asr", "sunnah"],
-    ["maghrib", "sunnah"],
-    ["isha", "sunnahBefore"],
-    ["isha", "sunnahAfter"],
-  ] as [string, string][],
+  wird: DEFAULT_WIRD,
   // قوالب الأيام وخطة الأسبوع — يحرّرها المستخدم من «قالب يومك»
   templates: DEFAULT_TEMPLATES as typeof DEFAULT_TEMPLATES,
   weekPlan: DEFAULT_WEEK_PLAN as string[],
@@ -904,6 +907,46 @@ export function setPrayerMinutes(minutes: number) {
 
 export function resetTemplates() {
   saveSettings({ templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN })
+}
+
+// ── الجداول الجاهزة: جدول كامل بضغطة، لمن لا يريد بناء يومه من الصفر ──
+// الجاهز يحمل الشكل لا الشخص: يأخذ القوالب والأنظمة، ويترك موقعك وطريقة حسابك
+// ويوم بدايتك كما هي — فمواقيتك مواقيتُك وإن كان الجدول جدولَ غيرك.
+export type Preset = {
+  id: string
+  name: string
+  desc: string
+  includes: string[]
+}
+
+export const PRESETS: Preset[] = [
+  {
+    id: "haitham",
+    name: "جدول هيثم",
+    desc: "يوم يبدأ بنومة الثلث الأخير وينتهي بالقيام، وبلوكاته متلاصقة بين الصلوات.",
+    includes: [
+      "قوالب ثلاثة: أيام العمل، والجمعة (بتبكير ساعة)، والسبت",
+      "نومة توازن تُبقي مجموع نومك ٦ س ٣٥ د، فإن قصر ليلك طالت وقصر عملك",
+      "ورد التثبيت موزَّعًا على السنن الثماني بالترتيب",
+      "نظام الحفظ: تسميع جزء، وحفظ ربع، ويوم تكرار",
+      "دورة تمرين ثلاثية بالتقدّم المزدوج",
+    ],
+  },
+]
+
+export function loadPreset(id: string) {
+  if (id !== "haitham") return
+  const from = settings.startDate // الجاهز يبدأ من يومك أنت لا من يومه
+  saveSettings({
+    templates: DEFAULT_TEMPLATES,
+    weekPlan: DEFAULT_WEEK_PLAN,
+    wird: DEFAULT_WIRD,
+    quran: { ...DEFAULT_QURAN, date: from },
+    workout: { ...DEFAULT_WORKOUT, start: from },
+    wirdEnabled: true,
+    hifzEnabled: true,
+    workoutEnabled: true,
+  })
 }
 
 export { DEFAULT_TEMPLATES }

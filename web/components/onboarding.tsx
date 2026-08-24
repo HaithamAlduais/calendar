@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Help } from "@/components/help"
 import { arab } from "@/lib/format"
-import { saveSettings, setPrayerMinutes, settings } from "@/lib/store"
+import { loadPreset, PRESETS, saveSettings, setPrayerMinutes, settings } from "@/lib/store"
 
 // مدن جاهزة تختصر إدخال الإحداثيات — ولمن ليس فيها زرّ «موقعي» أو إدخال يدوي
 const CITIES = [
@@ -58,10 +58,12 @@ export function Onboarding() {
   const [minutes, setMinutes] = useState(45)
   const [feats, setFeats] = useState({ wird: true, hifz: true, workout: true })
   const [geoMsg, setGeoMsg] = useState("")
+  const [preset, setPreset] = useState<string | null>(null)
 
   if (settings.onboarded) return null
 
   const finish = () => {
+    if (preset) loadPreset(preset) // الجاهز أولًا، ثم تفضيلاتك فوقه
     saveSettings({
       ...loc,
       method,
@@ -70,7 +72,7 @@ export function Onboarding() {
       workoutEnabled: feats.workout,
       onboarded: true,
     })
-    setPrayerMinutes(minutes) // يطبّقها على بلوكات الصلاة في كل القوالب
+    if (!preset) setPrayerMinutes(minutes) // الجاهز يأتي بمدده المضبوطة، فلا تُطمس بمدة موحّدة
   }
 
   const useMyLocation = () => {
@@ -94,13 +96,17 @@ export function Onboarding() {
     <Dialog open>
       <DialogContent className="max-h-[88dvh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{step === 0 ? "أهلًا بك" : step === 1 ? "مدة الصلاة" : "ما الذي تتابعه؟"}</DialogTitle>
+          <DialogTitle>
+            {step === 0 ? "أهلًا بك" : step === 1 ? "مدة الصلاة" : step === 2 ? "ما الذي تتابعه؟" : "ابدأ بجدول جاهز"}
+          </DialogTitle>
           <DialogDescription>
             {step === 0
               ? "جدولك يُبنى على مواقيت الصلاة، فيتحرك معها كل يوم. أين أنت؟"
               : step === 1
                 ? "كم تحتاج من الوقت لصلاتك؟"
-                : "فعّل ما يعنيك الآن — وكل شيء قابل للتغيير لاحقًا."}
+                : step === 2
+                  ? "فعّل ما يعنيك الآن — وكل شيء قابل للتغيير لاحقًا."
+                  : "خُذ جدولًا مكتملًا بضغطة، أو ابدأ فارغًا وابنِ يومك بنفسك."}
           </DialogDescription>
         </DialogHeader>
 
@@ -230,15 +236,66 @@ export function Onboarding() {
           </div>
         )}
 
+        {step === 3 && (
+          <div className="flex flex-col gap-2">
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPreset(preset === p.id ? null : p.id)}
+                className={cn(
+                  "rounded-md border p-3 text-start transition-colors",
+                  preset === p.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "flex size-4 flex-none items-center justify-center rounded border",
+                      preset === p.id ? "bg-primary border-primary text-primary-foreground" : "border-border"
+                    )}
+                  >
+                    {preset === p.id && <CheckIcon className="size-3" />}
+                  </span>
+                  <span className="text-sm font-semibold">{p.name}</span>
+                </span>
+                <span className="text-muted-foreground mt-1 block text-[11px] leading-relaxed">{p.desc}</span>
+                <span className="mt-2 flex flex-col gap-0.5">
+                  {p.includes.map((line) => (
+                    <span key={line} className="text-muted-foreground/90 text-[11px] leading-relaxed">
+                      • {line}
+                    </span>
+                  ))}
+                </span>
+              </button>
+            ))}
+            <button
+              onClick={() => setPreset(null)}
+              className={cn(
+                "rounded-md border p-3 text-start transition-colors",
+                preset === null ? "border-primary bg-primary/5" : "border-border hover:bg-muted"
+              )}
+            >
+              <span className="text-sm font-semibold">ابدأ فارغًا</span>
+              <span className="text-muted-foreground mt-1 block text-[11px] leading-relaxed">
+                يومٌ فيه صلواتك ونومك وبلوكات مهام — تبنيه كما تشاء من «قالب يومك».
+              </span>
+            </button>
+            <p className="text-muted-foreground pt-1 text-[11px] leading-relaxed">
+              الجاهز يحمل الشكل لا الشخص: مواقيتك تبقى مواقيتَك، ويومُ بدايتك يومَك.
+              {preset && " ومدد صلاته تأتي معه بدل ما اخترت — وتغيّرها متى شئت من «قالب يومك»."}
+            </p>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 pt-2">
           {step > 0 && (
             <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>
               رجوع
             </Button>
           )}
-          <span className="text-muted-foreground text-xs">{arab(step + 1)} من ٣</span>
-          <Button className="ms-auto" onClick={() => (step < 2 ? setStep(step + 1) : finish())}>
-            {step < 2 ? "التالي" : "ابدأ"}
+          <span className="text-muted-foreground text-xs">{arab(step + 1)} من ٤</span>
+          <Button className="ms-auto" onClick={() => (step < 3 ? setStep(step + 1) : finish())}>
+            {step < 3 ? "التالي" : "ابدأ"}
           </Button>
         </div>
       </DialogContent>

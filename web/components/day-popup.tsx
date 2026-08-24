@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { CheckCircle2Icon, MoonIcon, XCircleIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,8 @@ import {
   popupUnitIfNew,
   SCHEDULE_START,
   sessionProgress,
+  settings,
+  subscribe,
 } from "@/lib/store"
 
 function StatusRow({ ok, label, note }: { ok: boolean; label: string; note?: string }) {
@@ -45,12 +47,18 @@ function StatusRow({ ok, label, note }: { ok: boolean; label: string; note?: str
 // نافذة بداية اليوم (تبدأ الوحدة بنومة الثلث الأخير): تقرير الأمس وحال اليوم المبني عليه
 export function DayPopup() {
   const [info, setInfo] = useState<{ prev: string; cur: string } | null>(null)
+  // تُقرأ عبر الاشتراك حتى تُعاد المحاولة فور فراغه من الإعداد الأول
+  const onboarded = useSyncExternalStore(
+    subscribe,
+    () => settings.onboarded,
+    () => true
+  )
 
   useEffect(() => {
-    setInfo(popupUnitIfNew())
-  }, [])
+    if (onboarded) setInfo(popupUnitIfNew())
+  }, [onboarded])
 
-  if (!info) return null
+  if (!info || !onboarded) return null
   const { prev, cur } = info
   const first = prev < SCHEDULE_START
 

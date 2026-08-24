@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDownIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import { ChevronDownIcon, DownloadIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,8 @@ import { arab, DAY_NAMES, fmtDur } from "@/lib/format"
 import {
   addBlock,
   DEFAULT_TEMPLATES,
+  loadPreset,
+  PRESETS,
   removeBlock,
   resetTemplates,
   saveSettings,
@@ -148,6 +150,7 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
   const [adding, setAdding] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState("")
   const [newAfter, setNewAfter] = useState("dhuhr")
+  const [confirmPreset, setConfirmPreset] = useState<string | null>(null)
   const ids = Object.keys(settings.templates)
 
   return (
@@ -164,6 +167,50 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
         </SheetHeader>
 
         <div className="flex flex-col gap-3 px-4 pb-8">
+          {/* جدول جاهز بضغطة — يستبدل قوالبك وأنظمتك ويترك موقعك ويوم بدايتك */}
+          <div className="rounded-lg border p-2">
+            <div className="mb-1 flex items-center gap-1 text-sm font-semibold">
+              جدول جاهز
+              <Help text="يستبدل قوالب أيامك وخطة أسبوعك ونظامَي القرآن والتمرين. ويترك موقعك وطريقة حسابك ويوم بدايتك كما هي، ولا يمسّ ما أنجزته ولا خزاناتك." />
+            </div>
+            {PRESETS.map((p) => (
+              <div key={p.id} className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="flex-1">
+                    <span className="text-sm">{p.name}</span>
+                    <span className="text-muted-foreground block text-[11px] leading-relaxed">{p.desc}</span>
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setConfirmPreset(p.id)}>
+                    <DownloadIcon />
+                    حمّله
+                  </Button>
+                </div>
+                {confirmPreset === p.id && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
+                    <p className="mb-2 text-[11px] leading-relaxed">
+                      سيستبدل قوالبك الحالية وأنظمة القرآن والتمرين. إنجازك وخزاناتك لا تُمسّ.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          loadPreset(p.id)
+                          setConfirmPreset(null)
+                        }}
+                      >
+                        نعم، حمّله
+                      </Button>
+                      <Button size="sm" variant="ghost" className="flex-1" onClick={() => setConfirmPreset(null)}>
+                        تراجع
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
           {/* مدة الصلاة لكل الصلوات دفعةً واحدة */}
           <div className="rounded-lg border p-2">
             <div className="mb-1 flex items-center gap-1 text-sm font-semibold">
