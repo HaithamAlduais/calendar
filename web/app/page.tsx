@@ -20,6 +20,7 @@ import { EventSheet } from "@/components/event-sheet"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { WeekView } from "@/components/week-view"
 import { scheduleNotifications } from "@/lib/notify"
+import { initSync } from "@/lib/sync"
 import { addDays, arab, parseIso, MONTH_NAMES } from "@/lib/engine/dates.js"
 import {
   allEvents,
@@ -50,6 +51,10 @@ export default function Page() {
   const version = useSyncExternalStore(subscribe, getVersion, () => 0)
 
   useEffect(() => setMounted(true), [])
+  // الحساب والمزامنة — تعمل في الخلفية، والبرنامج يعمل كاملًا بدونها
+  useEffect(() => {
+    initSync().catch(() => {})
+  }, [])
 
   // نبضة كل دقيقة: تحديث «الآن» وحالة البلوكات الفائتة
   const [, setTick] = useState(0)

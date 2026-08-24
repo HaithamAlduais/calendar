@@ -78,8 +78,17 @@ function load<T>(key: string, fallback: T): T {
     return fallback
   }
 }
+// ختم آخر تعديل لكل مفتاح — عليه يقوم الدمج بين الأجهزة (آخر كتابة تفوز)
+const STAMP = "hc.stamps.v1"
+let stamps: Record<string, string> = load<Record<string, string>>(STAMP, {})
+
 function save(key: string, val: unknown) {
-  if (isClient) localStorage.setItem(key, JSON.stringify(val))
+  if (!isClient) return
+  localStorage.setItem(key, JSON.stringify(val))
+  if (key !== STAMP) {
+    stamps[key] = new Date().toISOString()
+    localStorage.setItem(STAMP, JSON.stringify(stamps))
+  }
 }
 
 let done = load<Record<string, boolean>>(K.done, {})
@@ -769,6 +778,62 @@ export function removeTask(date: string, slot: string, taskId: string) {
   save(K.tasks, tasks)
   save(K.late, late)
   notify()
+}
+
+// ── المزامنة: نفس مفاتيح التخزين تُرفع كصفوف مفتاح/قيمة ──
+export type SyncRow = { key: string; value: unknown; updated_at: string }
+
+// المفاتيح التي تُزامَن (الإعدادات والحالة والخزانات) — لا شيء عابر
+export const SYNC_KEYS = [
+  K.settings,
+  K.cabinets,
+  K.done,
+  K.checks,
+  K.late,
+  K.tasks,
+  K.gym,
+  K.food,
+  K.mistakes,
+]
+
+export function localSnapshot(): SyncRow[] {
+  return SYNC_KEYS.filter((k) => localStorage.getItem(k) != null).map((k) => ({
+    key: k,
+    value: JSON.parse(localStorage.getItem(k)!),
+    updated_at: stamps[k] || new Date(0).toISOString(),
+  }))
+}
+
+// دمج ما جاء من السحابة: يفوز الأحدث لكل مفتاح على حدة
+export function applyRemote(rows: SyncRow[]) {
+  let changed = false
+  for (const r of rows) {
+    if (!SYNC_KEYS.includes(r.key)) continue
+    const mine = stamps[r.key] || new Date(0).toISOString()
+    if (r.updated_at <= mine) continue // نسختي أحدث أو مساوية
+    localStorage.setItem(r.key, JSON.stringify(r.value))
+    stamps[r.key] = r.updated_at
+    changed = true
+  }
+  if (!changed) return
+  localStorage.setItem(STAMP, JSON.stringify(stamps))
+  reloadFromStorage()
+  notify()
+}
+
+// إعادة قراءة كل الحالة من التخزين بعد الدمج
+function reloadFromStorage() {
+  done = load(K.done, {})
+  checks = load(K.checks, {})
+  tasks = load(K.tasks, {})
+  food = load(K.food, {})
+  gym = load(K.gym, {})
+  late = load(K.late, {})
+  mistakes = load(K.mistakes, {})
+  cab = load(K.cabinets, emptyCabinets())
+  Object.assign(settings, DEFAULT_SETTINGS, load<Partial<Settings>>(K.settings, {}))
+  applyEngineConfig()
+  cuCache = { at: "", val: "" }
 }
 
 // ── تحرير قالب اليوم ──

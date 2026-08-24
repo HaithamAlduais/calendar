@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { BellIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, XIcon } from "lucide-react"
+import { useEffect, useState, useSyncExternalStore } from "react"
+import { BellIcon, CloudIcon, LogOutIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 import { addAccount, dropToken, pullAccount } from "@/lib/gcal"
 import { notificationsGranted, requestNotifications, scheduleNotifications } from "@/lib/notify"
 import { disablePush, enablePush, pushSupported } from "@/lib/push"
+import { onSyncChange, sendMagicLink, signInWithGoogle, signOut, syncNow, syncState } from "@/lib/sync"
 import { addDays, arab } from "@/lib/engine/dates.js"
 import { dotColor } from "@/lib/format"
 import {
@@ -41,6 +42,10 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const [freshDate, setFreshDate] = useState(todayIso())
   const [scope, setScope] = useState({ quran: true, workout: true, history: true, cabinets: false, mistakes: false })
   const [confirming, setConfirming] = useState(false)
+  const [email, setEmail] = useState("")
+  // حالة الحساب والمزامنة
+  useSyncExternalStore(onSyncChange, () => JSON.stringify(syncState()), () => "{}")
+  const sync = syncState()
 
   const ensureClientId = (): string | null => {
     const cid = clientId.trim()
@@ -164,6 +169,62 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
               {arab(getPulled().events.length)} حدث Google معروض حاليًا
             </Badge>
           )}
+
+          <div className="border-t pt-3">
+            <h3 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+              الحساب والمزامنة
+              <Help text="البرنامج يعمل كاملًا بلا حساب، وكل شيء محفوظ في جهازك. الحساب يضيف شيئين: جدولك على كل أجهزتك، ونسخة احتياطية لا تضيع بمسح بيانات المتصفح." />
+            </h3>
+            {sync.user ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs">
+                  متّصل بـ <span className="font-medium">{sync.user.email}</span>
+                  <span className="text-muted-foreground">
+                    {sync.status === "syncing" ? " — جارٍ المزامنة…" : sync.status === "ok" ? " — مُزامَن ✅" : sync.status === "error" ? " — تعذّرت المزامنة" : ""}
+                  </span>
+                </p>
+                {sync.status === "error" && (
+                  <p className="text-destructive text-[11px] leading-relaxed">{sync.lastError}</p>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => syncNow()}>
+                    <RefreshCwIcon />
+                    زامن الآن
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => signOut()}>
+                    <LogOutIcon />
+                    خروج
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  ادخل ليصير جدولك على كل أجهزتك — وبلا حساب يبقى كل شيء في هذا الجهاز وحده.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="بريدك…"
+                    className="h-8"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={!email.includes("@")}
+                    onClick={async () => setStatus(await sendMagicLink(email))}
+                  >
+                    <CloudIcon />
+                    رابط الدخول
+                  </Button>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>
+                  الدخول بحساب Google
+                </Button>
+              </div>
+            )}
+          </div>
 
           <div className="border-t pt-3">
             <h3 className="mb-2 text-sm font-semibold">تنبيهات البلوكات</h3>
