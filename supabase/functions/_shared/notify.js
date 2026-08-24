@@ -6,21 +6,26 @@
 import { dow, toIso } from './engine/dates.js';
 import { setPrayerConfig } from './engine/prayers.js';
 import { buildDay, rotateTemplate } from './engine/layout.js';
+import { DEFAULT_TEMPLATES, DEFAULT_WEEK_PLAN } from './engine/schedule.js';
 
 const DAYMS = 86400000;
 
-// افتراضٌ لمن اشترك بلا حساب: لا سبيل إلى إعداداته، فلا بلوكات ولا إشعارات.
-// والإشعار على قياس صاحبه يحتاج حسابًا تُقرأ منه إعداداتُه.
+// من اشترك بلا حساب فإعداداته في جهازه وحده لا يبلغها الخادم، فيُبنى يومه
+// على افتراض البرنامج. وهو ما كان يجري قبل هذا التعديل لكلّ المشتركين —
+// فمن لم يدخل لم ينقص شيئًا، ومن دخل صار له جدولُه هو.
 export const FALLBACK = {
   lat: 24.7136,
   lng: 46.6753,
   tz: 3,
   method: 'ummAlQura',
   asrFactor: 1,
-  templates: {},
-  weekPlan: [],
+  templates: DEFAULT_TEMPLATES,
+  weekPlan: DEFAULT_WEEK_PLAN,
   dayStart: null,
 };
+
+// وإعداداتٌ خاوية حقًّا (لا قوالب) لا تُنتج شيئًا — تستعملها الفحوص
+export const EMPTY = { ...FALLBACK, templates: {}, weekPlan: [] };
 
 export function isoOfEpochDay(e) {
   const dt = new Date(e * DAYMS);

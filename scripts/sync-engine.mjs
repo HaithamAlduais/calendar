@@ -15,9 +15,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const from = join(root, 'web', 'lib', 'engine');
 const to = join(root, 'supabase', 'functions', '_shared', 'engine');
 
-// ما يحتاجه الخادم وحده: التواريخ والمواقيت وتخطيط اليوم.
-// ولا يحتاج القرآن ولا التمرين، فالإشعار عنوانُ بلوكٍ ووقتُه لا بنودُه.
-const FILES = ['dates.js', 'prayers.js', 'layout.js'];
+// المحرك كلّه — كلُّه بيانات ودوالُّ محضة تعمل في Deno كما تعمل في المتصفح.
+// والخادم لا يبني بنودًا (فالإشعار عنوانُ بلوكٍ ووقتُه)، لكنه يحتاج القوالب
+// الافتراضية لمن اشترك بلا حساب.
+const FILES = ['dates.js', 'prayers.js', 'layout.js', 'quran.js', 'workout.js', 'schedule.js'];
 
 const check = process.argv.includes('--check');
 mkdirSync(to, { recursive: true });

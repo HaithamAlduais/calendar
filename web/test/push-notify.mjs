@@ -3,7 +3,7 @@
 // الخلل الذي يحرسه هذا الفحص: كانت الدالة تحمل جدول صاحب البرنامج مثبَّتًا،
 // فيتلقّى كلُّ مشترك إشعارات رجلٍ آخر في مدينةٍ أخرى. فههنا نبني مشتركَين
 // مختلفَي الموقع والقالب، ونثبت أن لكلٍّ أوقاتَه ولا يتقاطعان.
-import { blocksAround, duePayloads, toUnixMin, fmt12, FALLBACK } from '../../supabase/functions/_shared/notify.js';
+import { blocksAround, duePayloads, toUnixMin, fmt12, FALLBACK, EMPTY } from '../../supabase/functions/_shared/notify.js';
 import { DEFAULT_TEMPLATES, DEFAULT_WEEK_PLAN } from '../lib/engine/schedule.js';
 
 let pass = 0,
@@ -101,9 +101,11 @@ ok('فجر القاهرة بعد فجر الرياض عالميًّا', fajrC.mi
   ok('ويوم الرياض يفتتحه النوم', firstR.title === 'نوم', `= ${firstR.title}`);
 }
 
-// ── ٥. المشترك بلا إعدادات لا يُرسَل إليه شيء ────────────────────
-check('بلا حساب ← لا بلوكات', blocksAround(FALLBACK, NOW).length, 0);
-check('بلا حساب ← لا إشعارات', duePayloads(FALLBACK, nowMin, NOW).length, 0);
+// ── ٥. المشترك بلا حساب يُبنى يومه على افتراض البرنامج، لا على لا شيء ──
+// (فمن كان مشتركًا قبل هذا التعديل لا تنقطع إشعاراته لأنه لم يدخل بعد)
+ok('بلا حساب ← بلوكات الافتراض', blocksAround(FALLBACK, NOW).length >= 40);
+check('بلا قوالب أصلًا ← لا بلوكات', blocksAround(EMPTY, NOW).length, 0);
+check('بلا قوالب أصلًا ← لا إشعارات', duePayloads(EMPTY, nowMin, NOW).length, 0);
 
 // ── ٦. تحويل الوقت وصياغته ───────────────────────────────────────
 check('دقائق يونكس بتوقيت ٣', toUnixMin('2026-09-23T12:00', 3), Math.floor(Date.UTC(2026, 8, 23, 9, 0) / 60000));

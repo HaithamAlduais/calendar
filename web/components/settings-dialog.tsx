@@ -347,6 +347,12 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
               تنبيهان لكل بلوك: قبله بثلاثين دقيقة وعند بدئه — من خادمنا مباشرة، فتصل هاتفك حتى
               والتطبيق مغلق تمامًا.
             </p>
+            {!sync.user && (
+              <p className="text-muted-foreground mb-2 text-[11px] leading-relaxed">
+                وبلا حساب يحسبها الخادم على الجدول الافتراضي، فإعداداتك في جهازك وحده لا يبلغها.
+                ادخل بحسابك ليحسبها على قوالبك وموقعك أنت.
+              </p>
+            )}
             <Button
               variant={settings.notify && notificationsGranted() ? "secondary" : "default"}
               className="w-full"
