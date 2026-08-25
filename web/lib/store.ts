@@ -14,7 +14,7 @@ import {
 } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { setPrayerConfig } from "@/lib/engine/prayers.js"
-import { isMonotone, rotateTemplate, startCandidates } from "@/lib/engine/layout.js"
+import { anchorMinute, buildDay, isMonotone, rotateTemplate, startCandidates } from "@/lib/engine/layout.js"
 import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
 import {
   setQuranCompletion,
@@ -1268,26 +1268,27 @@ export function removeTemplate(id: string): string | null {
 // المرساة صلاةٌ (فيتحرك موعده مع الشمس ومدتُه ثابتة) أو ساعةٌ (فثابتٌ كلُّه) —
 // وهذا جوابُ شرطه: «هل يتغيّر وقته بالتقويم القمري أم لا». والحارس يردّ ما
 // يتعارض مع تحرّكات المواسم قبل حفظه.
+// نهايات بلوكات قالبٍ بدقائق مطلقة ليومٍ نموذجي — عمادُ الإدراج الزمني
+function buildDayForPlacement(dIso: string, tpl: Template): { endMinAbs: number }[] {
+  const evs = buildDay(dIso, tpl, () => []) as { start: string; end: string }[]
+  const base = Date.parse(dIso + "T00:00:00Z")
+  return evs.map((e) => ({ endMinAbs: (Date.parse(e.end + ":00Z") - base) / 60000 }))
+}
+
 export function placeDrawer(drawerId: string, end: Anchor): string | null {
   const drawer = cab.drawers.find((d) => d.id === drawerId)
   if (!drawer) return null
   const slotId = `dr${drawerId}`
   const next = JSON.parse(JSON.stringify(settings.templates))
+  // الإدراج بموضعه الزمني الفعلي لا بنوع مرساته: تُحسب دقيقةُ كل نهاية بلوك
+  // في يومٍ نموذجي، ويُدرج الجديد قبل أول بلوكٍ نهايتُه بعده
+  const SAMPLE_DAY = "2026-04-15"
+  const endMin = anchorMinute(SAMPLE_DAY, end) as number
   for (const tpl of Object.values(next) as Template[]) {
     tpl.blocks = tpl.blocks.filter((b) => b.id !== slotId)
     const block: Block = { id: slotId, title: drawer.name, colorId: 6, task: true, items: [], end }
-    const order = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"]
-    const rank = (a: Anchor) =>
-      a.lastThirdPrev || a.nightPrev
-        ? -1
-        : a.clock != null
-          ? a.clock / 1440 - 0.5
-          : a.prayer
-            ? order.indexOf(a.prayer)
-            : a.nightPart || a.nightFraction
-              ? 10
-              : 99
-    const at = tpl.blocks.findIndex((b: Block) => rank(b.end) > rank(end))
+    const evs = buildDayForPlacement(SAMPLE_DAY, tpl)
+    const at = evs.findIndex((e) => e.endMinAbs > endMin)
     if (at < 0) tpl.blocks.push(block)
     else tpl.blocks.splice(at, 0, block)
   }

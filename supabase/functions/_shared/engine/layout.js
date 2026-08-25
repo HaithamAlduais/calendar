@@ -168,6 +168,11 @@ export function isMonotone(dIso, tpl) {
   return layoutMinutes(tpl, a, balanceLength(tpl, a)).every((b) => b.endMin >= b.startMin);
 }
 
+// دقيقة مرساةٍ مطلقة في يوم بعينه — لمن يريد إدراج بلوك في موضعه الزمني الصحيح
+export function anchorMinute(dIso, anchor) {
+  return resolve(anchor, anchorsFor(dIso), 0, 0);
+}
+
 // وقت بداية وحدة dIso نصًّا — تستعمله الواجهة لتحديد الوحدة الجارية
 export function unitStart(dIso, tpl) {
   return minToDateTime(dIso, resolve(tpl.start, anchorsFor(dIso), 0, 0));

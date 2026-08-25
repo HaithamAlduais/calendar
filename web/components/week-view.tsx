@@ -42,8 +42,9 @@ export function WeekView({
       {days.map((d) => {
         const isCur = d === cu
         // عمود اليوم = وحدته كاملة بترتيبها الزمني
+        // البلوك الصفري لا يُعرض: كقيلولةٍ ألغاها اكتمالُ نوم الليل
         const unitEvs = events
-          .filter((e) => e.unit === d)
+          .filter((e) => e.unit === d && e.start !== e.end)
           .sort((a, b) => (a.start < b.start ? -1 : 1))
         const dayCount = dayTasks(unitEvs, d).length // مهام اليوم العائمة ما لم تُنجز
         return (
