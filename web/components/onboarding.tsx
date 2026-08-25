@@ -357,6 +357,42 @@ export function Onboarding() {
                   <span className="text-muted-foreground text-xs">دقيقة</span>
                 </div>
               ))}
+
+            {/* قيام الليل سادسُ القائمة: مدتُه هنا مع أخواتها، وموضعُه في خطوته */}
+            <div className="mt-1 flex flex-wrap items-center gap-2 rounded-md border p-2">
+              <label className="flex-none text-sm font-medium">قيام الليل</label>
+              {qiyamOn ? (
+                <>
+                  <button
+                    onClick={() => setQiyamFull(true)}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-xs",
+                      qiyamFull ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                    )}
+                  >
+                    سدس الليل كاملًا
+                  </button>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={180}
+                    value={qiyamMin}
+                    onChange={(e) => {
+                      setQiyamMin(Math.max(10, +e.target.value || 10))
+                      setQiyamFull(false)
+                    }}
+                    onFocus={() => setQiyamFull(false)}
+                    className={cn("h-8 w-20", qiyamFull && "opacity-50")}
+                  />
+                  <span className="text-muted-foreground text-xs">دقيقة</span>
+                  <Help text="سدسُ الليل يطول ويقصر مع الفصول كما قام النبي ﷺ، والدقائق ثابتة. وموضعُه من الليل تختاره في خطوة «قيام الليل»." />
+                </>
+              ) : (
+                <button onClick={() => setQiyamOn(true)} className="text-primary text-xs underline">
+                  فعّله
+                </button>
+              )}
+            </div>
           </div>
         )}
 
