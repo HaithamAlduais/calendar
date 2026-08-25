@@ -24,6 +24,7 @@ import {
   dayStartOptions,
   DEFAULT_TEMPLATES,
   duplicateTemplate,
+  loadHaithamPreset,
   moveBlock,
   removeTemplate,
   renameTemplate,
@@ -461,6 +462,7 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
   const [newClock, setNewClock] = useState("06:00")
   const [newSleep, setNewSleep] = useState(false)
   const [tplErr, setTplErr] = useState("")
+  const [confirmHaitham, setConfirmHaitham] = useState(false)
   const [perPrayer, setPerPrayer] = useState(false)
   const [mins, setMins] = useState<Record<string, number>>(() => prayerMinutesOf())
   const [startErr, setStartErr] = useState("")
@@ -484,6 +486,45 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
         </SheetHeader>
 
         <div className="flex flex-col gap-3 px-4 pb-8">
+          {/* الجاهز: يُحمَّل بضغطة صريحة بعد تأكيد — لا يُفرَض ولا يمسّ قائمًا */}
+          <div className="rounded-lg border p-2">
+            <div className="mb-1 flex items-center gap-1 text-sm font-semibold">
+              جدول جاهز
+              <Help text="يملأ كل الإعدادات والبلوكات بجدول هيثم كاملًا: قوالبه الثلاثة ووِرده وحفظِه وتمرينِه. يستبدل قوالبك وأنظمتك — ولا يمسّ إنجازك ولا خزاناتك ولا موقعك." />
+            </div>
+            {!confirmHaitham ? (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-sm">جدول هيثم</span>
+                <Button size="sm" variant="outline" onClick={() => setConfirmHaitham(true)}>
+                  <DownloadIcon />
+                  حمّله
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
+                <p className="mb-2 text-[11px] leading-relaxed">
+                  سيستبدل قوالبك الحالية وخطة أسبوعك ووردك ونظامَي القرآن والتمرين، ويبدأ من
+                  يومك هذا. إنجازُك وخزاناتك وموقعُك لا تُمسّ.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => {
+                      loadHaithamPreset(true)
+                      setConfirmHaitham(false)
+                    }}
+                  >
+                    نعم، حمّله
+                  </Button>
+                  <Button size="sm" variant="ghost" className="flex-1" onClick={() => setConfirmHaitham(false)}>
+                    تراجع
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* مدة الصلاة لكل الصلوات دفعةً واحدة */}
           <div className="rounded-lg border p-2">
             <div className="mb-1 flex items-center gap-1 text-sm font-semibold">

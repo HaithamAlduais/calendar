@@ -10,13 +10,12 @@
 //
 // كل الاختيارات تُركَّب قالبًا واحدًا عبر composeDayTemplate (دالة محضة مفحوصة)
 // عند «ابدأ» — فالمعالج واجهةٌ فقط ولا منطقَ زمنيًّا فيه.
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { CheckIcon, MapPinIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Help } from "@/components/help"
 import { arab } from "@/lib/format"
 // المركّب دالة JS محضة — توقيعها هنا ليطمئن المدقق
@@ -30,8 +29,9 @@ const composeDayTemplate = composeRaw as (o: {
 import { startCandidates } from "@/lib/engine/layout.js"
 import {
   ensureRoutineCabinet,
+  loadHaithamPreset,
+  previewCompose,
   saveSettings,
-  setPrayerMinutes,
   settings,
   todayIso,
   wirdCandidates,
@@ -194,6 +194,21 @@ export function Onboarding() {
     [perPrayer, mins, minutes, sleepStart, hoursMin, hoursMax, qaylulah, qiyamOn, qiyamSixth, qiyamFull, qiyamMin, meals]
   )
 
+  // التقويم يُبنى أمام عينيه وهو يختار: المحرك يُهيّأ بالاختيارات الحيّة بلا حفظ
+  const onboarded = settings.onboarded
+  useEffect(() => {
+    if (onboarded) return
+    previewCompose({
+      template: composed,
+      dayStart: dayStartId ? { blockId: dayStartId } : null,
+      lat: loc.lat,
+      lng: loc.lng,
+      tz: loc.tz,
+      method,
+    })
+    return () => previewCompose(null)
+  }, [onboarded, composed, dayStartId, loc, method])
+
   if (settings.onboarded) return null
 
   const finish = () => {
@@ -259,11 +274,12 @@ export function Onboarding() {
   }
 
   return (
-    <Dialog open>
-      <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{STEPS[step]}</DialogTitle>
-          <DialogDescription>
+    // لوحةٌ جانبية (وسفلية في الجوال) لا نافذةٌ تغطّي الشاشة —
+    // فالتقويم خلفها يُبنى ويتحدّث مع كل اختيار، كما طلب صاحب البرنامج
+    <div className="fixed inset-x-0 bottom-0 z-40 flex max-h-[58dvh] flex-col gap-3 overflow-y-auto rounded-t-2xl border-t bg-background p-4 shadow-2xl sm:inset-x-auto sm:top-0 sm:bottom-0 sm:start-0 sm:max-h-none sm:w-[400px] sm:rounded-none sm:border-e sm:border-t-0">
+      <div>
+        <h2 className="text-lg font-semibold">{STEPS[step]}</h2>
+        <p className="text-muted-foreground text-sm leading-relaxed">
             {step === 0 && "جدولك يُبنى على مواقيت الصلاة، فيتحرك معها كل يوم — وكل شيء في جهازك، بلا حساب."}
             {step === 1 && "كم تحتاج من الوقت لصلاتك؟"}
             {step === 2 && "دقيقتان تفهم بهما البرنامج كله."}
@@ -274,8 +290,8 @@ export function Onboarding() {
             {step === 7 && "حفظٌ وتسميع وورد — ركّبها كما تحب."}
             {step === 8 && "من أين يبدأ يومُك؟ اليوم حلقةٌ تفتتحها من حيث شئت."}
             {step === 9 && "مشاريعك وأهدافك — خزائنُ فيها أدراج فيها مهام."}
-          </DialogDescription>
-        </DialogHeader>
+        </p>
+      </div>
 
         {step === 0 && (
           <div className="flex flex-col gap-3">
@@ -317,6 +333,21 @@ export function Onboarding() {
                 </Chip>
               ))}
             </div>
+
+            {/* الجاهز لا يُفرَض ولا يمسّ شيئًا إلا بهذه الضغطة الصريحة */}
+            <button
+              onClick={() => {
+                saveSettings({ ...loc, method })
+                loadHaithamPreset(true)
+              }}
+              className="border-border hover:bg-muted mt-1 rounded-md border p-2 text-start transition-colors"
+            >
+              <span className="text-sm font-medium">أو خُذ جدول هيثم جاهزًا</span>
+              <span className="text-muted-foreground block text-[11px] leading-relaxed">
+                ضغطةٌ تملأ كل الإعدادات والبلوكات بجدوله كاملًا — قوالبه الثلاثة ووِرده وحفظِه
+                وتمرينِه — وتتخطى بقية الإعداد. ومواقيتُك تبقى على ما اخترتَ أعلاه.
+              </span>
+            </button>
           </div>
         )}
 
@@ -655,7 +686,6 @@ export function Onboarding() {
             {step < STEPS.length - 1 ? "التالي" : "ابدأ"}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+    </div>
   )
 }

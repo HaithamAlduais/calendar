@@ -15,6 +15,7 @@ import {
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { setPrayerConfig } from "@/lib/engine/prayers.js"
 import { anchorMinute, buildDay, isMonotone, rotateTemplate, startCandidates } from "@/lib/engine/layout.js"
+import * as HAITHAM from "@/lib/presets/haitham.js"
 import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
 import {
   setQuranCompletion,
@@ -1262,6 +1263,72 @@ export function removeTemplate(id: string): string | null {
   const plan = settings.weekPlan.map((x) => (x === id ? fallback : x))
   saveSettings({ templates: next, weekPlan: plan })
   return null
+}
+
+// ── معاينة المعالج: التقويم يُبنى أمام عينيك وأنت تختار ──
+// المحرك يُهيّأ باختيارات المعالج الحيّة بلا حفظ: كل تغييرِ نومٍ أو قيامٍ أو
+// مدةٍ يظهر في الجدول خلف اللوحة فورًا. والإلغاء (null) يرجع بالمحرك إلى
+// المخزون — فلا أثرَ لمعاينةٍ لم تُحفظ.
+export function previewCompose(
+  cfg: {
+    template: Template
+    dayStart?: { blockId?: string; anchor?: Anchor } | null
+    lat: number
+    lng: number
+    tz: number
+    method: string
+  } | null
+) {
+  if (cfg) {
+    setPrayerConfig({ lat: cfg.lat, lng: cfg.lng, tz: cfg.tz, method: cfg.method, asrFactor: 1, roundMaghribUp: true })
+    setScheduleConfig({
+      templates: { day: cfg.template },
+      weekPlan: ["day", "day", "day", "day", "day", "day", "day"],
+      dayStart: cfg.dayStart ?? null,
+      betweenLine: settings.betweenLine,
+    })
+  } else {
+    applyEngineConfig()
+  }
+  cuCache = { at: "", val: "" } // بداية الوحدة تتبع القالب المعايَن
+  notify()
+}
+
+// ── جدول هيثم الجاهز: يُحمَّل بضغطةٍ صريحة فيملأ كل الإعدادات والبلوكات ──
+// لا يُفرَض على أحد ولا يمسّ جدولًا قائمًا إلا بهذه الضغطة — وموقعُ الضاغط
+// ومواقيتُه تبقى له إن كان قد اختارها، ويومُ بدايته يومُه لا يومَ أحد.
+export function loadHaithamPreset(keepLocation = true) {
+  const today = todayIso()
+  const loc = keepLocation
+    ? {}
+    : { lat: HAITHAM.prayer.lat, lng: HAITHAM.prayer.lng, tz: HAITHAM.prayer.tz, method: HAITHAM.prayer.method }
+  saveSettings({
+    ...loc,
+    templates: JSON.parse(JSON.stringify(HAITHAM.templates)) as Record<string, Template>,
+    weekPlan: [...HAITHAM.weekPlan] as string[],
+    planMode: "weekly",
+    cyclePlan: null,
+    dayStart: null,
+    betweenLine: HAITHAM.betweenLine as string,
+    wird: (HAITHAM.wird as [string, string][]).map((w) => [...w] as [string, string]),
+    quran: {
+      ...(HAITHAM.quran as QuranCfg),
+      date: today,
+      components: { review: true, hifz: true },
+      wirdMode: "tathbeet",
+    },
+    workout: {
+      ...(HAITHAM.workout as unknown as WorkoutCfg),
+      start: today,
+      scheduleMode: "cycle",
+    },
+    wirdEnabled: true,
+    hifzEnabled: true,
+    workoutEnabled: true,
+    startDate: today,
+    onboarded: true,
+  })
+  ensureRoutineCabinet()
 }
 
 // ── وضعُ درجٍ في التقويم: بلوكٌ باسمه في كل قوالبك ──
