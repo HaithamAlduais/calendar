@@ -147,7 +147,7 @@ export async function shareEventImage(
   x.fillStyle = "#d4d4d8"
   x.font = `400 22px ${FONT}`
   x.textAlign = "left"
-  x.fillText("تقويم هيثم", pad, H - 36)
+  x.fillText("تقويمي", pad, H - 36)
 
   const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), "image/png"))
   const file = new File([blob], `${ev.title}.png`, { type: "image/png" })

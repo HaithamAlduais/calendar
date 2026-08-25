@@ -20,7 +20,7 @@ export function fmtDateLong(d: string): string {
   return `${dayName(d)}، ${arab(p.d)} ${MONTH_NAMES[p.m - 1]}`
 }
 
-// شريط اللون حسب المجموعة (ألوان جدول هيثم) — أصناف حرفية كاملة حتى يولّدها Tailwind
+// شريط اللون حسب المجموعة (لوحة ألوان Google Calendar) — أصناف حرفية كاملة حتى يولّدها Tailwind
 // أحداث Google: كل حساب بلون فهرسه: 7 سماوي، 3 بنفسجي، 5 أصفر، 4 وردي
 export function barColor(colorId: number, external?: boolean): string {
   if (external)

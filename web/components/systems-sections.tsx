@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Help } from "@/components/help"
 import { arab } from "@/lib/format"
-import { saveSettings, settings, wirdCandidates } from "@/lib/store"
+import { bodyLog, logBody, saveSettings, settings, wirdCandidates } from "@/lib/store"
 
 // قسمٌ مطوي: الإعداد الذي لا يحتاجه أكثر الناس لا يزاحمهم في الشاشة
 export function Section({
@@ -117,6 +117,27 @@ export function QuranSection() {
       />
       {q.mode === "managed" ? (
         <>
+          <div className="flex flex-wrap gap-1">
+            <button
+              onClick={() => set({ components: { ...(q.components ?? { review: true, hifz: true }), hifz: !(q.components?.hifz ?? true) } })}
+              className={cn(
+                "rounded-md border px-2 py-0.5 text-xs",
+                (q.components?.hifz ?? true) ? "border-primary bg-primary text-primary-foreground" : "border-border"
+              )}
+            >
+              حفظ
+            </button>
+            <button
+              onClick={() => set({ components: { ...(q.components ?? { review: true, hifz: true }), review: !(q.components?.review ?? true) } })}
+              className={cn(
+                "rounded-md border px-2 py-0.5 text-xs",
+                (q.components?.review ?? true) ? "border-primary bg-primary text-primary-foreground" : "border-border"
+              )}
+            >
+              تسميع
+            </button>
+            <Help text="ركّب نظامك: حفظٌ وحده، أو تسميعٌ وحده، أو كلاهما — كلٌّ بمفتاحه." />
+          </div>
           <p className="text-muted-foreground text-[11px] leading-relaxed">
             من أين تبدأ؟ البرنامج يمضي من هذا الموضع فصاعدًا، ويتقدّم كلما أنجزت.
           </p>
@@ -192,6 +213,24 @@ export function WirdSection() {
       title="الورد في السنن"
       help="ورد التثبيت يُقسَّم على السنن التي تختارها بترتيبها في يومك: كل سنّة نصيبها. وما فاتك منها لا يُتخطّى — تبدأ السنّة التالية من حيث وقفت."
     >
+      <Pick
+        options={[
+          ["reading", "قراءة بمقدار"],
+          ["tathbeet", "مربوط بالحفظ (تثبيت)"],
+        ]}
+        value={settings.quran.wirdMode ?? "tathbeet"}
+        onChange={(wirdMode) => saveSettings({ quran: { ...settings.quran, wirdMode: wirdMode as "reading" | "tathbeet" } })}
+      />
+      {(settings.quran.wirdMode ?? "tathbeet") === "reading" && (
+        <div className="flex items-center gap-2">
+          <label className="text-muted-foreground flex-none text-xs">المقدار</label>
+          <Input
+            defaultValue={settings.quran.wirdAmount ?? "ربع حزب"}
+            onBlur={(e) => saveSettings({ quran: { ...settings.quran, wirdAmount: e.target.value.trim() || "ربع حزب" } })}
+            className="h-8 w-32"
+          />
+        </div>
+      )}
       <p className="text-muted-foreground text-[11px] leading-relaxed">
         اختر السنن التي تقرأ فيها وردك ({arab(settings.wird.length)} مختارة).
       </p>
@@ -230,6 +269,35 @@ export function WorkoutSection() {
         <Input value={w.offTitle} onChange={(e) => set({ offTitle: e.target.value })} className="h-8 w-28" />
       </div>
 
+      <div className="text-muted-foreground pt-1 text-[11px]">متى تتمرّن؟</div>
+      <Pick
+        options={[
+          ["cycle", "دورة لا تعرف الأسبوع"],
+          ["weekly", "أيام محددة من الأسبوع"],
+        ]}
+        value={w.scheduleMode ?? "cycle"}
+        onChange={(m) => set({ scheduleMode: m as "cycle" | "weekly" })}
+      />
+      {(w.scheduleMode ?? "cycle") === "weekly" && (
+        <div className="flex flex-wrap gap-1">
+          {["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"].map((name, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                const days = w.weeklyDays ?? []
+                set({ weeklyDays: days.includes(i) ? days.filter((x) => x !== i) : [...days, i].sort() })
+              }}
+              className={cn(
+                "rounded-md border px-2 py-0.5 text-xs",
+                (w.weeklyDays ?? []).includes(i) ? "border-primary bg-primary text-primary-foreground" : "border-border"
+              )}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+      {(w.scheduleMode ?? "cycle") === "cycle" && (
       <button onClick={() => set({ restBetween: !w.restBetween })} className="flex items-start gap-2 text-start">
         <span
           className={cn(
@@ -246,6 +314,11 @@ export function WorkoutSection() {
           </span>
         </span>
       </button>
+      )}
+      <p className="text-muted-foreground text-[11px] leading-relaxed">
+        «أيام التمرين» أدناه نسخٌ تتناوب على مواعيدك موعدًا بعد موعد — نسخة أ ثم ب ثم أ. اجعلها
+        نسخةً واحدة إن كان تمرينك واحدًا.
+      </p>
 
       <div className="text-muted-foreground pt-1 text-[11px]">التمارين وأوزانها</div>
       {Object.entries(w.exercises).map(([key, ex]) => (
@@ -337,6 +410,54 @@ export function WorkoutSection() {
       <p className="text-muted-foreground text-[11px] leading-relaxed">
         اليوم الجديد يبدأ فارغًا؛ ولإضافة تمارينه اجعله يشبه يومًا قائمًا ثم عدّل. وحذف يومٍ يقصّر الدورة.
       </p>
+    </Section>
+  )
+}
+
+// ── الجسد والغذاء ─────────────────────────────────────────────────
+export function BodySection() {
+  const nu = settings.nutrition
+  const [w, setW] = useState(settings.weight)
+  const [h, setH] = useState(nu.height)
+  const [saved, setSaved] = useState(false)
+  const log = bodyLog()
+  const kcal = Math.round(w * nu.kcalPerKg)
+  const protein = Math.round(w * nu.proteinPerKg)
+  return (
+    <Section
+      title="الجسد والغذاء"
+      help="من وزنك وطولك تُحسب سعراتك وبروتينك. سجّلهما كل شهر — فالرقم الذي لا يُقاس لا يتحسّن."
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-muted-foreground flex-none text-xs">الوزن</label>
+        <Input type="number" min={30} max={250} value={w} onChange={(e) => setW(+e.target.value || w)} className="h-8 w-20" />
+        <span className="text-muted-foreground text-[11px]">كجم</span>
+        <label className="text-muted-foreground flex-none text-xs">الطول</label>
+        <Input type="number" min={100} max={230} value={h} onChange={(e) => setH(+e.target.value || h)} className="h-8 w-20" />
+        <span className="text-muted-foreground text-[11px]">سم</span>
+        <Button
+          size="sm"
+          onClick={() => {
+            logBody(w, h)
+            setSaved(true)
+          }}
+        >
+          سجّل
+        </Button>
+      </div>
+      {saved && <p className="text-muted-foreground text-[11px]">سُجّل بتاريخ اليوم ✅</p>}
+      <p className="text-muted-foreground text-[11px] leading-relaxed">
+        هدفك اليومي: {arab(kcal)} سعرة · {arab(protein)} غ بروتين — وتسجّل وجباتك من «لوحة اليوم».
+      </p>
+      {log.length > 1 && (
+        <div className="text-muted-foreground text-[11px] leading-relaxed">
+          سجلّك:{" "}
+          {log
+            .slice(-6)
+            .map((e) => `${e.date.slice(5)}: ${arab(e.weight)} كجم`)
+            .join(" · ")}
+        </div>
+      )}
     </Section>
   )
 }

@@ -42,26 +42,29 @@ function anchorsFor(dIso, depth = 0) {
     nightPrev: (k) => prevM + Math.round((k * (F - prevM)) / 6),
     lastThirdPrev: prevM + Math.round((2 * (F - prevM)) / 3),
   };
-  // مراسي الغد بإطار اليوم نفسه (بزيادة ١٤٤٠) — تُبنى مرة واحدة ولا تتوالد
-  if (depth === 0) a.next = shiftDay(anchorsFor(addDays(dIso, 1), 1));
+  // مراسي الغد والأمس بإطار اليوم نفسه — تُبنى مرة واحدة ولا تتوالد
+  if (depth === 0) {
+    a.next = shiftDay(anchorsFor(addDays(dIso, 1), 1), 1440);
+    a.prev = shiftDay(anchorsFor(addDays(dIso, -1), 1), -1440);
+  }
   return a;
 }
 
-// إزاحة مراسي يومٍ تالٍ إلى إطار اليوم الحالي
-function shiftDay(a) {
+// إزاحة مراسي يومٍ آخر إلى إطار اليوم الحالي (١٤٤٠+ للغد و١٤٤٠− للأمس)
+function shiftDay(a, by) {
   const out = {
-    night: (k) => a.night(k) + 1440,
-    nightPart: (k) => a.nightPart(k) + 1440,
-    nightPrev: (k) => a.nightPrev(k) + 1440,
+    night: (k) => a.night(k) + by,
+    nightPart: (k) => a.nightPart(k) + by,
+    nightPrev: (k) => a.nightPrev(k) + by,
   };
   for (const k of ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha', 'fajrNext', 'lastThirdPrev'])
-    out[k] = a[k] + 1440;
+    out[k] = a[k] + by;
   return out;
 }
 
 function resolve(anchor, a0, start, balanceLen) {
   const off = anchor.offset || 0;
-  const a = anchor.next && a0.next ? a0.next : a0;
+  const a = anchor.next && a0.next ? a0.next : anchor.prevDay && a0.prev ? a0.prev : a0;
   if (anchor.prayer) return a[anchor.prayer] + off;
   if (anchor.nightPart) return a.nightPart(anchor.nightPart) + off;
   if (anchor.nightFraction) return a.night(anchor.nightFraction) + off;
@@ -89,12 +92,16 @@ function balanceLength(tpl, a) {
   // الهدف مدًى [targetMin..targetMax] أو رقم واحد — يُطلب أعلاه وما دون أدناه نقص
   const tMax = cfg.targetMax ?? cfg.target ?? 0;
   let len = Math.max(min, Math.min(cfg.max ?? Infinity, tMax - others, room));
-  // دورات كاملة: يُقصّ الطول إلى مضاعف الدورة فلا يُوقَظ النائم في منتصفها —
-  // إلا أن يهبط القصُّ تحت الحدّ الأدنى فيبقى كما هو، فنومٌ ناقص خيرٌ من لا نوم
+  // دورات كاملة: يُقصّ الطول إلى مضاعف الدورة فلا يُوقَظ النائم في منتصفها.
+  // فإن كان الباقي دون دورةٍ واحدة: إن بلغ نومُ الليل حدَّه الأدنى أُلغيت
+  // القيلولة أصلًا — فنومةٌ دون دورةٍ شرٌّ من تركها. وإن قصّر ليلُه عن الحدّ
+  // بقيت ناقصةً، فنومٌ ناقص خيرٌ من نقصٍ أشد.
   const cyc = cfg.cycle ?? 0;
   if (cyc > 0 && len > 0) {
     const snapped = Math.floor(len / cyc) * cyc;
+    const tMin = cfg.targetMin ?? cfg.target ?? 0;
     if (snapped >= Math.max(min, 1)) len = snapped;
+    else if (others >= tMin) len = 0;
   }
   return len;
 }
@@ -115,6 +122,7 @@ export const isAbsolute = (a) =>
   !!(
     a &&
     (a.prayer ||
+      a.prevDay ||
       a.nightPart ||
       a.nightFraction ||
       a.nightPrev ||

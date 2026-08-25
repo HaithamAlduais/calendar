@@ -13,7 +13,7 @@ import {
   PLAIN_WEEK_PLAN,
 } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
-import { prayerTimes, setPrayerConfig } from "@/lib/engine/prayers.js"
+import { setPrayerConfig } from "@/lib/engine/prayers.js"
 import { isMonotone, rotateTemplate, startCandidates } from "@/lib/engine/layout.js"
 import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
 import {
@@ -122,7 +122,13 @@ export type Repeat =
   | { mode: "weekly"; days: number[] }
   | { mode: "everyN"; n: number }
 export type Cabinet = { id: string; name: string; goal?: string; deadline?: string; doneAt?: string }
-export type Drawer = Cabinet & { cabinetId: string }
+// الدرج قد يكون بابًا لنظامٍ كامل: درج «قرآن» أو «تمرين» في خزانة «روتين» —
+// حذفُه يطفئ نظامَه، فالخزانة هي الممسك الظاهر لما كان مفاتيحَ خفية
+export type Drawer = Cabinet & {
+  cabinetId: string
+  system?: "quran" | "workout"
+  slot?: string // بلوكه في التقويم إن وُضع فيه — مهامه بلا بلوك محدّد تذهب إليه
+}
 export type CabItem = {
   id: string
   drawerId: string
@@ -166,6 +172,8 @@ export type WorkoutCfg = {
   start: string
   offTitle: string
   restBetween: boolean
+  scheduleMode?: "cycle" | "weekly"
+  weeklyDays?: number[]
   exercises: Record<string, Exercise>
   days: WorkoutDay[]
 }
@@ -179,6 +187,9 @@ export type QuranCfg = {
   hifzMode: string
   repeats: number
   wirdSlots: number
+  components?: { review: boolean; hifz: boolean }
+  wirdMode?: "reading" | "tathbeet"
+  wirdAmount?: string
 }
 
 // الموقع وطريقة الحساب من إعدادات المستخدم — والافتراض الرياض بمعايير أم القرى
@@ -193,11 +204,11 @@ const DEFAULT_SETTINGS = {
   tz: 3,
   method: "ummAlQura",
   asrFactor: 1, // ظل المثل، و٢ للحنفية
-  startDate: "2026-08-24", // يوم بداية الجدول — ما قبله لا يُعرض
+  startDate: todayIso(), // يوم بداية الجدول — ما قبله لا يُعرض
   onboarded: false, // هل أتمّ المستخدم الإعداد الأول
-  wirdEnabled: true, // متابعة الورد في السنن
-  hifzEnabled: true, // نظام الحفظ والمراجعة
-  workoutEnabled: true, // نظام التمرين
+  wirdEnabled: false, // متابعة الورد في السنن — المعالج يشعلها لمن أرادها
+  hifzEnabled: false, // نظام الحفظ والمراجعة
+  workoutEnabled: false, // نظام التمرين
   // ورد التثبيت: السنن المشاركة بترتيبها الزمني [slot البلوك، معرّف البند]
   wird: DEFAULT_WIRD,
   // قوالب الأيام وخطة الأسبوع — يحرّرها المستخدم من «قالب يومك»
@@ -206,8 +217,21 @@ const DEFAULT_SETTINGS = {
   quran: DEFAULT_QURAN as QuranCfg,
   workout: DEFAULT_WORKOUT as unknown as WorkoutCfg,
   // بداية اليوم: أيّ بلوك يفتتح الوحدة وبأيّ مرساة — واحدة لكل القوالب، وإلا
-  // تداخلت الوحدات. null = كما كُتب القالب (نومة الثلث الأخير في الجاهز).
+  // تداخلت الوحدات. null = كما كُتب القالب.
   dayStart: null as { blockId?: string; anchor?: Anchor } | null,
+  // إسناد القوالب: أسبوعيًّا (لكل يوم أسبوعٍ قالبُه) أو دورةً لا تعرف الأسبوع
+  planMode: "weekly" as "weekly" | "cycle",
+  cyclePlan: null as { start: string; seq: string[] } | null,
+  // صيام الاثنين والخميس: يُسقط بنود الوجبات المعلَّمة fastingSkip
+  fasting: false,
+  // الجسد والغذاء: الطول بالسنتيمتر، والمعاملات لحساب الهدف من الوزن —
+  // والوزن نفسه في weight أعلاه، ويُسجَّل تاريخُه في hc.body ليُرى أثرُ الشهور
+  nutrition: {
+    height: 170,
+    kcalPerKg: 34,
+    proteinPerKg: 2,
+    fatPerKg: 0.9,
+  },
   // ما تكتبه أو تفعله بين الأذان والإقامة — بندٌ في كل بلوك صلاة
   betweenLine: DEFAULT_BETWEEN as string,
   // القضاء والتقديم: القضاء أداءُ الفائت بعد وقته بنصف إنجاز، والتقديم أداءُ
@@ -231,6 +255,14 @@ if (stored) {
 
   // سطر ما بين الأذان والإقامة كان «كتابة شعر» للجميع، فيبقى لمن كان عليه
   if (stored.betweenLine === undefined) settings.betweenLine = "بين الأذان والإقامة: كتابة شعر"
+
+  // المفاتيح الثلاثة كانت مشتعلةً افتراضًا ثم صار الافتراض الإطفاء —
+  // فجهازٌ قديم لم يخزّنها يبقى مشتعلًا كما كان، لا يُطفأ لأن الافتراض تغيّر
+  if (stored.wirdEnabled === undefined) settings.wirdEnabled = true
+  if (stored.hifzEnabled === undefined) settings.hifzEnabled = true
+  if (stored.workoutEnabled === undefined) settings.workoutEnabled = true
+  // ويوم البداية كان ثابتًا في الشيفرة قبل أن يصير افتراضُه يومَ أول تشغيل
+  if (stored.startDate === undefined) settings.startDate = "2026-08-24"
 
   // وبلوكات المهام كانت قائمة معرّفات في الواجهة، فصارت علَمًا في البيانات.
   // ولولا هذا النقل لخلت قوالبُ القدماء من بلوكات مهام، فلا مهمةً تُضاف
@@ -260,7 +292,10 @@ function applyEngineConfig() {
   setScheduleConfig({
     templates: settings.templates,
     weekPlan: settings.weekPlan,
+    planMode: settings.planMode,
+    cyclePlan: settings.cyclePlan,
     dayStart: settings.dayStart,
+    fasting: settings.fasting,
     betweenLine: settings.betweenLine,
   })
 }
@@ -293,7 +328,7 @@ export function nowStamp(): string {
   return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}T${p(n.getHours())}:${p(n.getMinutes())}`
 }
 
-// اليوم عند هيثم يبدأ بنومة الثلث الأخير التي تسبق الفجر لا بمنتصف الليل ولا بالفجر:
+// اليوم يبدأ حيث رسم صاحبُه بدايتَه في قالبه — لا بمنتصف الليل الإداري:
 // قبل مطلع الثلث الأخير (نحو الواحدة ليلًا) ما زلنا في وحدة الأمس، ومن النومة تبدأ وحدة اليوم
 let cuCache = { at: "", val: "" } // تُستدعى في حلقات ساخنة — تُحسب مرة كل دقيقة
 export function currentUnit(): string {
@@ -513,6 +548,15 @@ export function isMissed(ev: Ev, now: string): boolean {
 // خريطة القضاء:
 //  • داخل اليوم: البند الفائت ينتقل إلى أول بلوك مستقبِل قادم (عمل/أسرة ثم زوجة/راحة)
 //  • من الأمس: كل ما لم يُنجز — أيًّا كان بلوكه، حتى مهام العمل — ينتقل إلى «راحة أو تعويض» وحده
+// في الصلوات لا يُقضى إلا الورد: الأذانُ والصلاةُ والأذكار لوقتها، فإن فات
+// فقد فات — والورد وحده ينتقل. قاعدةٌ نصّها صاحب البرنامج نصًّا.
+function qadaEligible(ev: Ev, pending: Item[]): Item[] {
+  if (WORK_SLOTS().includes(ev.slot || "")) return pending
+  if (!settings.wirdEnabled) return []
+  const wirdSet = new Set(settings.wird.map(([sl, id]) => sl + ":" + id))
+  return pending.filter((i) => wirdSet.has((ev.slot || "") + ":" + i.id))
+}
+
 export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
   const map = new Map<string, Makeup[]>()
   if (!settings.qada.enabled) return map
@@ -537,8 +581,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
     for (const ev of events) {
       if (ev.unit !== prevU || ev.external || ev.done) continue
       const marked = new Set(checksFor(ev.id))
-      for (const item of checkable(ev)) {
-        if (marked.has(item.id)) continue
+      for (const item of qadaEligible(ev, checkable(ev).filter((i) => !marked.has(i.id)))) {
         const dest = dests[turn++ % dests.length]
         push(dest.id, {
           destId: dest.id,
@@ -557,7 +600,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
     if (ev.external || ev.done || ev.end > now) continue
     if (ev.slot === "quran") continue // مهمتا اليوم عائمتان بإنجاز كامل، فلا تُقضيان
     const marked = new Set(checksFor(ev.id))
-    const pending = checkable(ev).filter((i) => !marked.has(i.id))
+    const pending = qadaEligible(ev, checkable(ev).filter((i) => !marked.has(i.id)))
     if (!pending.length) continue
     // أول بلوك عمل يبدأ بعد نهاية البلوك الفائت (أو الجاري الآن)
     const dest = dests.find((d) => d.start >= ev.end) || dests[0]
@@ -932,13 +975,24 @@ function reloadFromStorage() {
 // البلوك: نهايتُه مرساة (صلاة/ثلث ليل/مدة ثابتة/نومة توازن)، وبدايتُه نهايةُ سابقه
 export type Anchor = {
   prayer?: string
+  nightPart?: number // k/6 من الليل (المغرب ← فجر الغد)
   nightFraction?: number
+  nightPrev?: number // k/6 من الليلة السابقة
   lastThirdPrev?: boolean
   clock?: number // دقائق من منتصف الليل
   len?: number
-  balance?: { target: number; min: number; max: number; keepAfter: number }
+  balance?: {
+    target?: number
+    targetMin?: number
+    targetMax?: number
+    min: number
+    max: number
+    keepAfter: number
+    cycle?: number
+  }
   offset?: number
-  next?: boolean // مرساة الغد، بها يدور اليوم على البلوك الذي يختاره صاحبه
+  next?: boolean // مرساة الغد
+  prevDay?: boolean // مرساة الأمس — بها يبدأ يومُ من ينام بعد عشائه
 }
 export type Block = {
   id: string
@@ -1115,38 +1169,6 @@ export function wirdCandidates(): { slot: string; id: string; title: string }[] 
   return out
 }
 
-// ── تقسيم الوحدة إلى ليلٍ ونهار ──
-// كان التقسيم بأسماء البلوكات (sleep2 وقائمة «بلوكات الليل»)، فمن دار يومه على
-// المغرب أو بنى قالبه بأسماء من عنده رأى بلوكاته في غير مواضعها وعناوينَ تكذب
-// عليه. والحقّ أن الليل والنهار يعرفان من الوقت نفسه: ما بين الفجر والمغرب نهار،
-// وما سواه ليل — أيًّا كان اسم البلوك، وأيًّا كان موضع بداية اليوم.
-function isNightAt(stamp: string): boolean {
-  const p = prayerTimes(stamp.slice(0, 10)) as { fajr: number; maghrib: number }
-  const mins = +stamp.slice(11, 13) * 60 + +stamp.slice(14, 16)
-  return mins < p.fajr || mins >= p.maghrib
-}
-
-export type UnitPart = { label: string; icon: string; night: boolean; chips: Ev[] }
-
-export function unitParts(evs: Ev[]): UnitPart[] {
-  const runs: { night: boolean; chips: Ev[] }[] = []
-  for (const e of evs) {
-    const night = isNightAt(e.start)
-    const last = runs[runs.length - 1]
-    if (last && last.night === night) last.chips.push(e)
-    else runs.push({ night, chips: [e] })
-  }
-  const nights = runs.filter((r) => r.night).length
-  return runs.map((r, i) => {
-    if (!r.night) return { ...r, label: "نهارك — من الفجر إلى المغرب", icon: "☀️" }
-    // ليلتان في الوحدة: أولاهما نومةُ آخر الليل، وأخراهما ليلتك
-    if (nights > 1 && i === 0) return { ...r, label: "أول يومك — النوم الذي يصنعه", icon: "🛌" }
-    if (nights > 1 && i === runs.length - 1)
-      return { ...r, label: "ليلتك — من المغرب إلى القيام", icon: "🌙" }
-    return { ...r, label: "ليلك — من المغرب إلى الفجر", icon: "🌙" }
-  })
-}
-
 // ── بداية اليوم ──
 // اليومُ حلقةٌ: أيّ بلوك صلح أن يفتتحها ما دام سابقُه ينتهي بمرساة مطلقة.
 // والقالب لا يُحرَّك عند الاختيار — إنما يُدار عند البناء، فالرجوع بإلغاء الاختيار.
@@ -1242,66 +1264,62 @@ export function removeTemplate(id: string): string | null {
   return null
 }
 
-// يومٌ بسيط: نومٌ وصلواتٌ وبلوكات مهام — لمن أراد أن يبني جدوله بنفسه
-export function loadPlain() {
-  saveSettings({
-    templates: PLAIN_TEMPLATES as unknown as Record<string, Template>,
-    weekPlan: PLAIN_WEEK_PLAN,
-    dayStart: null,
-    betweenLine: DEFAULT_BETWEEN,
-  })
+// ── وضعُ درجٍ في التقويم: بلوكٌ باسمه في كل قوالبك ──
+// المرساة صلاةٌ (فيتحرك موعده مع الشمس ومدتُه ثابتة) أو ساعةٌ (فثابتٌ كلُّه) —
+// وهذا جوابُ شرطه: «هل يتغيّر وقته بالتقويم القمري أم لا». والحارس يردّ ما
+// يتعارض مع تحرّكات المواسم قبل حفظه.
+export function placeDrawer(drawerId: string, end: Anchor): string | null {
+  const drawer = cab.drawers.find((d) => d.id === drawerId)
+  if (!drawer) return null
+  const slotId = `dr${drawerId}`
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  for (const tpl of Object.values(next) as Template[]) {
+    tpl.blocks = tpl.blocks.filter((b) => b.id !== slotId)
+    const block: Block = { id: slotId, title: drawer.name, colorId: 6, task: true, items: [], end }
+    const order = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"]
+    const rank = (a: Anchor) =>
+      a.lastThirdPrev || a.nightPrev
+        ? -1
+        : a.clock != null
+          ? a.clock / 1440 - 0.5
+          : a.prayer
+            ? order.indexOf(a.prayer)
+            : a.nightPart || a.nightFraction
+              ? 10
+              : 99
+    const at = tpl.blocks.findIndex((b: Block) => rank(b.end) > rank(end))
+    if (at < 0) tpl.blocks.push(block)
+    else tpl.blocks.splice(at, 0, block)
+  }
+  if (!templatesSound(next)) return "هذا الموضع يجعل يومًا ينقلب في بعض المواسم — اختر وقتًا غيره."
+  saveSettings({ templates: next })
+  updateCab("drawers", drawerId, { slot: slotId })
+  return null
+}
+
+export function unplaceDrawer(drawerId: string) {
+  const slotId = `dr${drawerId}`
+  const next = JSON.parse(JSON.stringify(settings.templates))
+  for (const tpl of Object.values(next) as Template[]) tpl.blocks = tpl.blocks.filter((b: Block) => b.id !== slotId)
+  saveSettings({ templates: next })
+  updateCab("drawers", drawerId, { slot: undefined })
+}
+
+// ── سجل الجسد: كل تغيير وزنٍ أو طول يُختم بيومه — فيُرى أثر الشهور ──
+const BODY_KEY = "hc.body.v1"
+export type BodyEntry = { date: string; weight: number; height: number }
+export function bodyLog(): BodyEntry[] {
+  return load<BodyEntry[]>(BODY_KEY, [])
+}
+export function logBody(weight: number, height: number) {
+  const log = bodyLog().filter((e) => e.date !== todayIso())
+  log.push({ date: todayIso(), weight, height })
+  save(BODY_KEY, log)
+  saveSettings({ weight, nutrition: { ...settings.nutrition, height } })
 }
 
 export function resetTemplates() {
   saveSettings({ templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN, dayStart: null })
-}
-
-// ── الجداول الجاهزة: جدول كامل بضغطة، لمن لا يريد بناء يومه من الصفر ──
-// الجاهز يحمل الشكل لا الشخص: يأخذ القوالب والأنظمة، ويترك موقعك وطريقة حسابك
-// ويوم بدايتك كما هي — فمواقيتك مواقيتُك وإن كان الجدول جدولَ غيرك.
-export type Preset = {
-  id: string
-  name: string
-  desc: string
-  includes: string[]
-}
-
-export const PRESETS: Preset[] = [
-  {
-    id: "haitham",
-    name: "جدول هيثم",
-    desc: "يوم يبدأ بنومة الثلث الأخير وينتهي بالقيام، وبلوكاته متلاصقة بين الصلوات.",
-    includes: [
-      "قوالب ثلاثة: أيام العمل، والجمعة (بتبكير ساعة)، والسبت",
-      "نومة توازن تُبقي مجموع نومك ٦ س ٣٥ د، فإن قصر ليلك طالت وقصر عملك",
-      "ورد التثبيت موزَّعًا على السنن الثماني بالترتيب",
-      "نظام الحفظ: تسميع جزء، وحفظ ربع، ويوم تكرار",
-      "دورة تمرين ثلاثية بالتقدّم المزدوج",
-    ],
-  },
-]
-
-// مدد صلاة جدولٍ جاهز — تُقرأ قبل تحميله لتُملأ بها خانات الإعداد
-export function presetPrayerMinutes(id: string): Record<string, number> | null {
-  if (id !== "haitham") return null
-  return prayerMinutesOf(DEFAULT_TEMPLATES)
-}
-
-export function loadPreset(id: string) {
-  if (id !== "haitham") return
-  const from = settings.startDate // الجاهز يبدأ من يومك أنت لا من يومه
-  saveSettings({
-    templates: DEFAULT_TEMPLATES,
-    weekPlan: DEFAULT_WEEK_PLAN,
-    dayStart: null, // الجاهز يبدأ يومه بنومة الثلث الأخير كما كُتب قالبه
-    betweenLine: "بين الأذان والإقامة: كتابة شعر",
-    wird: DEFAULT_WIRD,
-    quran: { ...DEFAULT_QURAN, date: from },
-    workout: { ...DEFAULT_WORKOUT, start: from },
-    wirdEnabled: true,
-    hifzEnabled: true,
-    workoutEnabled: true,
-  })
 }
 
 export { DEFAULT_TEMPLATES }
@@ -1379,6 +1397,18 @@ export function addDrawer(cabinetId: string, name: string, patch: Partial<Drawer
   return id
 }
 
+// خزانة «روتين» بأدراج الأنظمة المفعّلة — يصنعها المعالج، ولمن حذفها أن يعيدها
+export function ensureRoutineCabinet() {
+  const have = (sys: string) => cab.drawers.some((d) => d.system === sys)
+  const needQ = settings.hifzEnabled && !have("quran")
+  const needW = settings.workoutEnabled && !have("workout")
+  if (!needQ && !needW) return
+  let routine = cab.cabinets.find((c) => c.name === "روتين")?.id
+  if (!routine) routine = addCabinet("روتين", { goal: "حياتك الصحية والدينية — عادةٌ تُتابَع لا مهمةٌ تنتهي" })
+  if (needQ) addDrawer(routine, "قرآن", { system: "quran" } as Partial<Drawer>)
+  if (needW) addDrawer(routine, "تمرين", { system: "workout" } as Partial<Drawer>)
+}
+
 export function addCabItem(drawerId: string, title: string, patch: Partial<CabItem> = {}): string {
   const id = uid()
   const item: CabItem = { from: currentUnit(), repeat: { mode: "once" }, ...patch, id, drawerId, title }
@@ -1395,15 +1425,37 @@ export function updateCab(kind: CabKind, id: string, patch: Record<string, unkno
 }
 
 // الحذف يجرّ ما تحته: حذف الخزانة يحذف أدراجها ومهامها
+// حذف درجٍ نظاميّ يطفئ نظامه — والواجهة تستأذن صاحبه قبلها
+function disableSystemOf(drawers: Drawer[]) {
+  for (const d of drawers) {
+    if (d.system === "quran") saveSettings({ hifzEnabled: false, wirdEnabled: false })
+    if (d.system === "workout") saveSettings({ workoutEnabled: false })
+  }
+}
+
+// أنظمة درجٍ أو خزانة — تسأل عنها الواجهة لتستأذن قبل الحذف
+export function systemsUnder(kind: CabKind, id: string): string[] {
+  const list =
+    kind === "cabinets"
+      ? cab.drawers.filter((d) => d.cabinetId === id)
+      : kind === "drawers"
+        ? cab.drawers.filter((d) => d.id === id)
+        : []
+  return list.map((d) => d.system).filter(Boolean) as string[]
+}
+
 export function removeCab(kind: CabKind, id: string) {
   if (kind === "cabinets") {
-    const drawerIds = cab.drawers.filter((d) => d.cabinetId === id).map((d) => d.id)
+    const gone = cab.drawers.filter((d) => d.cabinetId === id)
+    disableSystemOf(gone)
+    const drawerIds = gone.map((d) => d.id)
     cab = {
       cabinets: cab.cabinets.filter((c) => c.id !== id),
       drawers: cab.drawers.filter((d) => d.cabinetId !== id),
       items: cab.items.filter((i) => !drawerIds.includes(i.drawerId)),
     }
   } else if (kind === "drawers") {
+    disableSystemOf(cab.drawers.filter((d) => d.id === id))
     cab = {
       ...cab,
       drawers: cab.drawers.filter((d) => d.id !== id),

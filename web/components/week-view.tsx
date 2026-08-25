@@ -5,82 +5,11 @@ import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { addDays, arab, parseIso } from "@/lib/engine/dates.js"
 import { dayName } from "@/lib/format"
-import {
-  currentUnit,
-  dayTasks,
-  earlyMap,
-  makeupMap,
-  nowStamp,
-  TASK_SLOTS,
-  unitParts,
-  type Ev,
-} from "@/lib/store"
+import { currentUnit, dayTasks, earlyMap, makeupMap, nowStamp, TASK_SLOTS, type Ev } from "@/lib/store"
 import { EventChip } from "@/components/event-chip"
 
-// الوحدة ثلاثة أشطر بالترتيب: نومة الثلث الأخير التي تفتح اليوم، ثم النهار، ثم الليل حتى القيام
-
-function Section({
-  label,
-  icon,
-  night,
-  chips,
-  isCur,
-  now,
-  mk,
-  em,
-  dayCount,
-  onOpen,
-}: {
-  label: string
-  icon: string
-  night: boolean
-  chips: Ev[]
-  isCur: boolean
-  now: string
-  mk: Map<string, unknown[]>
-  em: Map<string, unknown[]>
-  dayCount: number
-  onOpen: (ev: Ev) => void
-}) {
-  if (!chips.length) return null
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-1.5 rounded-xl p-1.5",
-        night ? "bg-indigo-500/10 dark:bg-indigo-400/10" : "bg-amber-500/10 dark:bg-amber-300/5"
-      )}
-    >
-      <div className="text-muted-foreground py-0.5 text-center text-[10px]">
-        {icon} {label}
-      </div>
-      {chips.map((e, i) => {
-        const next = chips[i + 1]
-        const nowHere = isCur && e.start <= now && (!next || next.start > now) && e.end > now
-        const nowAfter = isCur && e.end <= now && (!next || next.start > now) && false
-        void nowAfter
-        return (
-          <div key={e.id} className="flex flex-col gap-1.5">
-            <EventChip
-              ev={e}
-              now={now}
-              current={isCur && e.start <= now && e.end > now}
-              makeupCount={mk.get(e.id)?.length || 0}
-              earlyCount={em.get(e.id)?.length || 0}
-              dayCount={TASK_SLOTS().includes(e.slot || "") && !e.external ? dayCount : 0}
-              onOpen={onOpen}
-            />
-            {nowHere && (
-              <div className="flex items-center gap-1" aria-label="الآن">
-                <span className="size-2 rounded-full bg-red-500" />
-                <span className="h-px flex-1 bg-red-500" />
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+// عمود اليوم قائمةُ بلوكاتٍ متصلة من بداية وحدته إلى نهايتها — بلا تقسيمٍ مفروض
+// إلى ليلٍ ونهار: فبنيةُ اليوم يرسمها صاحبه في قالبه، والعرضُ يتبعها لا يعلوها.
 
 export function WeekView({
   weekStart,
@@ -104,7 +33,7 @@ export function WeekView({
 
   const now = nowStamp()
   const mk = makeupMap(events, now) // شارة «قضاء N» على البلوكات المستقبِلة
-  const em = earlyMap(events, now) // وشارة «تقديم N» — وكان لا يُعرف إلا بفتح البلوك
+  const em = earlyMap(events, now) // وشارة «تقديم N»
 
   return (
     // سبعة أعمدة لا تُعرض إلا إذا اتّسع لها فعلًا (≥١٢٨٠ بكسل ≈ ١٧٠ لكل عمود)،
@@ -112,12 +41,11 @@ export function WeekView({
     <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 xl:grid xl:grid-cols-7 xl:gap-1 xl:overflow-visible xl:px-3">
       {days.map((d) => {
         const isCur = d === cu
-        // عمود اليوم = وحدته كاملة من الفجر إلى فجر الغد: نهاره ثم ليلته
+        // عمود اليوم = وحدته كاملة بترتيبها الزمني
         const unitEvs = events
           .filter((e) => e.unit === d)
           .sort((a, b) => (a.start < b.start ? -1 : 1))
-        const dayCount = dayTasks(unitEvs, d).length // مهمتا القرآن والتمرين ما لم تُنجزا
-        const parts = unitParts(unitEvs)
+        const dayCount = dayTasks(unitEvs, d).length // مهام اليوم العائمة ما لم تُنجز
         return (
           <div
             key={d}
@@ -142,22 +70,30 @@ export function WeekView({
             {unitEvs.length === 0 ? (
               <div className="text-muted-foreground/60 py-8 text-center text-xs">لا أحداث</div>
             ) : (
-              <div className="flex flex-col gap-2">
-                {parts.map((part, pi) => (
-                  <Section
-                    key={pi}
-                    label={part.label}
-                    icon={part.icon}
-                    night={part.night}
-                    chips={part.chips}
-                    isCur={isCur}
-                    now={now}
-                    mk={mk}
-                    em={em}
-                    dayCount={dayCount}
-                    onOpen={onOpen}
-                  />
-                ))}
+              <div className="flex flex-col gap-1.5">
+                {unitEvs.map((e, i) => {
+                  const next = unitEvs[i + 1]
+                  const nowHere = isCur && e.start <= now && (!next || next.start > now) && e.end > now
+                  return (
+                    <div key={e.id} className="flex flex-col gap-1.5">
+                      <EventChip
+                        ev={e}
+                        now={now}
+                        current={isCur && e.start <= now && e.end > now}
+                        makeupCount={mk.get(e.id)?.length || 0}
+                        earlyCount={em.get(e.id)?.length || 0}
+                        dayCount={TASK_SLOTS().includes(e.slot || "") && !e.external ? dayCount : 0}
+                        onOpen={onOpen}
+                      />
+                      {nowHere && (
+                        <div className="flex items-center gap-1" aria-label="الآن">
+                          <span className="size-2 rounded-full bg-red-500" />
+                          <span className="h-px flex-1 bg-red-500" />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

@@ -16,9 +16,9 @@ self.addEventListener('activate', (e) => {
 // إشعارات الدفع من خادم Supabase — تصل حتى والتطبيق مغلق
 self.addEventListener('push', (e) => {
   let d = {};
-  try { d = e.data.json(); } catch { d = { title: 'تقويم هيثم', body: e.data ? e.data.text() : '' }; }
+  try { d = e.data.json(); } catch { d = { title: 'تقويمي', body: e.data ? e.data.text() : '' }; }
   e.waitUntil(
-    self.registration.showNotification(d.title || 'تقويم هيثم', {
+    self.registration.showNotification(d.title || 'تقويمي', {
       body: d.body || '',
       icon: 'icon-192.png',
       badge: 'icon-192.png',

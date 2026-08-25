@@ -95,7 +95,7 @@ export default function Page() {
   return (
     <div className="flex h-dvh flex-col">
       <header className="flex items-center gap-1 border-b px-3 py-2">
-        <h1 className="text-base font-bold">تقويم هيثم</h1>
+        <h1 className="text-base font-bold">تقويمي</h1>
         <span className="text-muted-foreground ms-2 hidden text-sm sm:inline">
           {weekLabel(weekStart)}
         </span>

@@ -18,6 +18,10 @@ import {
   completeGoal,
   currentUnit,
   removeCab,
+  systemsUnder,
+  type Drawer,
+  unplaceDrawer,
+  placeDrawer,
   reopenGoal,
   updateCab,
   repeatLabel,
@@ -216,6 +220,94 @@ function GoalForm({
   )
 }
 
+// وضعُ الدرج في التقويم: بلوكٌ باسمه، بمرساة صلاةٍ (يتحرك مع المواقيت ومدتُه
+// ثابتة) أو ساعةٍ (ثابتٌ كلُّه) — جوابُ شرطه: «هل يتغيّر وقته بالتقويم القمري».
+function PlaceDrawer({ drawer }: { drawer: Drawer }) {
+  const [open, setOpen] = useState(false)
+  const [kind, setKind] = useState<"prayer" | "clock">("prayer")
+  const [prayer, setPrayer] = useState("asr")
+  const [offset, setOffset] = useState(60)
+  const [clock, setClock] = useState("16:00")
+  const [err, setErr] = useState("")
+  const placed = !!drawer.slot
+  const PR: [string, string][] = [
+    ["fajr", "الفجر"],
+    ["dhuhr", "الظهر"],
+    ["asr", "العصر"],
+    ["maghrib", "المغرب"],
+    ["isha", "العشاء"],
+  ]
+  return (
+    <div className="pt-1">
+      {placed ? (
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+            موضوع في التقويم
+          </span>
+          <button onClick={() => unplaceDrawer(drawer.id)} className="text-muted-foreground hover:text-destructive text-[11px] underline">
+            ارفعه
+          </button>
+        </div>
+      ) : !open ? (
+        <button onClick={() => setOpen(true)} className="text-primary text-[11px] underline">
+          ضعه في التقويم…
+        </button>
+      ) : (
+        <div className="flex flex-col gap-1.5 rounded-md border p-2">
+          <div className="flex items-center gap-1 text-[11px]">
+            <span className="text-muted-foreground">ينتهي بلوكُه عند</span>
+            <Help text="مرساة صلاة: يتحرك موعده مع المواقيت يومًا بيوم ومدته بينهما. مرساة ساعة: ثابتٌ لا يتحرك — والحارس يردّ ما يتعارض مع تحرّك المواسم." />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            <button onClick={() => setKind("prayer")} className={cn("rounded border px-2 py-0.5 text-[11px]", kind === "prayer" ? "border-primary bg-primary text-primary-foreground" : "border-border")}>
+              صلاة (يتحرك مع المواقيت)
+            </button>
+            <button onClick={() => setKind("clock")} className={cn("rounded border px-2 py-0.5 text-[11px]", kind === "clock" ? "border-primary bg-primary text-primary-foreground" : "border-border")}>
+              ساعة ثابتة
+            </button>
+          </div>
+          {kind === "prayer" ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {PR.map(([k, name]) => (
+                <button key={k} onClick={() => setPrayer(k)} className={cn("rounded border px-2 py-0.5 text-[11px]", prayer === k ? "border-primary bg-primary text-primary-foreground" : "border-border")}>
+                  {name}
+                </button>
+              ))}
+              <span className="text-muted-foreground text-[11px]">+</span>
+              <Input type="number" value={offset} onChange={(e) => setOffset(+e.target.value || 0)} className="h-7 w-16 text-[11px]" />
+              <span className="text-muted-foreground text-[11px]">دقيقة</span>
+            </div>
+          ) : (
+            <Input type="time" value={clock} onChange={(e) => setClock(e.target.value)} className="h-7 w-28 text-[11px]" />
+          )}
+          {err && <p className="text-destructive text-[11px]">{err}</p>}
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              className="h-7 text-[11px]"
+              onClick={() => {
+                const end =
+                  kind === "prayer"
+                    ? { prayer, offset }
+                    : { clock: +clock.slice(0, 2) * 60 + +clock.slice(3, 5) }
+                const e = placeDrawer(drawer.id, end)
+                if (e) return setErr(e)
+                setErr("")
+                setOpen(false)
+              }}
+            >
+              ضعه
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setOpen(false)}>
+              إلغاء
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // صفّ مهمة في الدرج: اسمُها يُحرَّر، ومهامُها الفرعية تُضاف وتُحذف.
 // وكانت المهام الفرعية في النموذج ولا سبيل إلى صنعها، وكان updateCab بلا مستدعٍ
 // فلا يُصحَّح خطأٌ في اسمٍ إلا بحذف المهمة وإنشائها من جديد.
@@ -408,7 +500,14 @@ export function CabinetsDialog({
                     {c.doneAt ? <RotateCcwIcon className="size-4" /> : <FlagIcon className="size-4" />}
                   </button>
                   <button
-                    onClick={() => removeCab("cabinets", c.id)}
+                    onClick={() => {
+                      const sys = systemsUnder("cabinets", c.id)
+                      if (sys.length) {
+                        const names = sys.map((x) => (x === "quran" ? "القرآن" : "التمرين")).join(" و")
+                        if (!window.confirm(`هذه الخزانة تحمل نظام ${names} — حذفُها يطفئه من جدولك كله. أتحذفها؟`)) return
+                      }
+                      removeCab("cabinets", c.id)
+                    }}
                     className="text-muted-foreground hover:text-destructive flex-none"
                     aria-label="حذف الخزانة"
                   >
@@ -439,6 +538,7 @@ export function CabinetsDialog({
                                   {[d.goal, d.deadline && `حتى ${d.deadline}`].filter(Boolean).join(" · ")}
                                 </span>
                               )}
+                              <PlaceDrawer drawer={d} />
                             </span>
                             <button
                               onClick={() => setAddingItem(addingItem === d.id ? null : d.id)}
@@ -455,7 +555,14 @@ export function CabinetsDialog({
                               {d.doneAt ? <RotateCcwIcon className="size-4" /> : <FlagIcon className="size-4" />}
                             </button>
                             <button
-                              onClick={() => removeCab("drawers", d.id)}
+                              onClick={() => {
+                                const sys = systemsUnder("drawers", d.id)
+                                if (sys.length) {
+                                  const names = sys.map((x) => (x === "quran" ? "القرآن" : "التمرين")).join(" و")
+                                  if (!window.confirm(`هذا الدرج بابُ نظام ${names} — حذفُه يطفئه من جدولك كله. أتحذفه؟`)) return
+                                }
+                                removeCab("drawers", d.id)
+                              }}
                               className="text-muted-foreground hover:text-destructive flex-none"
                               aria-label="حذف الدرج"
                             >

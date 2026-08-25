@@ -12,7 +12,7 @@ const arabicFont = IBM_Plex_Sans_Arabic({
 })
 
 export const metadata: Metadata = {
-  title: "تقويم هيثم",
+  title: "تقويمي",
   description: "جدولك الأسبوعي المولّد فلكيًا — عرض فقط",
   manifest: "manifest.webmanifest", // نسبي حتى يعمل تحت أي basePath
   appleWebApp: { capable: true, title: "تقويم", statusBarStyle: "default" },

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Help } from "@/components/help"
 import {
+  BodySection,
   LocationSection,
   QuranSection,
   Section,
@@ -175,6 +176,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           <QuranSection />
           <WirdSection />
           <WorkoutSection />
+          <BodySection />
 
           <Section
             title="حسابات Google Calendar"
@@ -287,6 +289,20 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
                 </Button>
               </div>
             )}
+          </div>
+
+          {/* الصيام */}
+          <div className="border-t pt-3">
+            <h3 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+              صيام الاثنين والخميس
+              <Help text="في يومي الصيام تسقط وجبات النهار المعلَّمة «صيام» من جدولك تلقائيًّا — علِّمها من محرر بنود البلوك." />
+            </h3>
+            <Toggle
+              on={settings.fasting}
+              onClick={() => saveSettings({ fasting: !settings.fasting })}
+              label="أصوم الاثنين والخميس"
+              help="سنّةٌ عن النبي ﷺ — والوجبة المعلَّمة تسقط في يوميها."
+            />
           </div>
 
           {/* القضاء والتقديم */}

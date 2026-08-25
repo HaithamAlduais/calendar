@@ -2,6 +2,7 @@
 // أسداس الليل الستة، والنوم بدورات كاملة وبمدى ساعات، والخطة دورةً لا أسبوعًا,
 // والتمرين الأسبوعي بنسخه المتناوبة، والقرآن قابلًا للتركيب، والصيام يُسقط وجبته.
 import { buildDay, isMonotone } from '../lib/engine/layout.js';
+import { composeDayTemplate } from '../lib/engine/compose.js';
 import {
   DEFAULT_TEMPLATES,
   DEFAULT_WEEK_PLAN,
@@ -88,6 +89,13 @@ const mins = (stamp) => +stamp.slice(11, 13) * 60 + +stamp.slice(14, 16);
   ok('القيلولة الحرّة موجبة', free > 0, `= ${free}`);
   check('وبالدورات تُقصّ إلى مضاعف ٩٠', snapped % 90, 0);
   ok('القصّ لا يزيد الطول', snapped <= free);
+  // دون دورةٍ واحدة وقد بلغ الليلُ حدَّه: تُلغى القيلولة لا تُنقص
+  {
+    const tiny = napLen({ targetMin: 300, targetMax: 460, min: 0, max: 300, keepAfter: 0, cycle: 90 });
+    // نوم الليل ~٤٢٩ ≥ ٣٠٠، والباقي إلى ٤٦٠ ≈ ٣١ دون دورة ← صفر
+    check('باقٍ دون دورة والليل كافٍ ← لا قيلولة', tiny, 0);
+  }
+
   // {target} القديمة تعمل كما هي (هدفٌ واحد)
   const old = napLen({ target: 395, min: 45, max: 240, keepAfter: 45 });
   ok('صيغة target القديمة تعمل', old >= 45 && old <= 240, `= ${old}`);
@@ -186,6 +194,50 @@ const mins = (stamp) => +stamp.slice(11, 13) * 60 + +stamp.slice(14, 16);
   check('ورد القراءة: المقدار في النص', labels[0], 'قراءة: صفحتان');
   ok('وكل السنن سواء', labels.every((l) => l === labels[0]));
   setQuranConfig(base);
+}
+
+// ── ٧. المركّب: اختيارات المعالج تصير قالبًا سليمًا في كل الصور ──────
+{
+  const variants = [
+    // نمط النبي ﷺ: نومٌ بعد العشاء، قيامُ سدسٍ كامل عند الثلث الأخير، ونوم السدس الأخير
+    { name: 'النبوي', o: { sleep: { start: 'afterIsha' }, qiyam: { sixth: 4, minutes: null } } },
+    // سهرٌ إلى نصف الليل، وقيام ٤٥ دقيقة عند السدس الأخير
+    { name: 'ساهر', o: { sleep: { start: 3 }, qiyam: { sixth: 5, minutes: 45 } } },
+    // بلا قيام: نومٌ بعد العشاء مباشرة إلى الفجر
+    { name: 'بلا قيام', o: { sleep: { start: 'afterIsha' }, qiyam: null } },
+    // بلا قيلولة
+    { name: 'بلا قيلولة', o: { sleep: { start: 'afterIsha', qaylulah: false }, qiyam: { sixth: 4, minutes: null } } },
+  ];
+  for (const v of variants) {
+    const tpl = composeDayTemplate({
+      ...v.o,
+      meals: [
+        { name: 'الفطور', prayer: 'fajr' },
+        { name: 'الغداء', prayer: 'dhuhr', fastingSkip: true },
+        { name: 'وجبة المساء', prayer: 'maghrib' },
+      ],
+    });
+    for (const d of ['2026-01-15', '2026-06-21', '2026-09-23']) {
+      ok(v.name + ' ' + d + ': يومٌ سليم', isMonotone(d, tpl));
+      const evs = buildDay(d, tpl, () => []);
+      for (let i = 1; i < evs.length; i++)
+        ok(v.name + ' ' + d + ': لا فجوة', evs[i].start === evs[i - 1].end, evs[i - 1].end + '≠' + evs[i].start);
+      // وحدة الغد تبدأ حيث انتهت وحدة اليوم — الحلقة مغلقة
+      const nxt = buildDay(addDays(d, 1), tpl, () => []);
+      check(v.name + ' ' + d + ': لا فجوة بين الوحدات', nxt[0].start, evs.at(-1).end);
+    }
+    // الوجبات في مواضعها
+    const evs = buildDay('2026-09-23', tpl, (b) => b.items || []);
+    const q = evs.find((e) => e.slot === 'quran');
+    ok(v.name + ': الفطور بعد الفجر', !!q && q.items.some((i) => i.text === 'الفطور'));
+  }
+  // القيام سدسًا كاملًا: نهايته سدسُ الليل الأخير تمامًا
+  const tpl = composeDayTemplate({ sleep: { start: 'afterIsha' }, qiyam: { sixth: 4, minutes: null } });
+  const q = buildDay(D, tpl, () => []).find((e) => e.slot === 'qiyam');
+  const P = prayerTimes(D);
+  const F2 = prayerTimes(addDays(D, 1)).fajr + 1440;
+  const qEnd = mins(q.end) + (q.end.slice(0, 10) > D ? 1440 : 0);
+  check('القيام النبوي ينتهي عند ٥/٦ الليل', qEnd, P.maghrib + Math.round((5 * (F2 - P.maghrib)) / 6));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

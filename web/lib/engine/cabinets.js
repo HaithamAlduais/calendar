@@ -25,7 +25,8 @@ export function dueOn(item, dIso) {
 }
 
 // مهام يوم dIso موزَّعةً على بلوكاتها: slot ← [{ item, drawer, cabinet, deadline }]
-// المهمة بلا بلوك محدَّد تذهب إلى fallbackSlot
+// المهمة بلا بلوك محدَّد تذهب إلى بلوك درجها الموضوع في التقويم إن وُضع،
+// وإلا إلى fallbackSlot (أول بلوك مهام في اليوم)
 export function itemsForDay(dIso, data, fallbackSlot) {
   const out = new Map();
   const drawers = new Map((data.drawers || []).map((x) => [x.id, x]));
@@ -38,7 +39,7 @@ export function itemsForDay(dIso, data, fallbackSlot) {
     const deadline = effectiveDeadline(item, drawer, cabinet);
     if (deadline && dIso > deadline) continue; // انقضى موعدها
     if (!dueOn(item, dIso)) continue;
-    const slot = item.slot || fallbackSlot;
+    const slot = item.slot || (drawer && drawer.slot) || fallbackSlot;
     if (!out.has(slot)) out.set(slot, []);
     out.get(slot).push({ item, drawer, cabinet, deadline });
   }

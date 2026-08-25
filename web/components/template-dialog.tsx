@@ -24,13 +24,12 @@ import {
   dayStartOptions,
   DEFAULT_TEMPLATES,
   duplicateTemplate,
-  loadPreset,
   moveBlock,
   removeTemplate,
   renameTemplate,
   templateName,
+  todayIso,
   prayerMinutesOf,
-  PRESETS,
   removeBlock,
   resetTemplates,
   saveSettings,
@@ -74,7 +73,13 @@ export function isSelfPaced(b: Block): boolean {
 
 function endLabel(b: Block): string {
   const e = b.end
-  if (e.balance) return `يُكمل نومك إلى ${fmtDur(e.balance.target)}`
+  if (e.balance) {
+    const t = e.balance.targetMax ?? e.balance.target ?? 0
+    const lo = e.balance.targetMin
+    return lo && lo !== t
+      ? `يُكمل نومك إلى ما بين ${fmtDur(lo)} و${fmtDur(t)}`
+      : `يُكمل نومك إلى ${fmtDur(t)}`
+  }
   if (e.len != null) return `${fmtDur(e.len)} من بدايته`
   if (isSelfPaced(b)) return `${fmtDur(e.offset || 0)} من أذانه`
   if (e.prayer) {
@@ -82,11 +87,19 @@ function endLabel(b: Block): string {
     if (!e.offset) return `عند ${name}`
     return e.offset > 0 ? `بعد ${name} بـ${fmtDur(e.offset)}` : `قبل ${name} بـ${fmtDur(-e.offset)}`
   }
+  if (e.nightPart) {
+    const names: Record<number, string> = { 1: "سدس الليل الأول", 2: "ثلث الليل", 3: "نصف الليل", 4: "الثلث الأخير", 5: "السدس الأخير", 6: "آخر الليل" }
+    const base = names[e.nightPart] || `${arab(e.nightPart)}/٦ من الليل`
+    if (!e.offset) return `عند ${base}`
+    return e.offset > 0 ? `بعد ${base} بـ${fmtDur(e.offset)}` : `قبل ${base} بـ${fmtDur(-e.offset)}`
+  }
   if (e.nightFraction) {
     const base = e.nightFraction === 1 ? "ثلث الليل" : "ثلثي الليل"
     if (!e.offset) return `عند ${base}`
     return e.offset > 0 ? `بعد ${base} بـ${fmtDur(e.offset)}` : `قبل ${base} بـ${fmtDur(-e.offset)}`
   }
+  if (e.nightPrev) return "من الليلة السابقة"
+  if (e.prevDay) return "من أمس"
   if (e.lastThirdPrev) return "مطلع الثلث الأخير من الليلة السابقة"
   if (e.clock != null)
     return `عند ${arab(Math.floor(e.clock / 60))}:${arab(String(e.clock % 60).padStart(2, "0"))}`
@@ -448,7 +461,6 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
   const [newClock, setNewClock] = useState("06:00")
   const [newSleep, setNewSleep] = useState(false)
   const [tplErr, setTplErr] = useState("")
-  const [confirmPreset, setConfirmPreset] = useState<string | null>(null)
   const [perPrayer, setPerPrayer] = useState(false)
   const [mins, setMins] = useState<Record<string, number>>(() => prayerMinutesOf())
   const [startErr, setStartErr] = useState("")
@@ -472,50 +484,6 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
         </SheetHeader>
 
         <div className="flex flex-col gap-3 px-4 pb-8">
-          {/* جدول جاهز بضغطة — يستبدل قوالبك وأنظمتك ويترك موقعك ويوم بدايتك */}
-          <div className="rounded-lg border p-2">
-            <div className="mb-1 flex items-center gap-1 text-sm font-semibold">
-              جدول جاهز
-              <Help text="يستبدل قوالب أيامك وخطة أسبوعك ونظامَي القرآن والتمرين. ويترك موقعك وطريقة حسابك ويوم بدايتك كما هي، ولا يمسّ ما أنجزته ولا خزاناتك." />
-            </div>
-            {PRESETS.map((p) => (
-              <div key={p.id} className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="flex-1">
-                    <span className="text-sm">{p.name}</span>
-                    <span className="text-muted-foreground block text-[11px] leading-relaxed">{p.desc}</span>
-                  </span>
-                  <Button size="sm" variant="outline" onClick={() => setConfirmPreset(p.id)}>
-                    <DownloadIcon />
-                    حمّله
-                  </Button>
-                </div>
-                {confirmPreset === p.id && (
-                  <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
-                    <p className="mb-2 text-[11px] leading-relaxed">
-                      سيستبدل قوالبك الحالية وأنظمة القرآن والتمرين. إنجازك وخزاناتك لا تُمسّ.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => {
-                          loadPreset(p.id)
-                          setConfirmPreset(null)
-                        }}
-                      >
-                        نعم، حمّله
-                      </Button>
-                      <Button size="sm" variant="ghost" className="flex-1" onClick={() => setConfirmPreset(null)}>
-                        تراجع
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
           {/* مدة الصلاة لكل الصلوات دفعةً واحدة */}
           <div className="rounded-lg border p-2">
             <div className="mb-1 flex items-center gap-1 text-sm font-semibold">
@@ -657,9 +625,86 @@ export function TemplateDialog({ open, onClose }: { open: boolean; onClose: () =
             )}
           </div>
 
-          {/* خطة الأسبوع */}
+          {/* خطة الأيام: أسبوعية أو دورة لا تعرف الأسبوع */}
           <div className="rounded-lg border p-2">
-            <div className="mb-2 text-sm font-semibold">خطة الأسبوع</div>
+            <div className="mb-2 flex items-center gap-1 text-sm font-semibold">
+              خطة الأيام
+              <Help text="أسبوعية: لكل يوم أسبوعٍ قالبُه. أو دورة: قوالبُ تتعاقب من يوم بدايتها بلا نظر إلى الأسبوع — لمن لا فرق عنده بين جمعةٍ وغيرها." />
+            </div>
+            <div className="mb-2 flex flex-wrap gap-1">
+              {(
+                [
+                  ["weekly", "أسبوعية"],
+                  ["cycle", "دورة متتابعة"],
+                ] as const
+              ).map(([m, label]) => (
+                <button
+                  key={m}
+                  onClick={() =>
+                    saveSettings(
+                      m === "cycle"
+                        ? { planMode: m, cyclePlan: settings.cyclePlan ?? { start: todayIso(), seq: [ids[0]] } }
+                        : { planMode: m }
+                    )
+                  }
+                  className={cn(
+                    "rounded-md border px-2 py-0.5 text-xs",
+                    settings.planMode === m ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {settings.planMode === "cycle" && settings.cyclePlan && (
+              <div className="mb-2 flex flex-col gap-1">
+                <div className="text-muted-foreground text-[11px]">أيام الدورة بترتيبها — تدور من {settings.cyclePlan.start}:</div>
+                {settings.cyclePlan.seq.map((tid, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-1">
+                    <span className="text-muted-foreground w-12 flex-none text-[11px]">يوم {arab(i + 1)}</span>
+                    {ids.map((id) => (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          const seq = [...settings.cyclePlan!.seq]
+                          seq[i] = id
+                          saveSettings({ cyclePlan: { ...settings.cyclePlan!, seq } })
+                        }}
+                        className={cn(
+                          "rounded-md border px-2 py-0.5 text-xs",
+                          tid === id ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                        )}
+                      >
+                        {templateName(id)}
+                      </button>
+                    ))}
+                    {settings.cyclePlan!.seq.length > 1 && (
+                      <button
+                        onClick={() =>
+                          saveSettings({
+                            cyclePlan: { ...settings.cyclePlan!, seq: settings.cyclePlan!.seq.filter((_, k) => k !== i) },
+                          })
+                        }
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label="حذف يوم من الدورة"
+                      >
+                        <Trash2Icon className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => saveSettings({ cyclePlan: { ...settings.cyclePlan!, seq: [...settings.cyclePlan!.seq, ids[0]] } })}
+                >
+                  <PlusIcon />
+                  يوم في الدورة
+                </Button>
+              </div>
+            )}
+            <div className="mb-2 text-sm font-semibold">{settings.planMode === "weekly" ? "خطة الأسبوع" : "خطة الأسبوع (معطّلة — الدورة تحكم)"}</div>
             <div className="flex flex-col gap-1">
               {DAY_NAMES.map((name, i) => (
                 <div key={name} className="flex items-center gap-2 text-xs">

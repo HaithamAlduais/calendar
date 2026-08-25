@@ -86,24 +86,28 @@ export function DayPopup() {
             <MoonIcon className="size-5 text-emerald-600" />
             بدأ يوم {fmtDateLong(cur)}
           </DialogTitle>
-          <DialogDescription>يومك يبدأ بنومة الثلث الأخير — أوّل مهامك أن تنامها. هذا حصاد أمس وخطة اليوم.</DialogDescription>
+          <DialogDescription>هذا حصاد أمس وخطة اليوم.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          {!first && (
+          {!first && (settings.hifzEnabled || settings.workoutEnabled) && (
             <>
               <h3 className="text-sm font-semibold">أمس — {fmtDateLong(prev)}</h3>
-              <StatusRow
-                ok={reviewDone}
-                label={`التسميع: الجزء ${arab(stPrev.reviewJuz)}`}
-                note={reviewDone ? undefined : "لم يُنجز — سيُعاد الجزء نفسه اليوم"}
-              />
-              <StatusRow
-                ok={hifzDone}
-                label={`الحفظ: ${stPrev.hifzMode} الربع ${arab(stPrev.hifzQuarter)} من الجزء ${arab(stPrev.hifzJuz)}`}
-                note={hifzDone ? undefined : "لم يُنجز — سيُعاد الربع نفسه اليوم"}
-              />
-              {prevTrainType > 0 && (
+              {settings.hifzEnabled && (
+                <StatusRow
+                  ok={reviewDone}
+                  label={`التسميع: الجزء ${arab(stPrev.reviewJuz)}`}
+                  note={reviewDone ? undefined : "لم يُنجز — سيُعاد الجزء نفسه اليوم"}
+                />
+              )}
+              {settings.hifzEnabled && (
+                <StatusRow
+                  ok={hifzDone}
+                  label={`الحفظ: ${stPrev.hifzMode} الربع ${arab(stPrev.hifzQuarter)} من الجزء ${arab(stPrev.hifzJuz)}`}
+                  note={hifzDone ? undefined : "لم يُنجز — سيُعاد الربع نفسه اليوم"}
+                />
+              )}
+              {settings.workoutEnabled && prevTrainType > 0 && (
                 <StatusRow
                   ok={trainDone}
                   label={`التمرين: ${workoutTitle(prev)}${prevProg.total ? ` (${arab(prevProg.done)}/${arab(prevProg.total)} جلسة)` : ""}`}
@@ -118,10 +122,14 @@ export function DayPopup() {
             </>
           )}
 
-          <h3 className="text-sm font-semibold">{first ? "خطة أول يوم" : "اليوم بناءً على ذلك"}</h3>
-          <p className="text-sm leading-relaxed">١. {reviewLine(stCur)}</p>
-          <p className="text-sm leading-relaxed">٢. {hifzLine(stCur)}</p>
-          <p className="text-sm leading-relaxed">٣. {workoutTitle(cur)}</p>
+          {(settings.hifzEnabled || settings.workoutEnabled) && (
+            <>
+              <h3 className="text-sm font-semibold">{first ? "خطة أول يوم" : "اليوم بناءً على ذلك"}</h3>
+              {settings.hifzEnabled && <p className="text-sm leading-relaxed">• {reviewLine(stCur)}</p>}
+              {settings.hifzEnabled && <p className="text-sm leading-relaxed">• {hifzLine(stCur)}</p>}
+              {settings.workoutEnabled && <p className="text-sm leading-relaxed">• {workoutTitle(cur)}</p>}
+            </>
+          )}
 
           <p className="text-muted-foreground text-[11px] leading-relaxed">
             ما فات وقته اليوم ينتقل تلقائيًا إلى بلوك العمل القادم لتقضيه (نصف إنجاز ½)، وما انقضى
