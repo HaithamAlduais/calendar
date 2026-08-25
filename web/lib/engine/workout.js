@@ -1,9 +1,13 @@
-// محرك التمرين — التمارين والدورة كلها بيانات يعرّفها المستخدم.
+// محرك التمرين — التمارين والجدولة كلها بيانات يعرّفها المستخدم.
 //
 // التقدّم المزدوج: زد عدة كل جلسة حتى أعلى النطاق، ثم زد الوزن وارجع إلى أدناه.
-// والدورة متتابعة لا علاقة لها بأيام الأسبوع: يوم تمرين ثم يوم راحة/تطوير بالتناوب،
-// وأيام التمرين تدور بالترتيب — فلا يتعلّق صاحبها بيومٍ من الأسبوع بعينه.
-import { addDays, daysBetween, arab } from './dates.js';
+// والجدولة نمطان:
+//   • دورة متتابعة لا علاقة لها بأيام الأسبوع (يوم تمرين فيوم راحة، أو كل يوم) —
+//     فلا يتعلّق صاحبها بيومٍ بعينه.
+//   • أسبوعية: يختار أيام تمرينه من الأسبوع (سبت وثلاثاء مثلًا).
+// وفي النمطين تدور «أيام التمرين» (النسخ) بالترتيب على مواعيد التمرين — فمن كان
+// له نسختان من تمرين الصدر تعاقبتا موعدًا بعد موعد.
+import { addDays, daysBetween, dow, arab } from './dates.js';
 
 const SQUAT_STEPS =
   'التدرّج نحو سكوات الرجل الواحدة: ١) سكوات قافز ٢) نزول برجل وصعود بقدمين ٣) نزول برجل وصعود بقدمين مع قفز ٤) نزول وصعود برجل واحدة ٥) برجل واحدة مع قفز — انتقل للمستوى التالي عند إتقان الحالي';
@@ -16,7 +20,10 @@ const FOOTER = 'سجّل ما أنجزته فعليًا هنا بعد التمر
 export const DEFAULT_WORKOUT = {
   start: '2026-08-24',
   offTitle: 'تطوير', // اسم اليوم بين التمرينين
-  restBetween: true, // يوم راحة بين كل تمرينين
+  restBetween: true, // (نمط الدورة) يوم راحة بين كل تمرينين
+  // الجدولة: 'cycle' دورة متتابعة، أو 'weekly' بأيام أسبوع محددة (weeklyDays: [0..6])
+  scheduleMode: 'cycle',
+  weeklyDays: [],
   // كل تمرين: جلسات، ونطاق عدات (lo→hi)، ووزن البداية ومقدار الزيادة، وراحة بالثواني
   exercises: {
     press: { name: 'الدفع العلوي (بريس مائل)', sets: 4, lo: 6, hi: 9, w0: 40, inc: 5, rest: 120 },
@@ -102,13 +109,39 @@ export function workoutConfig() {
 // يبقى مُصدَّرًا للتوافق: يوم بدء الدورة
 export const GYM_START = DEFAULT_WORKOUT.start;
 
-// 0 = يوم راحة/تطوير، و1..N أيام التمرين بالتناوب
-export function workoutDayType(dateIso) {
-  if (dateIso < cfg.start) return 0;
+// هل هذا اليوم موعدُ تمرين أصلًا؟ (قبل تحديد أيّ نسخة تُؤدّى فيه)
+function isTrainingDate(dateIso) {
+  if (dateIso < cfg.start || !cfg.days.length) return false;
+  if (cfg.scheduleMode === 'weekly')
+    return (cfg.weeklyDays || []).includes(dow(dateIso));
   const off = daysBetween(cfg.start, dateIso);
-  const step = cfg.restBetween ? 2 : 1;
-  if (cfg.restBetween && off % 2 === 1) return 0;
-  return ((off / step) % cfg.days.length) + 1;
+  return !(cfg.restBetween && off % 2 === 1);
+}
+
+// ترتيب هذا الموعد بين مواعيد التمرين منذ البداية (0 لأوّلها)
+function occurrenceIndex(dateIso) {
+  if (cfg.scheduleMode === 'weekly') {
+    // عدّ مواعيد التمرين قبل هذا اليوم — حسابًا لا مسحًا يومًا بيوم:
+    // لكل يوم أسبوع مختار، مواعيدُه first, first+7, … وما سبق dateIso منها
+    // عددُه ⌊(الفرق−1)/7⌋+1
+    const days = cfg.weeklyDays || [];
+    let count = 0;
+    for (const wd of days) {
+      const shift = (wd - dow(cfg.start) + 7) % 7;
+      const first = addDays(cfg.start, shift);
+      const D = daysBetween(first, dateIso);
+      if (D > 0) count += Math.floor((D - 1) / 7) + 1;
+    }
+    return count;
+  }
+  const off = daysBetween(cfg.start, dateIso);
+  return Math.floor(off / (cfg.restBetween ? 2 : 1));
+}
+
+// 0 = ليس يوم تمرين (راحة/تطوير)، و1..N نسخةُ التمرين التي تُؤدّى فيه بالتناوب
+export function workoutDayType(dateIso) {
+  if (!isTrainingDate(dateIso)) return 0;
+  return (occurrenceIndex(dateIso) % cfg.days.length) + 1;
 }
 
 export function workoutTitle(dateIso) {

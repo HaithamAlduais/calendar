@@ -1,10 +1,7 @@
-// جدول هيثم مُعبَّرًا عنه بقوالب أيام (بيانات) يقرأها محرك القالب في layout.js.
-// لم يعد هنا بناءُ أوقاتٍ ولا حسابُ مراسٍ — إنما قالبٌ لكل نوع يوم وبنودُ بلوكاته.
-//
-// اليوم يبدأ بنومة الثلث الأخير التي تسبق الفجر وينتهي بنهاية قيام ليلته:
-// «أول مهمة في اليوم هي النوم» — فمن أخلّ بها خرب يومه كله.
-// ترتيب الوحدة: نوم ← الفجر ← مهام ← نومة الضحى ← نهار ← المغرب ← ليل ← القيام
-import { addDays, dow } from './dates.js';
+// قوالب الأيام وبنودها — بياناتٌ يقرأها محرك القالب في layout.js.
+// لا بناءَ أوقاتٍ هنا ولا حسابَ مراسٍ: قالبٌ افتراضي بسيط، ومولّدات بنود الصلاة
+// والقرآن، وإسنادُ القوالب إلى الأيام أسبوعًا أو دورةً.
+import { addDays, daysBetween, dow } from './dates.js';
 import { quranStateFor, quranTaskLines, tathbeetLabels } from './quran.js';
 import { buildDay, rotateTemplate, unitStart as layoutUnitStart } from './layout.js';
 
@@ -137,68 +134,10 @@ const AILA_DUAA = [
   it('duaa', 'ساعة استجابة الدعاء قبل المغرب — تفرّغ للدعاء'),
 ];
 
-// ── القوالب: قالبٌ لكل نوع يوم، وخطة الأسبوع تسنِد لكل يوم قالبه ──
-// (المرحلة القادمة تُخرجها إلى إعدادات المستخدم فيحرّرها من الواجهة)
-function makeTemplate({ day1, day2, day3, eve, rest, jumua, restFree }) {
-  return {
-    start: { lastThirdPrev: true },
-    blocks: [
-      { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'fajr' } },
-      { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
-      { id: 'quran', title: TASKS_TITLE, colorId: 10, gen: 'quran', task: true, end: { prayer: 'sunrise', offset: 90 } },
-      { id: 'nap', title: 'نوم', colorId: 8, sleep: true, end: { balance: SLEEP_BALANCE } },
-      // يوم الجمعة يبدأ بلوك الصلاة مبكرًا بساعة (تبكير الجمعة) فيقصر العمل قبله
-      { id: 'work1', title: day1.title, colorId: 6, items: day1.items, task: true, end: { prayer: 'dhuhr', offset: jumua ? -60 : 0 } },
-      { id: 'dhuhr', title: jumua ? 'الجمعة' : 'الظهر', colorId: 9, gen: jumua ? 'jumua' : 'dhuhr', end: { prayer: 'dhuhr', offset: 45 } },
-      { id: 'work2', title: day2.title, colorId: 6, items: day2.items, task: true, end: { prayer: 'asr' } },
-      { id: 'asr', title: 'العصر', colorId: 9, gen: 'asr', end: { len: 45 } },
-      { id: 'work3', title: day3.title, colorId: 6, items: day3.items, task: true, end: { prayer: 'maghrib' } },
-      { id: 'maghrib', title: 'المغرب', colorId: 9, gen: rest.weekend ? 'maghribWeekend' : 'maghrib', end: { len: 30 } },
-      { id: 'sleep1', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'isha' } },
-      { id: 'isha', title: 'العشاء', colorId: 9, gen: 'isha', end: { len: 45 } },
-      { id: 'family', title: eve.title, colorId: 6, items: eve.items, task: true, end: { nightFraction: 1 } },
-      { id: 'rest', title: rest.title, colorId: 8, items: rest.items, task: true, transparent: restFree, end: { nightFraction: 2, offset: -45 } },
-      { id: 'qiyam', title: 'صلاة القيام', colorId: 9, gen: rest.weekend ? 'qiyamWeekend' : 'qiyam', end: { nightFraction: 2 } },
-    ],
-  };
-}
-
-const T = TASKS_TITLE;
-// القوالب الافتراضية — بيانات محضة يستبدلها المستخدم من الواجهة
-export const DEFAULT_TEMPLATES = {
-  // أيام العمل: البلوكات الثلاثة «مهام»، وما بعد العشاء «عائلة»، والراحة «أسرة» (وقت الزوجة)
-  weekday: makeTemplate({
-    day1: { title: T, items: [] },
-    day2: { title: T, items: [] },
-    day3: { title: T, items: [] },
-    eve: { title: 'عائلة', items: AILA },
-    rest: { title: 'أسرة', items: [], weekend: false },
-    restFree: true,
-  }),
-  // نهار الجمعة: الصباح «أسرة»، والظهر والعصر «عائلة» (وفيه ساعة الاستجابة)
-  friday: makeTemplate({
-    jumua: true,
-    day1: { title: 'أسرة', items: ASRA_DAY_FRI },
-    day2: { title: 'عائلة', items: MEAL2 },
-    day3: { title: 'عائلة ودعاء', items: AILA_DUAA },
-    eve: { title: 'أسرة', items: ASRA },
-    rest: { title: 'أصدقاء', items: MEAL3, weekend: true },
-    restFree: false,
-  }),
-  saturday: makeTemplate({
-    day1: { title: 'أسرة', items: ASRA_DAY_SAT },
-    day2: { title: 'عائلة', items: MEAL2 },
-    day3: { title: 'عائلة', items: [] },
-    eve: { title: 'أسرة', items: ASRA },
-    rest: { title: 'أصدقاء', items: MEAL3, weekend: true },
-    restFree: false,
-  }),
-};
-
-// خطة الأسبوع: 0=الأحد … 5=الجمعة، 6=السبت
-// ── القالب البسيط: لمن بدأ فارغًا ──
-// نومٌ وصلواتٌ خمس وثلاثة بلوكات مهام — يومٌ قائم بنفسه يبني عليه صاحبه.
-// وكان «ابدأ فارغًا» يُسلّمه جدول صاحب البرنامج بتمامه، فلم يكن فارغًا في شيء.
+// ── القالب الافتراضي: يومٌ بسيط عام ──
+// نومٌ وصلواتٌ خمس وبلوكات مهام — يبني عليه المستخدم يومَه من المعالج والمحرِّرات.
+// (كان الافتراضُ جدولَ صاحب البرنامج بثلاثة قوالب — وليس التطبيق تطبيقَه وحده،
+// فجدولُه اليوم في ملف اختبار المطابقة فقط، دليلًا على أن النموذج العام يسعه.)
 function plainTemplate() {
   return {
     name: 'يومي',
@@ -224,10 +163,11 @@ function plainTemplate() {
   };
 }
 
-export const PLAIN_TEMPLATES = { day: plainTemplate() };
-export const PLAIN_WEEK_PLAN = ['day', 'day', 'day', 'day', 'day', 'day', 'day'];
-
-export const DEFAULT_WEEK_PLAN = ['weekday', 'weekday', 'weekday', 'weekday', 'weekday', 'friday', 'saturday'];
+export const DEFAULT_TEMPLATES = { day: plainTemplate() };
+export const DEFAULT_WEEK_PLAN = ['day', 'day', 'day', 'day', 'day', 'day', 'day'];
+// أسماء قديمة أبقيناها مرادفات — الافتراض هو البسيط نفسه
+export const PLAIN_TEMPLATES = DEFAULT_TEMPLATES;
+export const PLAIN_WEEK_PLAN = DEFAULT_WEEK_PLAN;
 
 // القوالب وخطة الأسبوع من إعدادات المستخدم
 let cfg = { templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN, dayStart: null };
@@ -244,8 +184,15 @@ export function setScheduleConfig(next) {
   cfg = {
     templates: (next && next.templates) || DEFAULT_TEMPLATES,
     weekPlan: (next && next.weekPlan) || DEFAULT_WEEK_PLAN,
+    // إسناد القوالب: 'weekly' لكل يوم أسبوعٍ قالبُه، أو 'cycle' تتابعٌ لا يعرف
+    // الأسبوع — قائمةُ قوالب تدور من يوم البداية (لمن قال: لا فرق عندي بين
+    // الجمعة وغيرها، أيامي دورةٌ من كذا يومًا)
+    planMode: (next && next.planMode) || 'weekly',
+    cyclePlan: (next && next.cyclePlan) || null, // { start, seq: [ids] }
     // بداية اليوم واحدة لكل القوالب — وإلا تداخلت الوحدات أو تباعدت
     dayStart: (next && next.dayStart) || null,
+    // صيام الاثنين والخميس: تُسقَط فيهما بنودُ الوجبات المعلَّمة fastingSkip
+    fasting: !!(next && next.fasting),
   };
   rotated = new Map();
 }
@@ -256,9 +203,18 @@ export function scheduleConfig() {
 // قالب اليوم: من خطة الأسبوع، وإن غاب فأول قالب موجود
 // القوالب مدارةً ببداية اليوم المختارة — تُحسب مرة لكل قالب لا لكل يوم
 let rotated = new Map();
-function templateFor(dIso) {
+function templateIdFor(dIso) {
   const ids = Object.keys(cfg.templates);
-  const key = cfg.weekPlan[dow(dIso)] in cfg.templates ? cfg.weekPlan[dow(dIso)] : ids[0];
+  if (cfg.planMode === 'cycle' && cfg.cyclePlan && cfg.cyclePlan.seq.length) {
+    const off = daysBetween(cfg.cyclePlan.start, dIso);
+    const seq = cfg.cyclePlan.seq;
+    const k = ((off % seq.length) + seq.length) % seq.length;
+    if (seq[k] in cfg.templates) return seq[k];
+  }
+  return cfg.weekPlan[dow(dIso)] in cfg.templates ? cfg.weekPlan[dow(dIso)] : ids[0];
+}
+function templateFor(dIso) {
+  const key = templateIdFor(dIso);
   if (!rotated.has(key)) rotated.set(key, rotateTemplate(cfg.templates[key], cfg.dayStart));
   return rotated.get(key);
 }
@@ -270,8 +226,12 @@ export function rawTemplateFor(dIso) {
 }
 
 // بنود البلوك: إمّا ثابتة في القالب، وإمّا مولّدة (صلوات وقرآن) من حالة يومها
+// صيام الاثنين (dow 1) والخميس (dow 4): وجبة النهار المعلَّمة تسقط
+const fastingDay = (dIso) => cfg.fasting && (dow(dIso) === 1 || dow(dIso) === 4);
+
 function itemsFor(block, dIso) {
-  if (!block.gen) return block.items || [];
+  if (!block.gen)
+    return (block.items || []).filter((x) => !(x.fastingSkip && fastingDay(dIso)));
   const st = quranStateFor(dIso);
   return GEN[block.gen](tathbeetLabels(st), st);
 }

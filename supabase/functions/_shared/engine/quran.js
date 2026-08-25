@@ -13,6 +13,12 @@ export const DEFAULT_QURAN = {
   hifzMode: 'حفظ', // 'حفظ' أو 'تكرار'
   repeats: 5, // مرات تكرار ربع الحفظ في يوم التكرار
   enabled: true, // نظام الحفظ والمراجعة كلّه — من أطفأه خلا بلوكه منه
+  // مكوّنات النظام المُدار — يركّبها المستخدم كما شاء: حفظٌ وحده، أو حفظٌ وتسميع
+  components: { review: true, hifz: true },
+  // الورد في السنن: 'tathbeet' مربوط بالحفظ (يقرأ ما حول موضعه)، أو 'reading'
+  // قراءةٌ حرّة بمقدار يحدّده صاحبها لكل سنّة
+  wirdMode: 'tathbeet',
+  wirdAmount: 'ربع حزب',
   // السنن التي يُوزَّع عليها ورد التثبيت بترتيبها الزمني: [بلوك، بند]
   wird: [
     ['fajr', 'sunnah'],
@@ -150,7 +156,10 @@ export function quranTaskLines(st) {
       { key: 'review', text: 'تسميع المراجعة', pool: null },
       { key: 'hifz', text: 'الحفظ', pool: null },
     ];
-  const lines = [{ key: 'review', text: reviewLine(st), pool: reviewPoolKey(st.reviewJuz) }];
+  const comp = QURAN_SEED.components || { review: true, hifz: true };
+  const lines = [];
+  if (comp.review) lines.push({ key: 'review', text: reviewLine(st), pool: reviewPoolKey(st.reviewJuz) });
+  if (!comp.hifz) return lines;
   if (st.hifzMode === 'تكرار') {
     lines.push({ key: 'hifz', text: `${hifzLine(st)} × ${arab(QURAN_SEED.repeats)} مرات`, pool: hifzPoolKey(st.hifzJuz, st.hifzQuarter) });
     for (let k = 1; k < st.hifzQuarter; k++) {
@@ -170,10 +179,20 @@ export function quranTaskLines(st) {
 
 // أنصاف أحزاب التثبيت الثمانية بترتيب السنن:
 // [الفجر، الضحى، الظهر القبلية، الظهر البعدية، العصر، المغرب، العشاء القبلية، العشاء البعدية]
+// نصوص الورد بترتيب السنن — وفي نمط القراءة الحرّة النصُّ مقدارٌ ثابت يحدّده
+// صاحبُه، لا موضعَ فيه فلا إزاحةَ تلحقه.
 // قائمة نصوص الورد بترتيب السنن. ولها `at(slot, itemId)` تقرأ الموضع من قائمة
 // السنن المُعدّة لا من رقمٍ مكتوب في مولّد البلوك — فمن حذف سنّةً من ورده أو
 // أعاد ترتيبها لم يقرأ «سنة العصر — undefined»، وإنما اسمَ سنّته وحده.
 export function tathbeetLabels(st, count = QURAN_SEED.wirdSlots) {
+  if (QURAN_SEED.wirdMode === 'reading') {
+    const out = Array.from({ length: count }, () => `قراءة: ${QURAN_SEED.wirdAmount || 'ورد'}`);
+    out.at = (slot, itemId) => {
+      const i = (QURAN_SEED.wird || []).findIndex((w) => w[0] === slot && w[1] === itemId);
+      return i < 0 ? null : out[i];
+    };
+    return out;
+  }
   const [a, b] = [st.hifzJuz - 2, st.hifzJuz - 1];
   const perJuz = Math.max(1, Math.round(count / 2));
   const out = [];

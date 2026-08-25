@@ -37,8 +37,8 @@ const riyadh = {
   templates: DEFAULT_TEMPLATES,
   weekPlan: DEFAULT_WEEK_PLAN,
 };
-// مشترك آخر: القاهرة، طريقة مصرية، وقالبٌ واحد لكل الأسبوع يبدأ يومه بالمغرب
-const cairoTpl = { day: DEFAULT_TEMPLATES.weekday };
+// مشترك آخر: القاهرة، طريقة مصرية، ويومه يبدأ بالمغرب
+const cairoTpl = { day: DEFAULT_TEMPLATES.day };
 const cairo = {
   ...FALLBACK,
   lat: 30.0444,
@@ -77,9 +77,9 @@ ok('فجر القاهرة بعد فجر الرياض عالميًّا', fajrC.mi
     ...riyadh,
     templates: {
       ...DEFAULT_TEMPLATES,
-      weekday: {
-        ...DEFAULT_TEMPLATES.weekday,
-        blocks: DEFAULT_TEMPLATES.weekday.blocks.map((b) =>
+      day: {
+        ...DEFAULT_TEMPLATES.day,
+        blocks: DEFAULT_TEMPLATES.day.blocks.map((b) =>
           b.id === 'fajr' ? { ...b, end: { len: 20 } } : b
         ),
       },

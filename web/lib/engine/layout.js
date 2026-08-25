@@ -6,11 +6,15 @@
 //   { start: Anchor, blocks: [{ id, title, colorId, end: Anchor, sleep?, transparent?, ... }] }
 // المرساة (Anchor) إحدى صور أربع:
 //   { prayer: 'fajr'|'sunrise'|'dhuhr'|'asr'|'maghrib'|'isha', offset? }
-//   { nightFraction: 1|2, offset? }   ثلث الليل أو ثلثاه (من المغرب إلى فجر الغد)
-//   { lastThirdPrev: true }           مطلع الثلث الأخير من الليلة السابقة
+//   { nightPart: k }                  k/6 من الليل (المغرب ← فجر الغد): 3 نصفه، 4 ثلثه الأخير، 5 سدسه الأخير
+//   { nightFraction: 1|2, offset? }   ثلث الليل أو ثلثاه (صيغة قديمة تعادل nightPart 2 و4)
+//   { nightPrev: k }                  k/6 من الليلة السابقة — بها يبدأ يومُ من ينام قبل فجره
+//   { lastThirdPrev: true }           مطلع الثلث الأخير من الليلة السابقة (تعادل nightPrev 4)
 //   { clock: n }                      ساعة ثابتة من منتصف الليل (٣:٠٠ ص = 180)
 //   { len: n }                        طول ثابت من بداية البلوك
-//   { balance: { target, min, max, keepAfter } }  نومة تُكمِل مجموع النوم إلى هدف ثابت
+//   { balance: { target|targetMin+targetMax, min, max, keepAfter, cycle } }
+//     نومة تُكمِل مجموع النوم إلى الهدف (أو إلى داخل المدى)، وإن حُدّدت cycle
+//     قُصّ طولها إلى دورات نوم كاملة (~٩٠ د) فلا يُوقَظ أحدٌ في منتصف دورة
 // ولأيّ مرساة فلكية أن تحمل { next: true } فتشير إلى نظيرتها من الغد — وبها يدور
 // اليوم على أيّ بلوك شاء صاحبه: ما سبق البلوك المختار يُزاح إلى غدٍ فيبقى الترتيب.
 import { addDays, minToDateTime } from './dates.js';
@@ -34,6 +38,8 @@ function anchorsFor(dIso, depth = 0) {
     isha: P1.isha,
     fajrNext: F2,
     night: (k) => M + Math.round((k * (F2 - M)) / 3),
+    nightPart: (k) => M + Math.round((k * (F2 - M)) / 6),
+    nightPrev: (k) => prevM + Math.round((k * (F - prevM)) / 6),
     lastThirdPrev: prevM + Math.round((2 * (F - prevM)) / 3),
   };
   // مراسي الغد بإطار اليوم نفسه (بزيادة ١٤٤٠) — تُبنى مرة واحدة ولا تتوالد
@@ -43,7 +49,11 @@ function anchorsFor(dIso, depth = 0) {
 
 // إزاحة مراسي يومٍ تالٍ إلى إطار اليوم الحالي
 function shiftDay(a) {
-  const out = { night: (k) => a.night(k) + 1440 };
+  const out = {
+    night: (k) => a.night(k) + 1440,
+    nightPart: (k) => a.nightPart(k) + 1440,
+    nightPrev: (k) => a.nightPrev(k) + 1440,
+  };
   for (const k of ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha', 'fajrNext', 'lastThirdPrev'])
     out[k] = a[k] + 1440;
   return out;
@@ -53,7 +63,9 @@ function resolve(anchor, a0, start, balanceLen) {
   const off = anchor.offset || 0;
   const a = anchor.next && a0.next ? a0.next : a0;
   if (anchor.prayer) return a[anchor.prayer] + off;
+  if (anchor.nightPart) return a.nightPart(anchor.nightPart) + off;
   if (anchor.nightFraction) return a.night(anchor.nightFraction) + off;
+  if (anchor.nightPrev) return a.nightPrev(anchor.nightPrev) + off;
   if (anchor.lastThirdPrev) return a.lastThirdPrev + off;
   if (anchor.fajrNext) return a.fajrNext + off;
   if (anchor.clock != null) return anchor.clock + (anchor.next ? 1440 : 0);
@@ -74,7 +86,17 @@ function balanceLength(tpl, a) {
     .reduce((s, b) => s + (b.endMin - b.startMin), 0);
   const next = first[i + 1];
   const room = next ? next.endMin - first[i].startMin - (cfg.keepAfter ?? 0) : Infinity;
-  return Math.max(min, Math.min(cfg.max ?? Infinity, (cfg.target ?? 0) - others, room));
+  // الهدف مدًى [targetMin..targetMax] أو رقم واحد — يُطلب أعلاه وما دون أدناه نقص
+  const tMax = cfg.targetMax ?? cfg.target ?? 0;
+  let len = Math.max(min, Math.min(cfg.max ?? Infinity, tMax - others, room));
+  // دورات كاملة: يُقصّ الطول إلى مضاعف الدورة فلا يُوقَظ النائم في منتصفها —
+  // إلا أن يهبط القصُّ تحت الحدّ الأدنى فيبقى كما هو، فنومٌ ناقص خيرٌ من لا نوم
+  const cyc = cfg.cycle ?? 0;
+  if (cyc > 0 && len > 0) {
+    const snapped = Math.floor(len / cyc) * cyc;
+    if (snapped >= Math.max(min, 1)) len = snapped;
+  }
+  return len;
 }
 
 function layoutMinutes(tpl, a, balanceLen) {
@@ -90,7 +112,16 @@ function layoutMinutes(tpl, a, balanceLen) {
 // القالب يُحفظ دائمًا بترتيبه الأصلي، والدوران يُطبَّق عند البناء لا عند الحفظ،
 // فيبقى التحرير على حاله ويبقى الرجوع ممكنًا بإلغاء الاختيار.
 export const isAbsolute = (a) =>
-  !!(a && (a.prayer || a.nightFraction || a.lastThirdPrev || a.fajrNext || a.clock != null));
+  !!(
+    a &&
+    (a.prayer ||
+      a.nightPart ||
+      a.nightFraction ||
+      a.nightPrev ||
+      a.lastThirdPrev ||
+      a.fajrNext ||
+      a.clock != null)
+  );
 
 // البلوكات التي تصلح بدايةً ليوم: من سبقه ينتهي بمرساة مطلقة يمكن أن تكون بدايةً
 export function startCandidates(tpl) {

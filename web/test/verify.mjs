@@ -1,10 +1,15 @@
 // تحقق شامل من المحرّك ضد القيم المرجعية المأخوذة من التقويم اليدوي لهيثم
 import { prayerTimes, fmtTime } from '../lib/engine/prayers.js';
 import { buildUnit, buildRange, setScheduleConfig } from '../lib/engine/schedule.js';
+import { setQuranConfig } from '../lib/engine/quran.js';
+import { setWorkoutConfig } from '../lib/engine/workout.js';
+import * as HC from './haitham-config.mjs';
 
-// جدول هيثم: ما بين الأذان والإقامة عنده كتابةُ شعر — وهي عادتُه لا عادة الناس،
-// فصارت إعدادًا افتراضُه الدعاء، ويضبطها هذا الفحص كما يضبطها جدولُه الجاهز.
-setScheduleConfig({ betweenLine: 'بين الأذان والإقامة: كتابة شعر' });
+// هذا الفحص يفحص جدولَ هيثم ضدّ تقويمه اليدوي، والافتراضُ العام لم يعد جدولَه —
+// فيُهيّأ المحرك بإعداداته من ملفها (وهي ما سيُدخله هو بيده من الواجهة).
+setScheduleConfig({ templates: HC.templates, weekPlan: HC.weekPlan, betweenLine: HC.betweenLine });
+setQuranConfig(HC.quran);
+setWorkoutConfig(HC.workout);
 import { quranStateFor, QURAN_SEED } from '../lib/engine/quran.js';
 import { workoutTitle, workoutDesc as wdesc } from '../lib/engine/workout.js';
 import { addDays, dow, daysBetween } from '../lib/engine/dates.js';

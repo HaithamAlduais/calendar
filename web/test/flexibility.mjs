@@ -3,6 +3,7 @@
 // لا لصاحبه وحده، فلها فحصٌ قائم بنفسه لا يختلط بفحص جدوله.
 import { buildDay, rotateTemplate, startCandidates, isMonotone, isAbsolute } from '../lib/engine/layout.js';
 import { DEFAULT_TEMPLATES, taskSlots } from '../lib/engine/schedule.js';
+import { templates as HC_TEMPLATES } from './haitham-config.mjs';
 import { addDays } from '../lib/engine/dates.js';
 
 let pass = 0,
@@ -23,8 +24,10 @@ function ok(label, cond, why = '') {
   }
 }
 
-const WD = DEFAULT_TEMPLATES.weekday;
-const FR = DEFAULT_TEMPLATES.friday;
+// «WD» القالبُ الافتراضي العام، و«FR» جمعةُ جدول هيثم من ملف اختباره —
+// فخصوصيات الجمعة (التبكير وطول الخطبة) لم تعد في افتراض المحرك
+const WD = DEFAULT_TEMPLATES.day;
+const FR = HC_TEMPLATES.friday;
 const noItems = () => [];
 const T = (s) => s.slice(11, 16);
 const build = (d, tpl) => buildDay(d, tpl, noItems);
@@ -121,11 +124,12 @@ check('بداية المغرب: آخر بلوك', atMaghrib.blocks.at(-1).id, 'w
   };
   check('مدة الفجر', dur(WD, 'fajr'), 45);
   check('مدة العصر', dur(WD, 'asr'), 45);
-  check('مدة المغرب', dur(WD, 'maghrib'), 30);
+  check('مدة المغرب (موحّدة في الافتراض)', dur(WD, 'maghrib'), 45);
   check('مدة الظهر', dur(WD, 'dhuhr'), 45);
+  check('مغرب جدول هيثم ٣٠', dur(HC_TEMPLATES.weekday, 'maghrib'), 30);
   // الجمعة: البلوك يبدأ قبل الأذان بساعة فيسع الخطبة — والمدة نفسها بعده
   check('مدة الجمعة = الظهر + ساعة', dur(FR, 'dhuhr'), 105);
-  const dhuhrWd = WD.blocks.find((b) => b.id === 'dhuhr');
+  const dhuhrWd = HC_TEMPLATES.weekday.blocks.find((b) => b.id === 'dhuhr');
   check('بلوك الظهر مرساتُه نفسُه', dhuhrWd.end.prayer, 'dhuhr');
   check('وإزاحتُه هي مدتُه', dhuhrWd.end.offset, 45);
   // ولذلك: تغييرُ المدة إلى ٢٠ يجب أن يمسّ الإزاحة لا الطول

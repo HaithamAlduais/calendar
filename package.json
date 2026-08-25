@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "pnpm --dir web dev",
     "build": "pnpm --dir web build",
-    "test": "node scripts/sync-engine.mjs --check && node web/test/verify.mjs && node web/test/flexibility.mjs && node web/test/push-notify.mjs && node web/test/parity.mjs",
+    "test": "node scripts/sync-engine.mjs --check && node web/test/verify.mjs && node web/test/flexibility.mjs && node web/test/universal.mjs && node web/test/push-notify.mjs && node web/test/parity.mjs",
     "test:golden": "node web/test/make-golden.mjs",
     "sync:engine": "node scripts/sync-engine.mjs"
   },
