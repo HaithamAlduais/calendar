@@ -1,13 +1,16 @@
 "use client"
 
-// المعالج الأول — رحلةُ كلِّ مستخدمٍ جديد، كما رسمها صاحب البرنامج في ٢٦ أغسطس:
-// حسابٌ أولًا، ثم الموقع، فمدد الصلاة، فقواعدُ الفهم، فالنوم بدوراته الكاملة
-// ونمطِ النبي ﷺ الموصى به، فالقيام في أسداس الليل، فالصيام والطعام، فالتمرين،
-// فالقرآن، فبداية اليوم، فالخزائن — ثم تقويمٌ يبنيه صاحبُه بيده.
+// المعالج الأول — رحلةُ كلِّ مستخدمٍ جديد:
+// الموقع، فمدد الصلاة، فقواعدُ الفهم، فالنوم بدوراته الكاملة ونمطِ النبي ﷺ
+// الموصى به، فالقيام في أسداس الليل، فالصيام والطعام، فالتمرين، فالقرآن،
+// فبداية اليوم، فالخزائن — ثم تقويمٌ يبنيه صاحبُه بيده.
+//
+// كل شيء محليٌّ في جهازك بلا حساب: الحساب اختيارٌ لاحق من الإعدادات لمن أراد
+// المزامنة بين أجهزته — وربطُ تقويم Google محليٌّ كذلك (قراءةً فقط من متصفحك).
 //
 // كل الاختيارات تُركَّب قالبًا واحدًا عبر composeDayTemplate (دالة محضة مفحوصة)
 // عند «ابدأ» — فالمعالج واجهةٌ فقط ولا منطقَ زمنيًّا فيه.
-import { useMemo, useState, useSyncExternalStore } from "react"
+import { useMemo, useState } from "react"
 import { CheckIcon, MapPinIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -16,7 +19,6 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Help } from "@/components/help"
 import { arab } from "@/lib/format"
-import { onSyncChange, sendMagicLink, signInWithGoogle, syncState } from "@/lib/sync"
 // المركّب دالة JS محضة — توقيعها هنا ليطمئن المدقق
 import { composeDayTemplate as composeRaw } from "@/lib/engine/compose.js"
 const composeDayTemplate = composeRaw as (o: {
@@ -78,7 +80,6 @@ const SIXTH_NAMES: Record<number, string> = {
 }
 
 const STEPS = [
-  "أهلًا بك",
   "أين أنت؟",
   "مدة الصلاة",
   "قواعد البرنامج",
@@ -134,11 +135,6 @@ type Meal = { name: string; prayer: string; fastingSkip?: boolean }
 
 export function Onboarding() {
   const [step, setStep] = useState(0)
-  // الحساب
-  useSyncExternalStore(onSyncChange, () => JSON.stringify(syncState()), () => "{}")
-  const sync = syncState()
-  const [email, setEmail] = useState("")
-  const [mailMsg, setMailMsg] = useState("")
   // الموقع
   const [city, setCity] = useState<string | null>(null)
   const [loc, setLoc] = useState({ lat: settings.lat, lng: settings.lng, tz: settings.tz })
@@ -262,64 +258,26 @@ export function Onboarding() {
     )
   }
 
-  const canNext = step !== 0 || !!sync.user
-
   return (
     <Dialog open>
       <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{STEPS[step]}</DialogTitle>
           <DialogDescription>
-            {step === 0 && "حسابُك يحفظ جدولك على كل أجهزتك — به يبدأ كل شيء."}
-            {step === 1 && "جدولك يُبنى على مواقيت الصلاة، فيتحرك معها كل يوم."}
-            {step === 2 && "كم تحتاج من الوقت لصلاتك؟"}
-            {step === 3 && "دقيقتان تفهم بهما البرنامج كله."}
-            {step === 4 && "نومُك يصنع يومك — فهو أول ما يُرسم."}
-            {step === 5 && "الليل من المغرب إلى الفجر ستةُ أجزاء — ضع قيامك حيث شئت."}
-            {step === 6 && "متى تأكل؟ وهل تصوم الاثنين والخميس؟"}
-            {step === 7 && "أيام تمرينك وطريقتها — والتمارين نفسها تبنيها من الإعدادات."}
-            {step === 8 && "حفظٌ وتسميع وورد — ركّبها كما تحب."}
-            {step === 9 && "من أين يبدأ يومُك؟ اليوم حلقةٌ تفتتحها من حيث شئت."}
-            {step === 10 && "مشاريعك وأهدافك — خزائنُ فيها أدراج فيها مهام."}
+            {step === 0 && "جدولك يُبنى على مواقيت الصلاة، فيتحرك معها كل يوم — وكل شيء في جهازك، بلا حساب."}
+            {step === 1 && "كم تحتاج من الوقت لصلاتك؟"}
+            {step === 2 && "دقيقتان تفهم بهما البرنامج كله."}
+            {step === 3 && "نومُك يصنع يومك — فهو أول ما يُرسم."}
+            {step === 4 && "الليل من المغرب إلى الفجر ستةُ أجزاء — ضع قيامك حيث شئت."}
+            {step === 5 && "متى تأكل؟ وهل تصوم الاثنين والخميس؟"}
+            {step === 6 && "أيام تمرينك وطريقتها — والتمارين نفسها تبنيها من الإعدادات."}
+            {step === 7 && "حفظٌ وتسميع وورد — ركّبها كما تحب."}
+            {step === 8 && "من أين يبدأ يومُك؟ اليوم حلقةٌ تفتتحها من حيث شئت."}
+            {step === 9 && "مشاريعك وأهدافك — خزائنُ فيها أدراج فيها مهام."}
           </DialogDescription>
         </DialogHeader>
 
         {step === 0 && (
-          <div className="flex flex-col gap-3">
-            {sync.user ? (
-              <p className="text-sm">
-                متّصل بـ <span className="font-medium">{sync.user.email}</span> ✅
-              </p>
-            ) : (
-              <>
-                <div className="flex gap-2">
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="بريدك…"
-                    className="h-9"
-                  />
-                  <Button
-                    disabled={!email.includes("@")}
-                    onClick={async () => setMailMsg(await sendMagicLink(email))}
-                  >
-                    أرسل رابط الدخول
-                  </Button>
-                </div>
-                {mailMsg && <p className="text-muted-foreground text-xs">{mailMsg}</p>}
-                <Button variant="outline" onClick={() => signInWithGoogle()}>
-                  الدخول بحساب Google
-                </Button>
-                <p className="text-muted-foreground text-[11px] leading-relaxed">
-                  افتح الرابط من بريدك وستعود إلى هنا متّصلًا — ثم أكمل الإعداد.
-                </p>
-              </>
-            )}
-          </div>
-        )}
-
-        {step === 1 && (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-1">
               {CITIES.map((c) => (
@@ -362,7 +320,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 2 && (
+        {step === 1 && (
           <div className="flex flex-col gap-3">
             <p className="text-sm leading-relaxed">
               الصلاة تبدأ بالأذان، وبين الأذان والإقامة دعاءٌ لا يُردّ، ثم السنن، ثم صلاةٌ تحتاج
@@ -402,7 +360,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <div className="flex flex-col gap-2 text-sm leading-relaxed">
             <p>• يومُك بلوكاتٌ متلاصقة تتحرك مع الصلوات — لا فراغَ بينها أبدًا.</p>
             <p>
@@ -418,7 +376,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 3 && (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted-foreground flex-none text-xs">مجموع نومك بين</span>
@@ -445,7 +403,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 5 && (
+        {step === 4 && (
           <div className="flex flex-col gap-3">
             <Tick on={qiyamOn} label="أقوم الليل" onClick={() => setQiyamOn((v) => !v)} />
             {qiyamOn && (
@@ -478,7 +436,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 6 && (
+        {step === 5 && (
           <div className="flex flex-col gap-3">
             <Tick
               on={fasting}
@@ -535,7 +493,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 7 && (
+        {step === 6 && (
           <div className="flex flex-col gap-3">
             <Tick on={workoutOn} label="أتمرّن" onClick={() => setWorkoutOn((v) => !v)} />
             {workoutOn && (
@@ -568,7 +526,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 8 && (
+        {step === 7 && (
           <div className="flex flex-col gap-3">
             <Tick on={hifzOn} label="نظام الحفظ والمراجعة" sub="مُدارٌ يعرف موضعك ويتقدّم بك وحده كلما أنجزت" onClick={() => setHifzOn((v) => !v)} />
             {hifzOn && (
@@ -604,7 +562,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 9 && (
+        {step === 8 && (
           <div className="flex flex-col gap-2">
             <p className="text-muted-foreground text-xs leading-relaxed">
               اليوم حلقةٌ: ما قبل بدايتك يظهر في آخر يومك، والترتيب محفوظ. هذه حدودُ يومك كما
@@ -622,7 +580,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 10 && (
+        {step === 9 && (
           <div className="flex flex-col gap-2 text-sm leading-relaxed">
             <p>
               ستجد في «الخزائن» {hifzOn || workoutOn ? "خزانةَ «روتين» جاهزةً" : "بابَ خزائنك"} —
@@ -636,6 +594,10 @@ export function Onboarding() {
               كل مهمة لها خطوات، وتوقيتٌ في بلوكٍ من يومك، وتكرارٌ إن شئت — وكلها يجري عليها
               القضاء والتقديم. وأحداث Google تُعرض شفافةً خلف جدولك للعرض فقط، وتربطها من
               الإعدادات.
+            </p>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              وكل هذا في جهازك وحده. إن أردت جدولك على أكثر من جهاز، فمن «الإعدادات ← الحساب
+              والمزامنة» تدخل ببريدك — اختيارٌ لا شرط.
             </p>
             <p className="pt-1 font-medium">بسم الله — يومُك الآن بيدك تبنيه.</p>
           </div>
@@ -652,16 +614,9 @@ export function Onboarding() {
           </span>
           <Button
             className="ms-auto"
-            disabled={!canNext}
-            onClick={() => {
-              if (step === 2) {
-                // المدد تُطبَّق على القالب المركّب عند البناء — لا حاجة لحفظ هنا
-              }
-              if (step < STEPS.length - 1) setStep((s) => s + 1)
-              else finish()
-            }}
+            onClick={() => (step < STEPS.length - 1 ? setStep((s) => s + 1) : finish())}
           >
-            {step === 0 && !sync.user ? "بانتظار دخولك…" : step < STEPS.length - 1 ? "التالي" : "ابدأ"}
+            {step < STEPS.length - 1 ? "التالي" : "ابدأ"}
           </Button>
         </div>
       </DialogContent>
