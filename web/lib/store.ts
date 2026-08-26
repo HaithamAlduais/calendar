@@ -1273,6 +1273,11 @@ export function removeTemplate(id: string): string | null {
 // فمن رأى تأشيرًا وتحذيرات حسِبه تقويمًا قائمًا من قبل، وهو معاينةُ اختياراته هو
 let previewOn = false
 export const isPreviewing = () => previewOn
+// أيُّ البلوكات كُشفت في المعاينة — فالتقويم يبدأ فارغًا وتظهر بلوكاتُه
+// مرحلةً مرحلة كلما أجاب المستخدم خطوة: الصلوات، فالنوم، فالقيام، فالبقية.
+// null = اكشف الكل.
+let previewSlots: Set<string> | null = null
+export const previewVisibleSlots = () => previewSlots
 
 export function previewCompose(
   cfg: {
@@ -1282,6 +1287,7 @@ export function previewCompose(
     lng: number
     tz: number
     method: string
+    visibleSlots?: string[] | null
   } | null
 ) {
   if (cfg) {
@@ -1296,6 +1302,7 @@ export function previewCompose(
     applyEngineConfig()
   }
   previewOn = !!cfg
+  previewSlots = cfg && cfg.visibleSlots ? new Set(cfg.visibleSlots) : null
   cuCache = { at: "", val: "" } // بداية الوحدة تتبع القالب المعايَن
   notify()
 }

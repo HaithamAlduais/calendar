@@ -5,7 +5,17 @@ import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { addDays, arab, parseIso } from "@/lib/engine/dates.js"
 import { dayName } from "@/lib/format"
-import { currentUnit, dayTasks, earlyMap, isPreviewing, makeupMap, nowStamp, TASK_SLOTS, type Ev } from "@/lib/store"
+import {
+  currentUnit,
+  dayTasks,
+  earlyMap,
+  isPreviewing,
+  makeupMap,
+  nowStamp,
+  previewVisibleSlots,
+  TASK_SLOTS,
+  type Ev,
+} from "@/lib/store"
 import { EventChip } from "@/components/event-chip"
 
 // عمود اليوم قائمةُ بلوكاتٍ متصلة من بداية وحدته إلى نهايتها — بلا تقسيمٍ مفروض
@@ -33,6 +43,7 @@ export function WeekView({
 
   const now = nowStamp()
   const pv = isPreviewing() // معاينة المعالج: مخططٌ نظيف بلا قضاءٍ ولا عدّادات
+  const pvSlots = pv ? previewVisibleSlots() : null // وما لم يُبنَ بعدُ لا يُعرض
   const mk = pv ? new Map<string, unknown[]>() : makeupMap(events, now)
   const em = pv ? new Map<string, unknown[]>() : earlyMap(events, now)
 
@@ -52,7 +63,12 @@ export function WeekView({
         // عمود اليوم = وحدته كاملة بترتيبها الزمني
         // البلوك الصفري لا يُعرض: كقيلولةٍ ألغاها اكتمالُ نوم الليل
         const unitEvs = events
-          .filter((e) => e.unit === d && e.start !== e.end)
+          .filter(
+            (e) =>
+              e.unit === d &&
+              e.start !== e.end &&
+              (!pvSlots || pvSlots.has(e.slot || ""))
+          )
           .sort((a, b) => (a.start < b.start ? -1 : 1))
         const dayCount = pv ? 0 : dayTasks(unitEvs, d).length // مهام اليوم العائمة ما لم تُنجز
         return (
@@ -77,7 +93,9 @@ export function WeekView({
               </span>
             </div>
             {unitEvs.length === 0 ? (
-              <div className="text-muted-foreground/60 py-8 text-center text-xs">لا أحداث</div>
+              <div className="text-muted-foreground/60 py-8 text-center text-xs">
+                {pv ? "فارغ — سيُبنى مع خطواتك" : "لا أحداث"}
+              </div>
             ) : (
               <div className="flex flex-col gap-1.5">
                 {unitEvs.map((e, i) => {

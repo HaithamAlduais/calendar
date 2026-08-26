@@ -133,8 +133,20 @@ function Tick({ on, label, sub, onClick }: { on: boolean; label: string; sub?: s
 
 type Meal = { name: string; prayer: string; fastingSkip?: boolean }
 
+// البلوكات المكشوفة بقدر أبعد خطوة بلغها المستخدم — فالتقويم فارغٌ أولًا،
+// وتظهر الصلوات مع خطوتها، فالنوم، فالقيام، ثم اليوم كله
+function slotsFor(maxStep: number): string[] | null {
+  if (maxStep < 1) return [] // لم يجب شيئًا بعد: تقويم فارغ
+  const out = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
+  if (maxStep >= 3) out.push("sleep2", "nap", "sleepN")
+  if (maxStep >= 4) out.push("qiyam")
+  if (maxStep >= 5) return null // الصيام والطعام فما بعدها: اليوم كله ببلوك مهامه
+  return out
+}
+
 export function Onboarding() {
   const [step, setStep] = useState(0)
+  const [maxStep, setMaxStep] = useState(0)
   // الموقع
   const [city, setCity] = useState<string | null>(null)
   const [loc, setLoc] = useState({ lat: settings.lat, lng: settings.lng, tz: settings.tz })
@@ -205,9 +217,10 @@ export function Onboarding() {
       lng: loc.lng,
       tz: loc.tz,
       method,
+      visibleSlots: slotsFor(maxStep),
     })
     return () => previewCompose(null)
-  }, [onboarded, composed, dayStartId, loc, method])
+  }, [onboarded, composed, dayStartId, loc, method, maxStep])
 
   if (settings.onboarded) return null
 
@@ -681,7 +694,12 @@ export function Onboarding() {
           </span>
           <Button
             className="ms-auto"
-            onClick={() => (step < STEPS.length - 1 ? setStep((s) => s + 1) : finish())}
+            onClick={() => {
+              if (step < STEPS.length - 1) {
+                setStep((s) => s + 1)
+                setMaxStep((m) => Math.max(m, step + 1))
+              } else finish()
+            }}
           >
             {step < STEPS.length - 1 ? "التالي" : "ابدأ"}
           </Button>
