@@ -173,6 +173,13 @@ export const PLAIN_WEEK_PLAN = DEFAULT_WEEK_PLAN;
 let cfg = { templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN, dayStart: null };
 
 // معرّفات بلوكات المهام في كل القوالب — مصدرها البيانات لا قائمةٌ مكتوبة في الواجهة
+// بنود بلوكٍ مولَّدة بالافتراض — يقرأها المحرِّر ليملأ أول مرة
+export function defaultPrayerTasks(genKey, labels) {
+  const g = GEN[genKey];
+  if (!g) return [];
+  return g(labels || [], null).map((x) => ({ ...x }));
+}
+
 export function taskSlots() {
   const out = [];
   for (const tpl of Object.values(cfg.templates))
@@ -193,6 +200,9 @@ export function setScheduleConfig(next) {
     dayStart: (next && next.dayStart) || null,
     // صيام الاثنين والخميس: تُسقَط فيهما بنودُ الوجبات المعلَّمة fastingSkip
     fasting: !!(next && next.fasting),
+    // بنود الصلاة كما حرّرها صاحبها: { blockId: [بنود] } — وما لم يُحرَّر فمولَّدٌ
+    // بالافتراض. وكانت مكتوبةً في الشيفرة لا يملك أحدٌ تغييرها.
+    prayerTasks: (next && next.prayerTasks) || {},
   };
   rotated = new Map();
 }
@@ -232,6 +242,9 @@ const fastingDay = (dIso) => cfg.fasting && (dow(dIso) === 1 || dow(dIso) === 4)
 function itemsFor(block, dIso) {
   if (!block.gen)
     return (block.items || []).filter((x) => !(x.fastingSkip && fastingDay(dIso)));
+  // بنودٌ حرّرها صاحبها تعلو على المولَّد — والمعرّفات تبقى فيلحقها الورد
+  const custom = cfg.prayerTasks && cfg.prayerTasks[block.id];
+  if (custom && block.gen !== 'quran') return custom;
   const st = quranStateFor(dIso);
   return GEN[block.gen](tathbeetLabels(st), st);
 }

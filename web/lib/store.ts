@@ -6,6 +6,7 @@ import {
   unitStart,
   setScheduleConfig,
   taskSlots,
+  defaultPrayerTasks,
   DEFAULT_BETWEEN,
   DEFAULT_TEMPLATES,
   DEFAULT_WEEK_PLAN,
@@ -225,6 +226,8 @@ const DEFAULT_SETTINGS = {
   cyclePlan: null as { start: string; seq: string[] } | null,
   // صيام الاثنين والخميس: يُسقط بنود الوجبات المعلَّمة fastingSkip
   fasting: false,
+  // بنود كل صلاة كما حرّرها صاحبها — وما لم يُحرَّر فمولَّدٌ بالافتراض
+  prayerTasks: {} as Record<string, Item[]>,
   // الجسد والغذاء: الطول بالسنتيمتر، والمعاملات لحساب الهدف من الوزن —
   // والوزن نفسه في weight أعلاه، ويُسجَّل تاريخُه في hc.body ليُرى أثرُ الشهور
   nutrition: {
@@ -297,6 +300,7 @@ function applyEngineConfig() {
     cyclePlan: settings.cyclePlan,
     dayStart: settings.dayStart,
     fasting: settings.fasting,
+    prayerTasks: settings.prayerTasks,
     betweenLine: settings.betweenLine,
   })
 }
@@ -749,8 +753,8 @@ export function allEvents(): Ev[] {
       const item = evs.find((e) => e.slot === slot)?.items.find((x) => x.id === itemId)
       if (!item) continue
       const cut = item.text.indexOf(" — ") // ما قبل أول شرطة هو اسم السنّة
-      if (cut < 0) continue
-      item.text = `${item.text.slice(0, cut + 3)}${labels[shift[i]]}`
+      const base = cut < 0 ? item.text : item.text.slice(0, cut)
+      item.text = `${base} — ${labels[shift[i]]}`
       item.pool = tathbeetPoolKey(st, shift[i]) // المجمع يتبع النصف المعروض فعلًا
     }
   }
@@ -1263,6 +1267,27 @@ export function removeTemplate(id: string): string | null {
   const plan = settings.weekPlan.map((x) => (x === id ? fallback : x))
   saveSettings({ templates: next, weekPlan: plan })
   return null
+}
+
+// ── بنود الصلاة: تُقرأ مولَّدةً أول مرة، ثم تصير بيانًا يملكه صاحبها ──
+export function prayerTasksOf(blockId: string, genKey: string): Item[] {
+  const saved = settings.prayerTasks[blockId]
+  if (saved) return saved
+  // النصوص تُعرض نظيفة: موضعُ الورد يُلحق عند العرض لا يُخزَّن في البند
+  const blank = Array.from({ length: settings.wird.length }, () => "")
+  return (defaultPrayerTasks(genKey, blank) as Item[])
+    .filter((x) => !x.note)
+    .map((x) => ({ ...x, text: x.text.replace(/ — s*$/, "") }))
+}
+
+export function setPrayerTasks(blockId: string, items: Item[]) {
+  saveSettings({ prayerTasks: { ...settings.prayerTasks, [blockId]: items } })
+}
+
+export function resetPrayerTasks(blockId: string) {
+  const next = { ...settings.prayerTasks }
+  delete next[blockId]
+  saveSettings({ prayerTasks: next })
 }
 
 // ── معاينة المعالج: التقويم يُبنى أمام عينيك وأنت تختار ──

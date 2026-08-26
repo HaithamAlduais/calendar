@@ -50,14 +50,7 @@ export function WeekView({
   return (
     // سبعة أعمدة لا تُعرض إلا إذا اتّسع لها فعلًا (≥١٢٨٠ بكسل ≈ ١٧٠ لكل عمود)،
     // وما دون ذلك تمرير أفقي بيوم واحد كامل — أوضح من سبعة أعمدة مزدحمة
-    <div className="relative flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 xl:grid xl:grid-cols-7 xl:gap-1 xl:overflow-visible xl:px-3">
-      {pv && (
-        <div className="pointer-events-none sticky start-0 top-0 z-20 -mb-8 flex w-full justify-center pt-1 xl:col-span-7">
-          <span className="rounded-full bg-emerald-600/90 px-3 py-1 text-[11px] font-medium text-white shadow">
-            معاينة حيّة — تتحدّث مع اختياراتك، ولا تُحفظ حتى تضغط «ابدأ»
-          </span>
-        </div>
-      )}
+    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 xl:grid xl:grid-cols-7 xl:gap-1 xl:overflow-visible xl:px-3">
       {days.map((d) => {
         const isCur = d === cu
         // عمود اليوم = وحدته كاملة بترتيبها الزمني

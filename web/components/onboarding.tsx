@@ -11,7 +11,7 @@
 // كل الاختيارات تُركَّب قالبًا واحدًا عبر composeDayTemplate (دالة محضة مفحوصة)
 // عند «ابدأ» — فالمعالج واجهةٌ فقط ولا منطقَ زمنيًّا فيه.
 import { useEffect, useMemo, useState } from "react"
-import { CheckIcon, MapPinIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, MapPinIcon, PlusIcon, RotateCcwIcon, Trash2Icon, XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -30,7 +30,10 @@ import { startCandidates } from "@/lib/engine/layout.js"
 import {
   ensureRoutineCabinet,
   loadHaithamPreset,
+  prayerTasksOf,
   previewCompose,
+  resetPrayerTasks,
+  setPrayerTasks,
   saveSettings,
   settings,
   todayIso,
@@ -82,6 +85,7 @@ const SIXTH_NAMES: Record<number, string> = {
 const STEPS = [
   "أين أنت؟",
   "مدة الصلاة",
+  "بنود الصلاة",
   "قواعد البرنامج",
   "نومك",
   "قيام الليل",
@@ -133,20 +137,96 @@ function Tick({ on, label, sub, onClick }: { on: boolean; label: string; sub?: s
 
 type Meal = { name: string; prayer: string; fastingSkip?: boolean }
 
+// بلوكات الصلاة ومولّداتها — تُقرأ منها البنود الافتراضية أول مرة
+const PRAYER_GENS: [string, string, string][] = [
+  ["fajr", "الفجر", "fajr"],
+  ["dhuhr", "الظهر", "dhuhr"],
+  ["asr", "العصر", "asr"],
+  ["maghrib", "المغرب", "maghribWeekend"],
+  ["isha", "العشاء", "isha"],
+  ["qiyam", "قيام الليل", "qiyamWeekend"],
+]
+
+// محرِّر بنود صلاةٍ واحدة — تُفتح فتُرى بنودُها، تُحذف وتُضاف وتُعاد تسميتها
+function PrayerTasksRow({ slot, name, gen }: { slot: string; name: string; gen: string }) {
+  const [open, setOpen] = useState(false)
+  const [add, setAdd] = useState("")
+  const items = prayerTasksOf(slot, gen)
+  const write = (next: { id: string; text: string }[]) => setPrayerTasks(slot, next)
+  return (
+    <div className="rounded-md border p-2">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 text-start">
+        <span className="flex-1 text-sm font-medium">{name}</span>
+        <span className="text-muted-foreground text-[11px]">{arab(items.length)} بند</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-1 pt-2">
+          {items.map((it, i) => (
+            <div key={it.id} className="flex items-center gap-1">
+              <Input
+                defaultValue={it.text}
+                onBlur={(e) => {
+                  const v = e.target.value.trim()
+                  if (v && v !== it.text) write(items.map((x, k) => (k === i ? { ...x, text: v } : x)))
+                }}
+                className="h-7 text-[11px]"
+              />
+              <button
+                onClick={() => write(items.filter((_, k) => k !== i))}
+                className="text-muted-foreground hover:text-destructive flex-none"
+                aria-label="حذف البند"
+              >
+                <Trash2Icon className="size-3.5" />
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center gap-1">
+            <Input value={add} onChange={(e) => setAdd(e.target.value)} placeholder="بند جديد…" className="h-7 text-[11px]" />
+            <Button
+              size="icon"
+              variant="outline"
+              className="size-7"
+              aria-label="أضف بندًا"
+              onClick={() => {
+                if (!add.trim()) return
+                write([...items, { id: "u" + Math.random().toString(36).slice(2, 7), text: add.trim() }])
+                setAdd("")
+              }}
+            >
+              <PlusIcon />
+            </Button>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground h-7 self-start text-[11px]"
+            onClick={() => resetPrayerTasks(slot)}
+          >
+            <RotateCcwIcon />
+            أرجِع الافتراضية
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // البلوكات المكشوفة بقدر أبعد خطوة بلغها المستخدم — فالتقويم فارغٌ أولًا،
 // وتظهر الصلوات مع خطوتها، فالنوم، فالقيام، ثم اليوم كله
-function slotsFor(maxStep: number): string[] | null {
-  if (maxStep < 1) return [] // لم يجب شيئًا بعد: تقويم فارغ
+function slotsFor(reached: number): string[] | null {
+  if (reached < 1) return [] // لم يختر موقعه بعد: تقويم فارغ
   const out = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
-  if (maxStep >= 3) out.push("sleep2", "nap", "sleepN")
-  if (maxStep >= 4) out.push("qiyam")
-  if (maxStep >= 5) return null // الصيام والطعام فما بعدها: اليوم كله ببلوك مهامه
+  if (reached >= 5) out.push("sleep2", "nap", "sleepN")
+  if (reached >= 6) out.push("qiyam")
+  if (reached >= 7) return null // الصيام والطعام فما بعدها: اليوم كله
   return out
 }
 
 export function Onboarding() {
   const [step, setStep] = useState(0)
-  const [maxStep, setMaxStep] = useState(0)
+  // أبعد ما بلغ: ١ بمجرّد اختيار موقعه (فتظهر صلواتُه فورًا)، ثم بكل خطوة
+  const [reached, setReached] = useState(0)
+  const [open, setOpen] = useState(true)
   // الموقع
   const [city, setCity] = useState<string | null>(null)
   const [loc, setLoc] = useState({ lat: settings.lat, lng: settings.lng, tz: settings.tz })
@@ -192,7 +272,8 @@ export function Onboarding() {
   const [wirdMode, setWirdMode] = useState<"reading" | "tathbeet">("reading")
   const [wirdAmount, setWirdAmount] = useState("ربع حزب")
   // بداية اليوم
-  const [dayStartId, setDayStartId] = useState<string | null>(null)
+  // اليوم ٢٤ ساعة، وبدايتُه المعتادة الفجر — ولمن شاء غيرَه في خطوته
+  const [dayStartId, setDayStartId] = useState<string | null>("fajr")
 
   // القالب المركّب من الاختيارات الحالية — يُعاد بناؤه حيًّا لخطوة البداية
   const composed = useMemo(
@@ -217,10 +298,10 @@ export function Onboarding() {
       lng: loc.lng,
       tz: loc.tz,
       method,
-      visibleSlots: slotsFor(maxStep),
+      visibleSlots: slotsFor(reached),
     })
     return () => previewCompose(null)
-  }, [onboarded, composed, dayStartId, loc, method, maxStep])
+  }, [onboarded, composed, dayStartId, loc, method, reached])
 
   if (settings.onboarded) return null
 
@@ -281,28 +362,48 @@ export function Onboarding() {
         })
         setCity(null)
         setGeoMsg("✅ حُدّد موقعك")
+        setReached((r) => Math.max(r, 1))
       },
       () => setGeoMsg("تعذّر تحديد موقعك — اختر مدينتك أو أدخل الإحداثيات")
     )
   }
 
+  // نافذةٌ منبثقة بزرّ إغلاق — تُغلق فيُرى التقويم كاملًا، وتُفتح بزرّ عائم.
+  // (كانت لوحةً جانبية تزاحم التقويم وتقصّ بطاقاته)
+  if (!open)
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="bg-primary text-primary-foreground fixed bottom-4 end-4 z-40 rounded-full px-4 py-2 text-sm font-medium shadow-lg"
+      >
+        أكمل الإعداد — {STEPS[step]}
+      </button>
+    )
+
   return (
-    // لوحةٌ جانبية (وسفلية في الجوال) لا نافذةٌ تغطّي الشاشة —
-    // فالتقويم خلفها يُبنى ويتحدّث مع كل اختيار، كما طلب صاحب البرنامج
-    <div className="fixed inset-x-0 bottom-0 z-40 flex max-h-[58dvh] flex-col gap-3 overflow-y-auto rounded-t-2xl border-t bg-background p-4 shadow-2xl sm:inset-x-auto sm:top-0 sm:bottom-0 sm:start-0 sm:max-h-none sm:w-[400px] sm:rounded-none sm:border-e sm:border-t-0">
-      <div>
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 p-0 backdrop-blur-[1px] sm:items-center sm:p-4">
+    <div className="bg-background relative flex max-h-[80dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-2xl border p-4 shadow-2xl sm:max-w-md sm:rounded-xl">
+      <button
+        onClick={() => setOpen(false)}
+        aria-label="إغلاق"
+        className="text-muted-foreground hover:text-foreground absolute end-3 top-3"
+      >
+        <XIcon className="size-5" />
+      </button>
+      <div className="pe-6">
         <h2 className="text-lg font-semibold">{STEPS[step]}</h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
             {step === 0 && "جدولك يُبنى على مواقيت الصلاة، فيتحرك معها كل يوم — وكل شيء في جهازك، بلا حساب."}
             {step === 1 && "كم تحتاج من الوقت لصلاتك؟"}
-            {step === 2 && "دقيقتان تفهم بهما البرنامج كله."}
-            {step === 3 && "نومُك يصنع يومك — فهو أول ما يُرسم."}
-            {step === 4 && "الليل من المغرب إلى الفجر ستةُ أجزاء — ضع قيامك حيث شئت."}
-            {step === 5 && "متى تأكل؟ وهل تصوم الاثنين والخميس؟"}
-            {step === 6 && "أيام تمرينك وطريقتها — والتمارين نفسها تبنيها من الإعدادات."}
-            {step === 7 && "حفظٌ وتسميع وورد — ركّبها كما تحب."}
-            {step === 8 && "من أين يبدأ يومُك؟ اليوم حلقةٌ تفتتحها من حيث شئت."}
-            {step === 9 && "مشاريعك وأهدافك — خزائنُ فيها أدراج فيها مهام."}
+            {step === 2 && "ما الذي تفعله في كل صلاة؟ هذه بنودُك تؤشّرها كل يوم."}
+            {step === 3 && "دقيقتان تفهم بهما البرنامج كله."}
+            {step === 4 && "نومُك يصنع يومك — فهو أول ما يُرسم."}
+            {step === 5 && "الليل من المغرب إلى الفجر ستةُ أجزاء — ضع قيامك حيث شئت."}
+            {step === 6 && "متى تأكل؟ وهل تصوم الاثنين والخميس؟"}
+            {step === 7 && "أيام تمرينك وطريقتها — والتمارين نفسها تبنيها من الإعدادات."}
+            {step === 8 && "حفظٌ وتسميع وورد — ركّبها كما تحب."}
+            {step === 9 && "من أين يبدأ يومُك؟ اليوم حلقةٌ تفتتحها من حيث شئت."}
+            {step === 10 && "مشاريعك وأهدافك — خزائنُ فيها أدراج فيها مهام."}
         </p>
       </div>
 
@@ -318,6 +419,7 @@ export function Onboarding() {
                     setLoc({ lat: c.lat, lng: c.lng, tz: c.tz })
                     setMethod(c.method)
                     setGeoMsg("")
+                    setReached((r) => Math.max(r, 1)) // صلواتُك تظهر الآن
                   }}
                 >
                   {c.name}
@@ -441,6 +543,18 @@ export function Onboarding() {
         )}
 
         {step === 2 && (
+          <div className="flex flex-col gap-2">
+            <p className="text-muted-foreground text-[11px] leading-relaxed">
+              لكل صلاةٍ بنودُها: الأذان، والسنة، وما بين الأذان والإقامة، والصلاة، والأذكار…
+              هذه بنودٌ افتراضية — احذف ما لا تفعله وأضف ما تفعله، ولك أن تعود إليها متى شئت.
+            </p>
+            {PRAYER_GENS.map(([slot, name, gen]) => (
+              <PrayerTasksRow key={slot} slot={slot} name={name} gen={gen} />
+            ))}
+          </div>
+        )}
+
+        {step === 3 && (
           <div className="flex flex-col gap-2 text-sm leading-relaxed">
             <p>• يومُك بلوكاتٌ متلاصقة تتحرك مع الصلوات — لا فراغَ بينها أبدًا.</p>
             <p>
@@ -456,7 +570,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted-foreground flex-none text-xs">مجموع نومك بين</span>
@@ -483,7 +597,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="flex flex-col gap-3">
             <Tick on={qiyamOn} label="أقوم الليل" onClick={() => setQiyamOn((v) => !v)} />
             {qiyamOn && (
@@ -516,7 +630,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 5 && (
+        {step === 6 && (
           <div className="flex flex-col gap-3">
             <Tick
               on={fasting}
@@ -573,7 +687,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 6 && (
+        {step === 7 && (
           <div className="flex flex-col gap-3">
             <Tick on={workoutOn} label="أتمرّن" onClick={() => setWorkoutOn((v) => !v)} />
             {workoutOn && (
@@ -606,7 +720,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 7 && (
+        {step === 8 && (
           <div className="flex flex-col gap-3">
             <Tick on={hifzOn} label="نظام الحفظ والمراجعة" sub="مُدارٌ يعرف موضعك ويتقدّم بك وحده كلما أنجزت" onClick={() => setHifzOn((v) => !v)} />
             {hifzOn && (
@@ -642,7 +756,7 @@ export function Onboarding() {
           </div>
         )}
 
-        {step === 8 && (
+        {step === 9 && (
           <div className="flex flex-col gap-2">
             <p className="text-muted-foreground text-xs leading-relaxed">
               اليوم حلقةٌ: ما قبل بدايتك يظهر في آخر يومك، والترتيب محفوظ. هذه حدودُ يومك كما
@@ -651,16 +765,16 @@ export function Onboarding() {
             {startCandidates(composed).map((c: { id: string; title: string }) => (
               <Tick
                 key={c.id}
-                on={dayStartId === c.id || (dayStartId === null && c.id === composed.blocks[0].id)}
+                on={dayStartId === c.id}
                 label={c.title}
-                sub={c.id === composed.blocks[0].id ? "كما رُكّب يومك — النومة التي تسبق الفجر" : undefined}
-                onClick={() => setDayStartId(c.id === composed.blocks[0].id ? null : c.id)}
+                sub={c.id === "fajr" ? "المعتاد — يومٌ من فجرٍ إلى فجر، أربعٌ وعشرون ساعة" : undefined}
+                onClick={() => setDayStartId(c.id)}
               />
             ))}
           </div>
         )}
 
-        {step === 9 && (
+        {step === 10 && (
           <div className="flex flex-col gap-2 text-sm leading-relaxed">
             <p>
               ستجد في «الخزائن» {hifzOn || workoutOn ? "خزانةَ «روتين» جاهزةً" : "بابَ خزائنك"} —
@@ -697,13 +811,14 @@ export function Onboarding() {
             onClick={() => {
               if (step < STEPS.length - 1) {
                 setStep((s) => s + 1)
-                setMaxStep((m) => Math.max(m, step + 1))
+                setReached((r) => Math.max(r, step + 2))
               } else finish()
             }}
           >
             {step < STEPS.length - 1 ? "التالي" : "ابدأ"}
           </Button>
         </div>
+    </div>
     </div>
   )
 }
