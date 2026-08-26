@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { addDays, arab, parseIso } from "@/lib/engine/dates.js"
 import { dayName } from "@/lib/format"
-import { currentUnit, dayTasks, earlyMap, makeupMap, nowStamp, TASK_SLOTS, type Ev } from "@/lib/store"
+import { currentUnit, dayTasks, earlyMap, isPreviewing, makeupMap, nowStamp, TASK_SLOTS, type Ev } from "@/lib/store"
 import { EventChip } from "@/components/event-chip"
 
 // عمود اليوم قائمةُ بلوكاتٍ متصلة من بداية وحدته إلى نهايتها — بلا تقسيمٍ مفروض
@@ -32,13 +32,21 @@ export function WeekView({
   }, [weekStart])
 
   const now = nowStamp()
-  const mk = makeupMap(events, now) // شارة «قضاء N» على البلوكات المستقبِلة
-  const em = earlyMap(events, now) // وشارة «تقديم N»
+  const pv = isPreviewing() // معاينة المعالج: مخططٌ نظيف بلا قضاءٍ ولا عدّادات
+  const mk = pv ? new Map<string, unknown[]>() : makeupMap(events, now)
+  const em = pv ? new Map<string, unknown[]>() : earlyMap(events, now)
 
   return (
     // سبعة أعمدة لا تُعرض إلا إذا اتّسع لها فعلًا (≥١٢٨٠ بكسل ≈ ١٧٠ لكل عمود)،
     // وما دون ذلك تمرير أفقي بيوم واحد كامل — أوضح من سبعة أعمدة مزدحمة
-    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 xl:grid xl:grid-cols-7 xl:gap-1 xl:overflow-visible xl:px-3">
+    <div className="relative flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 xl:grid xl:grid-cols-7 xl:gap-1 xl:overflow-visible xl:px-3">
+      {pv && (
+        <div className="pointer-events-none sticky start-0 top-0 z-20 -mb-8 flex w-full justify-center pt-1 xl:col-span-7">
+          <span className="rounded-full bg-emerald-600/90 px-3 py-1 text-[11px] font-medium text-white shadow">
+            معاينة حيّة — تتحدّث مع اختياراتك، ولا تُحفظ حتى تضغط «ابدأ»
+          </span>
+        </div>
+      )}
       {days.map((d) => {
         const isCur = d === cu
         // عمود اليوم = وحدته كاملة بترتيبها الزمني
@@ -46,7 +54,7 @@ export function WeekView({
         const unitEvs = events
           .filter((e) => e.unit === d && e.start !== e.end)
           .sort((a, b) => (a.start < b.start ? -1 : 1))
-        const dayCount = dayTasks(unitEvs, d).length // مهام اليوم العائمة ما لم تُنجز
+        const dayCount = pv ? 0 : dayTasks(unitEvs, d).length // مهام اليوم العائمة ما لم تُنجز
         return (
           <div
             key={d}
@@ -84,6 +92,7 @@ export function WeekView({
                         makeupCount={mk.get(e.id)?.length || 0}
                         earlyCount={em.get(e.id)?.length || 0}
                         dayCount={TASK_SLOTS().includes(e.slot || "") && !e.external ? dayCount : 0}
+                        preview={pv}
                         onOpen={onOpen}
                       />
                       {nowHere && (

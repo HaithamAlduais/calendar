@@ -1269,6 +1269,11 @@ export function removeTemplate(id: string): string | null {
 // المحرك يُهيّأ باختيارات المعالج الحيّة بلا حفظ: كل تغييرِ نومٍ أو قيامٍ أو
 // مدةٍ يظهر في الجدول خلف اللوحة فورًا. والإلغاء (null) يرجع بالمحرك إلى
 // المخزون — فلا أثرَ لمعاينةٍ لم تُحفظ.
+// أثناء المعاينة يُعرض الجدول مخططًا لا سجلًّا: لا «فات وقته» ولا عدّادات —
+// فمن رأى تأشيرًا وتحذيرات حسِبه تقويمًا قائمًا من قبل، وهو معاينةُ اختياراته هو
+let previewOn = false
+export const isPreviewing = () => previewOn
+
 export function previewCompose(
   cfg: {
     template: Template
@@ -1290,6 +1295,7 @@ export function previewCompose(
   } else {
     applyEngineConfig()
   }
+  previewOn = !!cfg
   cuCache = { at: "", val: "" } // بداية الوحدة تتبع القالب المعايَن
   notify()
 }

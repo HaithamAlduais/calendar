@@ -14,6 +14,7 @@ export function EventChip({
   makeupCount = 0,
   earlyCount = 0,
   dayCount = 0,
+  preview = false,
   onOpen,
 }: {
   ev: Ev
@@ -22,13 +23,14 @@ export function EventChip({
   makeupCount?: number
   earlyCount?: number
   dayCount?: number
+  preview?: boolean
   onOpen: (ev: Ev) => void
 }) {
   const items = checkable(ev)
   const checked = new Set(checksFor(ev.id))
   const total = items.length
   const doneItems = items.filter((i) => checked.has(i.id)).length
-  const missed = isMissed(ev, now)
+  const missed = !preview && isMissed(ev, now)
   const lates = lateCount(ev)
   const halfDone = ev.done && lates > 0 // أُنجز لكن بعضه قضاءً
   const quiet = ev.slot?.startsWith("sleep") || ev.slot === "nap" || ev.slot === "rest"
@@ -67,7 +69,7 @@ export function EventChip({
           {fmt12(timeOf(ev.start))} – {fmt12(timeOf(ev.end))}
         </span>
         <span className="opacity-70">{fmtDur(durMin(ev))}</span>
-        {total > 0 && (
+        {total > 0 && !preview && (
           <span
             className={cn(
               missed && "text-red-600 dark:text-red-400",
@@ -79,7 +81,7 @@ export function EventChip({
           </span>
         )}
         {missed && <span className="text-red-600 dark:text-red-400">فات وقته</span>}
-        {dayCount > 0 && !missed && (
+        {dayCount > 0 && !missed && !preview && (
           <span className="rounded bg-emerald-500/15 px-1 font-medium text-emerald-700 dark:text-emerald-400">
             مهام اليوم {arab(dayCount)}
           </span>
