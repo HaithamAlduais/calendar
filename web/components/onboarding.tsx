@@ -162,7 +162,7 @@ function PrayerTasksRow({ slot, name, gen }: { slot: string; name: string; gen: 
       {open && (
         <div className="flex flex-col gap-1 pt-2">
           {items.map((it, i) => (
-            <div key={it.id} className="flex items-center gap-1">
+            <div key={it.id + it.text} className="flex items-center gap-1">
               <Input
                 defaultValue={it.text}
                 onBlur={(e) => {

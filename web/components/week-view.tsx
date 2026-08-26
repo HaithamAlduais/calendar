@@ -16,7 +16,7 @@ import {
   TASK_SLOTS,
   type Ev,
 } from "@/lib/store"
-import { EventChip } from "@/components/event-chip"
+import { DayColumn } from "@/components/day-column"
 
 // عمود اليوم قائمةُ بلوكاتٍ متصلة من بداية وحدته إلى نهايتها — بلا تقسيمٍ مفروض
 // إلى ليلٍ ونهار: فبنيةُ اليوم يرسمها صاحبه في قالبه، والعرضُ يتبعها لا يعلوها.
@@ -90,32 +90,17 @@ export function WeekView({
                 {pv ? "فارغ — سيُبنى مع خطواتك" : "لا أحداث"}
               </div>
             ) : (
-              <div className="flex flex-col gap-1.5">
-                {unitEvs.map((e, i) => {
-                  const next = unitEvs[i + 1]
-                  const nowHere = isCur && e.start <= now && (!next || next.start > now) && e.end > now
-                  return (
-                    <div key={e.id} className="flex flex-col gap-1.5">
-                      <EventChip
-                        ev={e}
-                        now={now}
-                        current={isCur && e.start <= now && e.end > now}
-                        makeupCount={mk.get(e.id)?.length || 0}
-                        earlyCount={em.get(e.id)?.length || 0}
-                        dayCount={TASK_SLOTS().includes(e.slot || "") && !e.external ? dayCount : 0}
-                        preview={pv}
-                        onOpen={onOpen}
-                      />
-                      {nowHere && (
-                        <div className="flex items-center gap-1" aria-label="الآن">
-                          <span className="size-2 rounded-full bg-red-500" />
-                          <span className="h-px flex-1 bg-red-500" />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <DayColumn
+                evs={unitEvs}
+                isCur={isCur}
+                now={now}
+                mk={mk}
+                em={em}
+                dayCount={dayCount}
+                taskSlots={TASK_SLOTS()}
+                preview={pv}
+                onOpen={onOpen}
+              />
             )}
           </div>
         )

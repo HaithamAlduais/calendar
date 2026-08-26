@@ -15,6 +15,7 @@ export function EventChip({
   earlyCount = 0,
   dayCount = 0,
   preview = false,
+  grow = false,
   onOpen,
 }: {
   ev: Ev
@@ -24,6 +25,7 @@ export function EventChip({
   earlyCount?: number
   dayCount?: number
   preview?: boolean
+  grow?: boolean
   onOpen: (ev: Ev) => void
 }) {
   const items = checkable(ev)
@@ -40,6 +42,7 @@ export function EventChip({
       onClick={() => onOpen(ev)}
       className={cn(
         "relative w-full rounded-md p-2 ps-5 text-start text-sm transition-colors",
+        grow && "flex flex-1 flex-col justify-center",
         "after:absolute after:inset-y-2 after:start-2 after:w-1 after:rounded-full",
         missed ? "after:bg-red-500" : barColor(ev.colorId, ev.external),
         missed
