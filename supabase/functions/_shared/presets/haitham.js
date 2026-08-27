@@ -9,6 +9,7 @@
 //   الهَزيع   = نصف الليل                      → nightHour 6
 //   الغَزالة  = مطلع الساعة الرابعة من النهار  → dayHour 3
 //   الهاجِرة  = مطلع الساعة الخامسة من النهار  → dayHour 4
+//   الظَّهيرة = مطلع الساعة السادسة من النهار → dayHour 5
 //
 // وبلوكاته خمسة لا سادس لها: صلاة، ومهام، وزوجة، وأسرة، وراحة — ومعها النوم
 // والقيام والروتين. والنومُ والزوجة لا يُنقر عليهما: وقتٌ لا يُطالَب فيه بشيء.
@@ -54,16 +55,16 @@ export const templates = {
       { id: 'routine', title: 'الروتين', colorId: 10, gen: 'routine', end: { prayer: 'sunrise', offset: 15 } },
       // ٦) النوم: إلى الغَزالة — لا يُنقر عليه
       { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, locked: true, end: { dayHour: 3 } },
-      // ٧) المهام: من الغَزالة إلى الهاجِرة — وفيها الوجبة الثانية
+      // ٧) المهام: من الغَزالة إلى الظَّهيرة — ساعتان زمانيتان، وفيها الوجبة الثانية
       {
         id: 'work1',
         title: 'مهام',
         colorId: 6,
         task: true,
         items: [it('meal2', 'وجبة رقم ٢', { meal: 2, fastingSkip: true })],
-        end: { dayHour: 4 },
+        end: { dayHour: 5 },
       },
-      // ٨) الزوجة: من الهاجِرة إلى الظهر — لا يُنقر عليه
+      // ٨) الزوجة: من الظَّهيرة إلى الظهر — ساعةٌ زمانية، ولا يُنقر عليه
       { id: 'wife1', title: 'زوجة', colorId: 9, locked: true, end: { prayer: 'dhuhr' } },
       // ٩) الظهر
       { id: 'dhuhr', title: 'الظهر', colorId: 10, gen: 'dhuhr', end: { prayer: 'dhuhr', offset: 45 } },
@@ -74,7 +75,8 @@ export const templates = {
       // ١٢) مهام إلى المغرب
       { id: 'work3', title: 'مهام', colorId: 6, task: true, items: [], end: { prayer: 'maghrib' } },
       // ١٣) المغرب
-      { id: 'maghrib', title: 'المغرب', colorId: 10, gen: 'maghrib', end: { len: 30 } },
+      // المغرب: ما بين الأذان والإقامة شِعرٌ — والوجبة الثانية في مهام الغَزالة
+      { id: 'maghrib', title: 'المغرب', colorId: 10, gen: 'maghribWeekend', end: { len: 30 } },
       // ١٤) الزوجة: من المغرب إلى العشاء — لا يُنقر عليه
       { id: 'wife2', title: 'زوجة', colorId: 9, locked: true, end: { prayer: 'isha' } },
       // ١٥) العشاء

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
 import { quranStateFor } from "@/lib/engine/quran.js"
 import { strengthSnapshot } from "@/lib/engine/workout.js"
-import { durMin, fmtDateLong, fmtDur, dow } from "@/lib/format"
+import { durMin, fmtDateLong, fmtDur } from "@/lib/format"
 import {
   addFood,
   checkable,
@@ -161,15 +161,28 @@ export function DayPanel({
     seconds?: number
   }[]
 
-  // الساعات
-  const sum = (slots: string[]) =>
-    dayEvents.filter((e) => slots.includes(e.slot || "")).reduce((a, e) => a + durMin(e), 0)
+  // الساعات: تُجمَع من بلوكات اليوم نفسِه بأسمائها — فمن غيّر قالبه تغيّرت
+  // معه القائمة بلا تعديل سطر. والصلواتُ صفٌّ واحد، والنومُ صفٌّ واحد.
+  const PRAYER_SLOTS = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
+  const hourRows = (() => {
+    const byLabel = new Map<string, number>()
+    const add = (label: string, min: number) => byLabel.set(label, (byLabel.get(label) || 0) + min)
+    for (const e of dayEvents) {
+      if (e.external) continue
+      const slot = e.slot || ""
+      const min = durMin(e)
+      if (min <= 0) continue
+      if (PRAYER_SLOTS.includes(slot)) add("صلوات", min)
+      else if (slot.startsWith("sleep") || slot === "nap") add("نوم", min)
+      else add(e.title, min)
+    }
+    return [...byLabel.entries()].sort((a, b) => b[1] - a[1])
+  })()
 
-  // التغذية: وجبتان أيام الأحد–الخميس، وثلاث في الجمعة والسبت
-  const weekend = dow(d) === 5 || dow(d) === 6
-  const meals = weekend
-    ? ["١ قبل الظهر", "٢ بعد الظهر", "٣ بعد العشاء"]
-    : ["١ في القيام (سحور)", "٢ عند المغرب"]
+  // التغذية: وجبات اليوم كما هي في بلوكاته — وفي أيام الصيام تسقط وجبةُ نهاره
+  const meals = dayEvents
+    .filter((e) => !e.external)
+    .flatMap((e) => e.items.filter((i) => /وجبة/.test(i.text)).map((i) => `${i.text} — ${e.title}`))
   const w = settings.weight || 70
   const tgt = nutritionTargets(w)
   const eaten = foodFor(d)
@@ -250,14 +263,9 @@ export function DayPanel({
           </Section>
 
           <Section title="ساعات اليوم">
-            <Row
-              label={weekend ? "أسرة (النهار)" : "مهام"}
-              value={fmtDur(sum(["quran", "work1", "work2", "work3"]))}
-            />
-            <Row label={weekend ? "أصدقاء" : "أسرة"} value={fmtDur(sum(["rest"]))} />
-            <Row label="نوم" value={fmtDur(sum(["nap", "sleep1", "sleep2"]))} />
-            <Row label={weekend ? "أسرة (بعد العشاء)" : "عائلة (بعد العشاء)"} value={fmtDur(sum(["family"]))} />
-            <Row label="قيام" value={fmtDur(sum(["qiyam"]))} />
+            {hourRows.map(([label, min]) => (
+              <Row key={label} label={label} value={fmtDur(min)} />
+            ))}
           </Section>
 
           <Section title="التغذية">

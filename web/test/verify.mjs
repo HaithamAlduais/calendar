@@ -63,6 +63,7 @@ const hazeePrev = p29.maghrib + Math.round((6 * nightPrev) / 12);
 const dayLen = p30.maghrib - p30.sunrise;
 const ghazala = p30.sunrise + Math.round((3 * dayLen) / 12);
 const hajira = p30.sunrise + Math.round((4 * dayLen) / 12);
+const dhahira = p30.sunrise + Math.round((5 * dayLen) / 12); // الظَّهيرة
 
 // ترتيب البلوكات الستة عشر
 check(
@@ -100,9 +101,11 @@ check('u30 اسم الروتين', bySlot.routine.title, 'الروتين');
 // ٥) النوم إلى الغَزالة، ثم مهام إلى الهاجِرة، ثم زوجة إلى الظهر
 check('u30 النوم الثاني ينتهي بالغَزالة', T(bySlot.sleep2.end), fmtTime(ghazala));
 check('u30 النوم الثاني مقفل', bySlot.sleep2.locked, true);
-check('u30 المهام تنتهي بالهاجِرة', T(bySlot.work1.end), fmtTime(hajira));
+check('u30 المهام تنتهي بالظَّهيرة', T(bySlot.work1.end), fmtTime(dhahira));
 check('u30 وجبة ٢ في مهام الغَزالة', txt(bySlot.work1).includes('وجبة رقم ٢'), true);
-check('u30 الزوجة من الهاجِرة إلى الظهر', `${T(bySlot.wife1.start)}-${T(bySlot.wife1.end)}`, `${fmtTime(hajira)}-${fmtTime(p30.dhuhr)}`);
+check('u30 الزوجة من الظَّهيرة إلى الظهر', `${T(bySlot.wife1.start)}-${T(bySlot.wife1.end)}`, `${fmtTime(dhahira)}-${fmtTime(p30.dhuhr)}`);
+// النسبة: المهام ساعتان زمانيتان والزوجة ساعة — لا العكس
+ok('u30 المهام ضعفُ الزوجة', dur(bySlot.work1) > 1.8 * dur(bySlot.wife1), `${dur(bySlot.work1)} vs ${dur(bySlot.wife1)}`);
 check('u30 الزوجة مقفلة', bySlot.wife1.locked, true);
 
 // ٦) الظهر فمهام فالعصر فمهام فالمغرب
@@ -319,7 +322,7 @@ check('فجر: بند سنة الفجر', item(bl(u7, 'fajr'), 'sunnah').text.st
 check('ظهر الأحد: شعر لا كهف', item(bl(u8, 'dhuhr'), 'between').text, 'بين الأذان والإقامة: كتابة شعر');
 check('ظهر الأحد: صلاة الظهر', item(bl(u8, 'dhuhr'), 'pray').text, 'صلاة الظهر');
 check('عصر: بند ما بين الأذان والإقامة', item(bl(u8, 'asr'), 'between').text, 'بين الأذان والإقامة: كتابة شعر');
-check('مغرب يوم عادي: وجبة ٢ بين الأذان والإقامة (لا قبلية)', item(bl(u8, 'maghrib'), 'between').text, 'بين الأذان والإقامة: وجبة رقم ٢');
+check('مغرب: ما بين الأذان والإقامة شِعر', item(buildUnit('2026-07-30').find((e) => e.slot === 'maghrib'), 'between').text, 'بين الأذان والإقامة: كتابة شعر');
 check('عشاء: بند ما بين الأذان والإقامة', item(bl(u8, 'isha'), 'between').text, 'بين الأذان والإقامة: كتابة شعر');
 check('الكهف مرة واحدة أسبوعيًا: لا كهف في فجر الجمعة', item(bl(u7, 'fajr'), 'between').text.includes('الكهف'), false);
 // معرّفات السنن الثمانية التي تتعلّق بها خريطة التثبيت في store.ts — وجودها شرط
