@@ -3,6 +3,9 @@
 // والقرآن، وإسنادُ القوالب إلى الأيام أسبوعًا أو دورةً.
 import { addDays, daysBetween, dow } from './dates.js';
 import { quranStateFor, quranTaskLines, tathbeetLabels } from './quran.js';
+import { workoutDayType } from './workout.js';
+import { isFasting } from './fasting.js';
+import { templates as HAITHAM_TEMPLATES, weekPlan as HAITHAM_WEEK_PLAN } from '../presets/haitham.js';
 import { buildDay, rotateTemplate, unitStart as layoutUnitStart } from './layout.js';
 
 const PRAYER_NOTE =
@@ -51,6 +54,9 @@ const GEN = {
     it('duha', wirdText('سنة الضحى', t, 'fajr', 'duha')),
     note(PRAYER_NOTE),
   ],
+  // الروتين: يومٌ قرآن ويومٌ تمرين بالتناوب — فبنودُ القرآن تظهر يوم القرآن،
+  // وبطاقةُ التمرين تُفتح من البلوك نفسه يوم التمرين
+  routine: (t, st, dIso) => (workoutDayType(dIso) === 0 ? GEN.quran(t, st) : []),
   // بلوك «مهام» الصباحي: بنود القرآن وحدها — والتمرين مهمة يومية عائمة تظهر في كل بلوك مهام
   quran: (t, st) =>
     quranTaskLines(st).map((l) => it(l.key, l.text, { pool: l.pool || undefined, quran: true })),
@@ -163,11 +169,11 @@ function plainTemplate() {
   };
 }
 
-export const DEFAULT_TEMPLATES = { day: plainTemplate() };
-export const DEFAULT_WEEK_PLAN = ['day', 'day', 'day', 'day', 'day', 'day', 'day'];
-// أسماء قديمة أبقيناها مرادفات — الافتراض هو البسيط نفسه
-export const PLAIN_TEMPLATES = DEFAULT_TEMPLATES;
-export const PLAIN_WEEK_PLAN = DEFAULT_WEEK_PLAN;
+// الافتراض جدولُ صاحب البرنامج — والقالب البسيط يبقى لمن أراد أن يبدأ فارغًا
+export const PLAIN_TEMPLATES = { day: plainTemplate() };
+export const PLAIN_WEEK_PLAN = ['day', 'day', 'day', 'day', 'day', 'day', 'day'];
+export const DEFAULT_TEMPLATES = HAITHAM_TEMPLATES;
+export const DEFAULT_WEEK_PLAN = HAITHAM_WEEK_PLAN;
 
 // القوالب وخطة الأسبوع من إعدادات المستخدم
 let cfg = { templates: DEFAULT_TEMPLATES, weekPlan: DEFAULT_WEEK_PLAN, dayStart: null };
@@ -200,6 +206,7 @@ export function setScheduleConfig(next) {
     dayStart: (next && next.dayStart) || null,
     // صيام الاثنين والخميس: تُسقَط فيهما بنودُ الوجبات المعلَّمة fastingSkip
     fasting: !!(next && next.fasting),
+    fastingCfg: (next && next.fastingCfg) || undefined,
     // بنود الصلاة كما حرّرها صاحبها: { blockId: [بنود] } — وما لم يُحرَّر فمولَّدٌ
     // بالافتراض. وكانت مكتوبةً في الشيفرة لا يملك أحدٌ تغييرها.
     prayerTasks: (next && next.prayerTasks) || {},
@@ -236,8 +243,8 @@ export function rawTemplateFor(dIso) {
 }
 
 // بنود البلوك: إمّا ثابتة في القالب، وإمّا مولّدة (صلوات وقرآن) من حالة يومها
-// صيام الاثنين (dow 1) والخميس (dow 4): وجبة النهار المعلَّمة تسقط
-const fastingDay = (dIso) => cfg.fasting && (dow(dIso) === 1 || dow(dIso) === 4);
+// الصيام: الاثنين والخميس، ورمضان، والأيام المأثورة — تسقط فيها الوجبة المعلَّمة
+const fastingDay = (dIso) => !!cfg.fasting && isFasting(dIso, cfg.fastingCfg);
 
 function itemsFor(block, dIso) {
   if (!block.gen)
@@ -246,7 +253,7 @@ function itemsFor(block, dIso) {
   const custom = cfg.prayerTasks && cfg.prayerTasks[block.id];
   if (custom && block.gen !== 'quran') return custom;
   const st = quranStateFor(dIso);
-  return GEN[block.gen](tathbeetLabels(st), st);
+  return GEN[block.gen](tathbeetLabels(st), st, dIso);
 }
 
 // وقت بداية وحدة dIso نصًّا — تستعمله الواجهة لتحديد الوحدة الجارية

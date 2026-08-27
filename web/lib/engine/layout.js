@@ -7,6 +7,10 @@
 // المرساة (Anchor) إحدى صور أربع:
 //   { prayer: 'fajr'|'sunrise'|'dhuhr'|'asr'|'maghrib'|'isha', offset? }
 //   { nightPart: k }                  k/6 من الليل (المغرب ← فجر الغد): 3 نصفه، 4 ثلثه الأخير، 5 سدسه الأخير
+//   { nightHour: k }                  k/12 من الليل — ساعاتُ الليل الزمانية عند العرب:
+//                                     ٤ مطلعُ الفَحْمة، ٦ الهَزيع (نصف الليل)
+//   { dayHour: k }                    k/12 من النهار (الشروق ← المغرب):
+//                                     ٣ مطلعُ الغَزالة، ٤ مطلعُ الهاجِرة
 //   { nightFraction: 1|2, offset? }   ثلث الليل أو ثلثاه (صيغة قديمة تعادل nightPart 2 و4)
 //   { nightPrev: k }                  k/6 من الليلة السابقة — بها يبدأ يومُ من ينام قبل فجره
 //   { lastThirdPrev: true }           مطلع الثلث الأخير من الليلة السابقة (تعادل nightPrev 4)
@@ -39,6 +43,8 @@ function anchorsFor(dIso, depth = 0) {
     fajrNext: F2,
     night: (k) => M + Math.round((k * (F2 - M)) / 3),
     nightPart: (k) => M + Math.round((k * (F2 - M)) / 6),
+    nightHour: (k) => M + Math.round((k * (F2 - M)) / 12),
+    dayHour: (k) => P1.sunrise + Math.round((k * (M - P1.sunrise)) / 12),
     nightPrev: (k) => prevM + Math.round((k * (F - prevM)) / 6),
     lastThirdPrev: prevM + Math.round((2 * (F - prevM)) / 3),
   };
@@ -55,6 +61,8 @@ function shiftDay(a, by) {
   const out = {
     night: (k) => a.night(k) + by,
     nightPart: (k) => a.nightPart(k) + by,
+    nightHour: (k) => a.nightHour(k) + by,
+    dayHour: (k) => a.dayHour(k) + by,
     nightPrev: (k) => a.nightPrev(k) + by,
   };
   for (const k of ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha', 'fajrNext', 'lastThirdPrev'])
@@ -67,6 +75,8 @@ function resolve(anchor, a0, start, balanceLen) {
   const a = anchor.next && a0.next ? a0.next : anchor.prevDay && a0.prev ? a0.prev : a0;
   if (anchor.prayer) return a[anchor.prayer] + off;
   if (anchor.nightPart) return a.nightPart(anchor.nightPart) + off;
+  if (anchor.nightHour) return a.nightHour(anchor.nightHour) + off;
+  if (anchor.dayHour) return a.dayHour(anchor.dayHour) + off;
   if (anchor.nightFraction) return a.night(anchor.nightFraction) + off;
   if (anchor.nightPrev) return a.nightPrev(anchor.nightPrev) + off;
   if (anchor.lastThirdPrev) return a.lastThirdPrev + off;
@@ -123,6 +133,8 @@ export const isAbsolute = (a) =>
     a &&
     (a.prayer ||
       a.prevDay ||
+      a.nightHour ||
+      a.dayHour ||
       a.nightPart ||
       a.nightFraction ||
       a.nightPrev ||
@@ -191,5 +203,6 @@ export function buildDay(dIso, tpl, itemsFor) {
     colorId: b.colorId,
     items: itemsFor(b, dIso).map((x) => ({ ...x })), // نسخة لكل يوم
     transparent: !!b.transparent,
+    locked: !!b.locked,
   }));
 }

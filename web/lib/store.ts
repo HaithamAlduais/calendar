@@ -15,6 +15,7 @@ import {
 } from "@/lib/engine/schedule.js"
 import { addDays, daysBetween, toIso, arab, dow } from "@/lib/engine/dates.js"
 import { setPrayerConfig } from "@/lib/engine/prayers.js"
+import { DEFAULT_FASTING } from "@/lib/engine/fasting.js"
 import { anchorMinute, buildDay, isMonotone, rotateTemplate, startCandidates } from "@/lib/engine/layout.js"
 import * as HAITHAM from "@/lib/presets/haitham.js"
 import { emptyCabinets, itemsForDay, repeatLabel } from "@/lib/engine/cabinets.js"
@@ -54,6 +55,7 @@ export type Ev = {
   colorId: number
   items: Item[]
   transparent?: boolean
+  locked?: boolean // بلوكٌ لا يُفتح: نومٌ أو وقتُ أهل
   done?: boolean
   external?: boolean
   account?: string // بريد حساب Google المصدر (للأحداث الخارجية)
@@ -206,26 +208,28 @@ const DEFAULT_SETTINGS = {
   tz: 3,
   method: "ummAlQura",
   asrFactor: 1, // ظل المثل، و٢ للحنفية
-  startDate: todayIso(), // يوم بداية الجدول — ما قبله لا يُعرض
-  onboarded: false, // هل أتمّ المستخدم الإعداد الأول
-  wirdEnabled: false, // متابعة الورد في السنن — المعالج يشعلها لمن أرادها
-  hifzEnabled: false, // نظام الحفظ والمراجعة
-  workoutEnabled: false, // نظام التمرين
+  startDate: HAITHAM.startDate as string, // يوم بداية الجدول — ما قبله لا يُعرض
+  onboarded: true, // الجدول جاهزٌ من أول تشغيل — والمعالج يُطلب من «بداية جديدة»
+  wirdEnabled: true, // متابعة الورد في السنن
+  hifzEnabled: true, // نظام الحفظ والمراجعة
+  workoutEnabled: true, // نظام التمرين
   // ورد التثبيت: السنن المشاركة بترتيبها الزمني [slot البلوك، معرّف البند]
-  wird: DEFAULT_WIRD,
+  wird: HAITHAM.wird as [string, string][],
   // قوالب الأيام وخطة الأسبوع — يحرّرها المستخدم من «قالب يومك»
   templates: DEFAULT_TEMPLATES as unknown as Record<string, Template>,
   weekPlan: DEFAULT_WEEK_PLAN as string[],
-  quran: DEFAULT_QURAN as QuranCfg,
-  workout: DEFAULT_WORKOUT as unknown as WorkoutCfg,
+  quran: HAITHAM.quran as QuranCfg,
+  workout: HAITHAM.workout as unknown as WorkoutCfg,
+  betweenLine2: "", // (محجوز) — betweenLine أدناه
   // بداية اليوم: أيّ بلوك يفتتح الوحدة وبأيّ مرساة — واحدة لكل القوالب، وإلا
   // تداخلت الوحدات. null = كما كُتب القالب.
   dayStart: null as { blockId?: string; anchor?: Anchor } | null,
   // إسناد القوالب: أسبوعيًّا (لكل يوم أسبوعٍ قالبُه) أو دورةً لا تعرف الأسبوع
   planMode: "weekly" as "weekly" | "cycle",
   cyclePlan: null as { start: string; seq: string[] } | null,
-  // صيام الاثنين والخميس: يُسقط بنود الوجبات المعلَّمة fastingSkip
-  fasting: false,
+  // الصيام: الاثنان والخميس ورمضان والأيام المأثورة — تسقط الوجبة المعلَّمة
+  fasting: true,
+  fastingCfg: DEFAULT_FASTING as typeof DEFAULT_FASTING,
   // بنود كل صلاة كما حرّرها صاحبها — وما لم يُحرَّر فمولَّدٌ بالافتراض
   prayerTasks: {} as Record<string, Item[]>,
   // الجسد والغذاء: الطول بالسنتيمتر، والمعاملات لحساب الهدف من الوزن —
@@ -237,7 +241,7 @@ const DEFAULT_SETTINGS = {
     fatPerKg: 0.9,
   },
   // ما تكتبه أو تفعله بين الأذان والإقامة — بندٌ في كل بلوك صلاة
-  betweenLine: DEFAULT_BETWEEN as string,
+  betweenLine: HAITHAM.betweenLine as string,
   // القضاء والتقديم: القضاء أداءُ الفائت بعد وقته بنصف إنجاز، والتقديم أداءُ
   // اللاحق قبل وقته من يومه بإنجاز كامل.
   qada: {
@@ -300,6 +304,7 @@ function applyEngineConfig() {
     cyclePlan: settings.cyclePlan,
     dayStart: settings.dayStart,
     fasting: settings.fasting,
+    fastingCfg: settings.fastingCfg,
     prayerTasks: settings.prayerTasks,
     betweenLine: settings.betweenLine,
   })
@@ -1008,6 +1013,7 @@ export type Block = {
   transparent?: boolean
   gen?: string // بنود مولّدة (صلاة أو قرآن) — لا تُحذف
   task?: boolean // بلوك مهام: يقبل مهامك اليدوية ويستقبل القضاء والتقديم
+  locked?: boolean // لا يُنقر عليه ولا يُطالَب فيه بشيء — نومٌ أو وقتُ أهل
   items?: Item[]
 }
 

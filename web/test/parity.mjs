@@ -17,7 +17,7 @@ const golden = JSON.parse(readFileSync(new URL('./golden.json', import.meta.url)
 setPrayerConfig(prayer);
 setQuranConfig(quran);
 setWorkoutConfig(workout);
-setScheduleConfig({ templates, weekPlan, betweenLine });
+setScheduleConfig({ templates, weekPlan, betweenLine, fasting: true });
 
 let pass = 0;
 const fails = [];

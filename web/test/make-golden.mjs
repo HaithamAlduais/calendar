@@ -4,7 +4,16 @@
 import { writeFileSync } from 'node:fs';
 import { buildUnit } from '../lib/engine/schedule.js';
 import { addDays } from '../lib/engine/dates.js';
-import { QURAN_SEED } from '../lib/engine/quran.js';
+import { QURAN_SEED, setQuranConfig } from '../lib/engine/quran.js';
+import { setScheduleConfig } from '../lib/engine/schedule.js';
+import { setPrayerConfig } from '../lib/engine/prayers.js';
+import { setWorkoutConfig } from '../lib/engine/workout.js';
+import * as HC from '../lib/presets/haitham.js';
+
+setPrayerConfig(HC.prayer);
+setQuranConfig(HC.quran);
+setWorkoutConfig(HC.workout);
+setScheduleConfig({ templates: HC.templates, weekPlan: HC.weekPlan, betweenLine: HC.betweenLine, fasting: true });
 
 const DAYS = 60;
 const from = QURAN_SEED.date;

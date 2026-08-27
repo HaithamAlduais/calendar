@@ -35,13 +35,15 @@ export function EventChip({
   const missed = !preview && isMissed(ev, now)
   const lates = lateCount(ev)
   const halfDone = ev.done && lates > 0 // أُنجز لكن بعضه قضاءً
-  const quiet = ev.slot?.startsWith("sleep") || ev.slot === "nap" || ev.slot === "rest"
+  const quiet = ev.locked || ev.slot?.startsWith("sleep") || ev.slot === "nap"
 
   return (
     <button
-      onClick={() => onOpen(ev)}
+      onClick={() => !ev.locked && onOpen(ev)}
+      aria-disabled={ev.locked || undefined}
       className={cn(
         "relative w-full rounded-md p-2 ps-5 text-start text-sm transition-colors",
+        ev.locked && "cursor-default",
         grow && "flex flex-1 flex-col justify-center",
         "after:absolute after:inset-y-2 after:start-2 after:w-1 after:rounded-full",
         missed ? "after:bg-red-500" : barColor(ev.colorId, ev.external),
