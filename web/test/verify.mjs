@@ -63,13 +63,12 @@ const hazeePrev = p29.maghrib + Math.round((6 * nightPrev) / 12);
 const dayLen = p30.maghrib - p30.sunrise;
 const ghazala = p30.sunrise + Math.round((3 * dayLen) / 12);
 const hajira = p30.sunrise + Math.round((4 * dayLen) / 12);
-const dhahira = p30.sunrise + Math.round((5 * dayLen) / 12); // الظَّهيرة
 
 // ترتيب البلوكات الستة عشر
 check(
   'u30 ترتيب اليوم',
   u30.map((e) => e.slot).join(','),
-  'rest,sleep1,qiyam,fajr,routine,sleep2,work1,wife1,dhuhr,work2,asr,work3,maghrib,wife2,isha,family'
+  'rest,sleep1,qiyam,fajr,routine,sleep2,wife1,work1,dhuhr,work2,asr,work3,maghrib,wife2,isha,family'
 );
 check('u30 عدد البلوكات', u30.length, 16);
 
@@ -101,9 +100,10 @@ check('u30 اسم الروتين', bySlot.routine.title, 'الروتين');
 // ٥) النوم إلى الغَزالة، ثم مهام إلى الهاجِرة، ثم زوجة إلى الظهر
 check('u30 النوم الثاني ينتهي بالغَزالة', T(bySlot.sleep2.end), fmtTime(ghazala));
 check('u30 النوم الثاني مقفل', bySlot.sleep2.locked, true);
-check('u30 المهام تنتهي بالظَّهيرة', T(bySlot.work1.end), fmtTime(dhahira));
-check('u30 وجبة ٢ في مهام الغَزالة', txt(bySlot.work1).includes('وجبة رقم ٢'), true);
-check('u30 الزوجة من الظَّهيرة إلى الظهر', `${T(bySlot.wife1.start)}-${T(bySlot.wife1.end)}`, `${fmtTime(dhahira)}-${fmtTime(p30.dhuhr)}`);
+check('u30 الزوجة تنتهي بالهاجِرة', T(bySlot.wife1.end), fmtTime(hajira));
+check('u30 وجبة ٢ في مهام الهاجِرة', txt(bySlot.work1).includes('وجبة رقم ٢'), true);
+check('u30 المهام من الهاجِرة إلى الظهر', `${T(bySlot.work1.start)}-${T(bySlot.work1.end)}`, `${fmtTime(hajira)}-${fmtTime(p30.dhuhr)}`);
+check('u30 الزوجة تلي نومَ الصباح', bySlot.wife1.start, bySlot.sleep2.end);
 // النسبة: المهام ساعتان زمانيتان والزوجة ساعة — لا العكس
 ok('u30 المهام ضعفُ الزوجة', dur(bySlot.work1) > 1.8 * dur(bySlot.wife1), `${dur(bySlot.work1)} vs ${dur(bySlot.wife1)}`);
 check('u30 الزوجة مقفلة', bySlot.wife1.locked, true);

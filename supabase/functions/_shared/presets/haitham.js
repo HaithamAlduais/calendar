@@ -9,7 +9,6 @@
 //   الهَزيع   = نصف الليل                      → nightHour 6
 //   الغَزالة  = مطلع الساعة الرابعة من النهار  → dayHour 3
 //   الهاجِرة  = مطلع الساعة الخامسة من النهار  → dayHour 4
-//   الظَّهيرة = مطلع الساعة السادسة من النهار → dayHour 5
 //
 // وبلوكاته خمسة لا سادس لها: صلاة، ومهام، وزوجة، وأسرة، وراحة — ومعها النوم
 // والقيام والروتين. والنومُ والزوجة لا يُنقر عليهما: وقتٌ لا يُطالَب فيه بشيء.
@@ -55,17 +54,17 @@ export const templates = {
       { id: 'routine', title: 'الروتين', colorId: 10, gen: 'routine', end: { prayer: 'sunrise', offset: 15 } },
       // ٦) النوم: إلى الغَزالة — لا يُنقر عليه
       { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, locked: true, end: { dayHour: 3 } },
-      // ٧) المهام: من الغَزالة إلى الظَّهيرة — ساعتان زمانيتان، وفيها الوجبة الثانية
+      // ٧) الزوجة: من الغَزالة إلى الهاجِرة — لا يُنقر عليه
+      { id: 'wife1', title: 'زوجة', colorId: 9, locked: true, end: { dayHour: 4 } },
+      // ٨) المهام: من الهاجِرة إلى الظهر — وفيها الوجبة الثانية
       {
         id: 'work1',
         title: 'مهام',
         colorId: 6,
         task: true,
         items: [it('meal2', 'وجبة رقم ٢', { meal: 2, fastingSkip: true })],
-        end: { dayHour: 5 },
+        end: { prayer: 'dhuhr' },
       },
-      // ٨) الزوجة: من الظَّهيرة إلى الظهر — ساعةٌ زمانية، ولا يُنقر عليه
-      { id: 'wife1', title: 'زوجة', colorId: 9, locked: true, end: { prayer: 'dhuhr' } },
       // ٩) الظهر
       { id: 'dhuhr', title: 'الظهر', colorId: 10, gen: 'dhuhr', end: { prayer: 'dhuhr', offset: 45 } },
       // ١٠) مهام إلى العصر
