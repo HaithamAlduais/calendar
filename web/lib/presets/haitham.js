@@ -10,8 +10,11 @@
 //   الغَزالة  = مطلع الساعة الرابعة من النهار  → dayHour 3
 //   الهاجِرة  = مطلع الساعة الخامسة من النهار  → dayHour 4
 //
-// وبلوكاته خمسة لا سادس لها: صلاة، ومهام، وزوجة، وأسرة، وراحة — ومعها النوم
-// والقيام والروتين. والنومُ والزوجة لا يُنقر عليهما: وقتٌ لا يُطالَب فيه بشيء.
+// وبلوكاته خمسة لا سادس لها: صلاة، ومهام، وأسرة، وعائلة، وراحة — ومعها النوم
+// والقيام والروتين. وبلوكات الأسرة لا يُنقر عليها: وقتٌ لا يُطالَب فيه بشيء.
+//
+// والأسبوع يبدأ السبت، وأيامُه كلُّها سواء — إلا الجمعة، فبلوكات مهامها
+// تُسمّى «عائلة»، وما عداها كسائر الأيام حرفًا بحرف.
 
 const it = (id, text, extra) => ({ id, text, ...extra });
 
@@ -28,9 +31,10 @@ export const qiyamItems = [
 ];
 
 // ── القالب: ٢٤ ساعة من الفَحْمة إلى الفَحْمة ──
-export const templates = {
-  day: {
-    name: 'يومي',
+// `work` اسمُ بلوكات المهام: «مهام» في عامة الأيام، و«عائلة» يوم الجمعة
+function makeDay(work) {
+  return {
+    name: work === 'عائلة' ? 'الجمعة' : 'يومي',
     // الوحدة تبدأ بالفَحْمة — وهي مرساة الليلة السابقة لبلوك الراحة
     start: { nightHour: 4, prevDay: true },
     blocks: [
@@ -50,16 +54,16 @@ export const templates = {
       { id: 'qiyam', title: 'قيام الليل', colorId: 9, items: qiyamItems, end: { prayer: 'fajr' } },
       // ٤) الفجر
       { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
-      // ٥) الروتين: إلى الشروق وربع — يوم قرآن ويوم تمرين بالتناوب
+      // ٥) الروتين: إلى الشروق وربع — يومُ قرآنٍ ويومُ تمرين بالتناوب
       { id: 'routine', title: 'الروتين', colorId: 10, gen: 'routine', end: { prayer: 'sunrise', offset: 15 } },
       // ٦) النوم: إلى الغَزالة — لا يُنقر عليه
       { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, locked: true, end: { dayHour: 3 } },
-      // ٧) الزوجة: من الغَزالة إلى الهاجِرة — لا يُنقر عليه
-      { id: 'wife1', title: 'زوجة', colorId: 9, locked: true, end: { dayHour: 4 } },
+      // ٧) الأسرة: من الغَزالة إلى الهاجِرة — لا يُنقر عليه
+      { id: 'family1', title: 'أسرة', colorId: 9, locked: true, end: { dayHour: 4 } },
       // ٨) المهام: من الهاجِرة إلى الظهر — وفيها الوجبة الثانية
       {
         id: 'work1',
-        title: 'مهام',
+        title: work,
         colorId: 6,
         task: true,
         items: [it('meal2', 'وجبة رقم ٢', { meal: 2, fastingSkip: true })],
@@ -68,16 +72,15 @@ export const templates = {
       // ٩) الظهر
       { id: 'dhuhr', title: 'الظهر', colorId: 10, gen: 'dhuhr', end: { prayer: 'dhuhr', offset: 45 } },
       // ١٠) مهام إلى العصر
-      { id: 'work2', title: 'مهام', colorId: 6, task: true, items: [], end: { prayer: 'asr' } },
+      { id: 'work2', title: work, colorId: 6, task: true, items: [], end: { prayer: 'asr' } },
       // ١١) العصر
       { id: 'asr', title: 'العصر', colorId: 10, gen: 'asr', end: { len: 45 } },
       // ١٢) مهام إلى المغرب
-      { id: 'work3', title: 'مهام', colorId: 6, task: true, items: [], end: { prayer: 'maghrib' } },
-      // ١٣) المغرب
-      // المغرب: ما بين الأذان والإقامة شِعرٌ — والوجبة الثانية في مهام الغَزالة
+      { id: 'work3', title: work, colorId: 6, task: true, items: [], end: { prayer: 'maghrib' } },
+      // ١٣) المغرب — ما بين الأذان والإقامة شِعر
       { id: 'maghrib', title: 'المغرب', colorId: 10, gen: 'maghribWeekend', end: { len: 30 } },
-      // ١٤) الزوجة: من المغرب إلى العشاء — لا يُنقر عليه
-      { id: 'wife2', title: 'زوجة', colorId: 9, locked: true, end: { prayer: 'isha' } },
+      // ١٤) الأسرة: من المغرب إلى العشاء — لا يُنقر عليه
+      { id: 'family2', title: 'أسرة', colorId: 9, locked: true, end: { prayer: 'isha' } },
       // ١٥) العشاء
       { id: 'isha', title: 'العشاء', colorId: 10, gen: 'isha', end: { len: 45 } },
       // ١٦) الأسرة: من العشاء إلى الفَحْمة — وفيها الوجبة الثالثة
@@ -90,11 +93,14 @@ export const templates = {
         end: { nightHour: 4 },
       },
     ],
-  },
-};
+  };
+}
 
-// يومٌ واحد لا يعرف الأسبوع — لا جمعةَ ولا سبتَ بقالبٍ خاص
-export const weekPlan = ['day', 'day', 'day', 'day', 'day', 'day', 'day'];
+export const templates = { day: makeDay('مهام'), friday: makeDay('عائلة') };
+
+// الأسبوع يبدأ السبت، وأيامُه سواء — والجمعةُ وحدها مهامُها «عائلة»
+// الفهرس: ٠ الأحد … ٥ الجمعة، ٦ السبت
+export const weekPlan = ['day', 'day', 'day', 'day', 'day', 'friday', 'day'];
 
 // ما بين الأذان والإقامة عنده: كتابة شعر
 export const betweenLine = 'بين الأذان والإقامة: كتابة شعر';
@@ -115,7 +121,7 @@ export const prayer = { lat: 24.7136, lng: 46.6753, tz: 3, method: 'ummAlQura', 
 
 export const quran = {
   mode: 'managed',
-  date: '2026-08-27',
+  date: '2026-08-28',
   reviewJuz: 1,
   hifzJuz: 10,
   hifzQuarter: 1,
@@ -131,7 +137,8 @@ const HEADER = 'التقدّم المزدوج: زد عدة كل جلسة حتى 
 
 // الدورة: يوم تمرين فيوم قرآن — ثلاثة أنواع تمرين تتعاقب على أيام التمرين
 export const workout = {
-  start: '2026-08-27',
+  // أولُ أيام التمرين: السبت ٢٩ — وما قبله قرآن، فاليومُ (الجمعة) قرآن
+  start: '2026-08-29',
   offTitle: 'قرآن',
   restBetween: true,
   scheduleMode: 'cycle',
@@ -160,6 +167,10 @@ export const workout = {
         { kind: 'reps', ex: 'lat' },
         { kind: 'superset', key: 'bi+tri', name: 'باي + تراي', sets: 2, rest: 60, parts: ['bi', 'tri'] },
         { kind: 'hold', key: 'plank', name: 'بلانك', sets: 2, rest: 60, sec0: 40, secInc: 2.5 },
+        // الجري في يوم التمرين نفسِه — لا يومًا مستقلًّا
+        { kind: 'failure', key: 'warmup', name: 'إحماء — هرولة خفيفة', sets: 1, rest: 0, note: '٥ دقائق', descLine: 'إحماء — ٥ دقائق هرولة خفيفة' },
+        { kind: 'failure', key: 'sprint', name: 'عدو ١٠–٢٠ ث ثم هرولة ٩٠ ث', sets: 4, rest: 90, note: 'زد جولة أو ١٠ ثوانٍ كل أسبوع', descLine: 'عدو ١٠–٢٠ ثانية ثم هرولة ٩٠ ثانية — ٤ جولات (زد جولة أو ١٠ ثوانٍ كل أسبوع)' },
+        { kind: 'failure', key: 'cool', name: 'تهدئة — مشي', sets: 1, rest: 0, note: '٥ دقائق', descLine: 'تهدئة — ٥ دقائق مشي' },
       ],
     },
     {
@@ -175,12 +186,7 @@ export const workout = {
         { kind: 'reps', ex: 'lat' },
         { kind: 'superset', key: 'hammer+tri', name: 'هامر + تراي', sets: 2, rest: 60, parts: ['hammer', 'tri'] },
         { kind: 'hold', key: 'plank', name: 'بلانك', sets: 2, rest: 60, sec0: 40, secInc: 2.5 },
-      ],
-    },
-    {
-      title: 'تمرين — اليوم الثالث (جري)',
-      header: 'جري تدرّجي (سبرنت متقطع):',
-      items: [
+        // الجري في يوم التمرين نفسِه — لا يومًا مستقلًّا
         { kind: 'failure', key: 'warmup', name: 'إحماء — هرولة خفيفة', sets: 1, rest: 0, note: '٥ دقائق', descLine: 'إحماء — ٥ دقائق هرولة خفيفة' },
         { kind: 'failure', key: 'sprint', name: 'عدو ١٠–٢٠ ث ثم هرولة ٩٠ ث', sets: 4, rest: 90, note: 'زد جولة أو ١٠ ثوانٍ كل أسبوع', descLine: 'عدو ١٠–٢٠ ثانية ثم هرولة ٩٠ ثانية — ٤ جولات (زد جولة أو ١٠ ثوانٍ كل أسبوع)' },
         { kind: 'failure', key: 'cool', name: 'تهدئة — مشي', sets: 1, rest: 0, note: '٥ دقائق', descLine: 'تهدئة — ٥ دقائق مشي' },
@@ -189,4 +195,4 @@ export const workout = {
   ],
 };
 
-export const startDate = '2026-08-27';
+export const startDate = '2026-08-28';

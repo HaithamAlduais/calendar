@@ -68,7 +68,7 @@ const hajira = p30.sunrise + Math.round((4 * dayLen) / 12);
 check(
   'u30 ترتيب اليوم',
   u30.map((e) => e.slot).join(','),
-  'rest,sleep1,qiyam,fajr,routine,sleep2,wife1,work1,dhuhr,work2,asr,work3,maghrib,wife2,isha,family'
+  'rest,sleep1,qiyam,fajr,routine,sleep2,family1,work1,dhuhr,work2,asr,work3,maghrib,family2,isha,family'
 );
 check('u30 عدد البلوكات', u30.length, 16);
 
@@ -100,13 +100,13 @@ check('u30 اسم الروتين', bySlot.routine.title, 'الروتين');
 // ٥) النوم إلى الغَزالة، ثم مهام إلى الهاجِرة، ثم زوجة إلى الظهر
 check('u30 النوم الثاني ينتهي بالغَزالة', T(bySlot.sleep2.end), fmtTime(ghazala));
 check('u30 النوم الثاني مقفل', bySlot.sleep2.locked, true);
-check('u30 الزوجة تنتهي بالهاجِرة', T(bySlot.wife1.end), fmtTime(hajira));
+check('u30 الأسرة الصباحية تنتهي بالهاجِرة', T(bySlot.family1.end), fmtTime(hajira));
 check('u30 وجبة ٢ في مهام الهاجِرة', txt(bySlot.work1).includes('وجبة رقم ٢'), true);
 check('u30 المهام من الهاجِرة إلى الظهر', `${T(bySlot.work1.start)}-${T(bySlot.work1.end)}`, `${fmtTime(hajira)}-${fmtTime(p30.dhuhr)}`);
-check('u30 الزوجة تلي نومَ الصباح', bySlot.wife1.start, bySlot.sleep2.end);
+check('u30 الأسرة تلي نومَ الصباح', bySlot.family1.start, bySlot.sleep2.end);
 // النسبة: المهام ساعتان زمانيتان والزوجة ساعة — لا العكس
-ok('u30 المهام ضعفُ الزوجة', dur(bySlot.work1) > 1.8 * dur(bySlot.wife1), `${dur(bySlot.work1)} vs ${dur(bySlot.wife1)}`);
-check('u30 الزوجة مقفلة', bySlot.wife1.locked, true);
+ok('u30 المهام ضعفُ الأسرة', dur(bySlot.work1) > 1.8 * dur(bySlot.family1), `${dur(bySlot.work1)} vs ${dur(bySlot.family1)}`);
+check('u30 الأسرة الصباحية مقفلة', bySlot.family1.locked, true);
 
 // ٦) الظهر فمهام فالعصر فمهام فالمغرب
 check('u30 dhuhr', `${T(bySlot.dhuhr.start)}-${T(bySlot.dhuhr.end)}`, '12:00-12:45');
@@ -115,8 +115,8 @@ check('u30 work3 ينتهي بالمغرب', T(bySlot.work3.end), '18:39');
 check('u30 maghrib', `${T(bySlot.maghrib.start)}-${T(bySlot.maghrib.end)}`, '18:39-19:09');
 
 // ٧) زوجة من المغرب إلى العشاء، ثم العشاء، ثم أسرة إلى الفَحْمة
-check('u30 زوجة المساء', `${T(bySlot.wife2.start)}-${T(bySlot.wife2.end)}`, '19:09-20:09');
-check('u30 زوجة المساء مقفلة', bySlot.wife2.locked, true);
+check('u30 أسرة المساء', `${T(bySlot.family2.start)}-${T(bySlot.family2.end)}`, '19:09-20:09');
+check('u30 أسرة المساء مقفلة', bySlot.family2.locked, true);
 check('u30 isha', `${T(bySlot.isha.start)}-${T(bySlot.isha.end)}`, '20:09-20:54');
 check('u30 الأسرة تختم اليوم', u30[u30.length - 1].slot, 'family');
 check('u30 وجبة ٣ في الأسرة', txt(bySlot.family).includes('وجبة رقم ٣'), true);
@@ -199,7 +199,9 @@ check('كل وحدة: أربعٌ وعشرون ساعة', spanOk, true);
   check('السبت مثلها', b.rest + '/' + b.family, 'راحة/أسرة');
   check('الأحد مثلها', c.rest + '/' + c.family, 'راحة/أسرة');
   check('لا بلوك جمعة', !!titles('2026-07-31').jumua, false);
-  check('الزوجة في كل يوم', a.wife1 + '/' + a.wife2, 'زوجة/زوجة');
+  check('الأسرة في كل يوم', a.family1 + '/' + a.family2, 'أسرة/أسرة');
+  check('الجمعة: المهام عائلة', a.work1 + '/' + a.work2 + '/' + a.work3, 'عائلة/عائلة/عائلة');
+  check('السبت: المهام مهام', b.work1, 'مهام');
 }
 
 // ── آلة حالة القرآن (البذرة: مراجعة جزء ١، حفظ ربع ١ من جزء ١٠) ──
@@ -219,24 +221,47 @@ check('تثبيت +١٦ = جزء ٩', txt(fajr24).includes('سنة الفجر �
 const isha24 = buildUnit(D(16)).find((e) => e.slot === 'isha');
 check('عشاء +١٦ على الجزء ١٠', txt(isha24).includes('الجزء ١٠'), true);
 
-// ── تقدّم التمرين عبر الشهر (يوم البذرة = يوم التمرين الأول) ──
-const trainOn = (d) => wdesc(d);
-check('+٠ بريس 40×6', trainOn(D(0)).includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
-check('+٢ بريس 40×7', trainOn(D(2)).includes('× ٧ عدات @ ٤٠ كجم'), true);
-check('+٨ بريس 40×9', trainOn(D(8)).includes('× ٩ عدات @ ٤٠ كجم'), true);
-check('+١٢ بريس 45×6 (زيادة الوزن)', trainOn(D(12)).includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٥ كجم'), true);
-
-check('+١٢ سحب أفقي 55', trainOn(D(12)).includes('السحب الأفقي — ٤ جلسات × ٦ عدات @ ٥٥ كجم'), true);
-check('+٠ بلانك 40', trainOn(D(0)).includes('بلانك — جلستان × ٤٠ ث'), true);
-check('+٢ بلانك 42.5', trainOn(D(2)).includes('٤٢٫٥ ث'), true);
-
-check('+٠ كتف خلفي 10×8', trainOn(D(0)).includes('كتف خلفي — ٢ جلسات × ٨ عدات @ ١٠ كجم'), true);
-// بلوغ أعلى النطاق ثم قفزة الوزن التالية (خارج نافذة byUnit فيُقرأ من المحرك مباشرة)
+// ── تقدّم التمرين: قاعدةً لا أرقامًا محفوظة ──
+// W(0) أولُ أيام التمرين، وأيامُه كلَّ يومين (يومُ تمرين فيومُ قرآن)
+const W = (n) => addDays(HC.workout.start, n);
 const { workoutDesc: wd } = await import('../lib/engine/workout.js');
-check('+٢٠ بريس 45×9 (أعلى النطاق)', wd(D(20)).includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٩ عدات @ ٤٥ كجم'), true);
-check('+٢٠ بلانك 57.5', wd(D(20)).includes('٥٧٫٥ ث'), true);
-check('+٢٤ بريس 50×6 (قفزة الوزن)', wd(D(24)).includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٥٠ كجم'), true);
-check('+١٢ كتف جانبي 12.5×8', trainOn(D(12)).includes('كتف جانبي — ٢ جلسات × ٨ عدات @ ١٢٫٥ كجم'), true);
+
+{
+  // نقرأ عدّاتِ البريس ووزنَه في أول اثنتي عشرة جلسة
+  const seen = [];
+  for (let i = 0; i < 12; i++) {
+    const line = wd(W(i * 2)).split(String.fromCharCode(10)).find((l) => l.includes('الدفع العلوي'));
+    const reps = (line.match(/× ([٠-٩]+) عدات/) || [])[1];
+    const kg = (line.match(/@ ([٠-٩٫]+) كجم/) || [])[1];
+    seen.push(reps + '@' + kg);
+  }
+  const A = (x) => String(x).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[+d]);
+  const ex = HC.workout.exercises.press;
+  // الجلسة الأولى: أدنى النطاق بوزن البداية
+  check('التمرين: أول جلسة أدنى النطاق', seen[0], A(ex.lo) + '@' + A(ex.w0));
+  // ثم عدةٌ في كل جلسة حتى أعلى النطاق
+  const span = ex.hi - ex.lo; // ٣ خطوات
+  check('التمرين: بلوغ أعلى النطاق', seen[span], A(ex.hi) + '@' + A(ex.w0));
+  // ثم يزيد الوزن ويعود إلى أدنى النطاق
+  check('التمرين: زيادة الوزن بعد أعلى النطاق', seen[span + 1], A(ex.lo) + '@' + A(ex.w0 + ex.inc));
+  // ودورةٌ ثانية مثلها
+  check('التمرين: الدورة الثانية', seen[2 * (span + 1)], A(ex.lo) + '@' + A(ex.w0 + 2 * ex.inc));
+  ok('التمرين: لا تكرار في الجلسات', new Set(seen).size === seen.length, seen.join(' '));
+}
+
+// الجريُ في يوم التمرين نفسِه — لا يومًا مستقلًّا
+{
+  const d = wd(W(0));
+  ok('الجري مع الحديد في اليوم نفسه', d.includes('عدو') && d.includes('الدفع العلوي'), d.slice(0, 80));
+  check('يومُ القرآن لا تمرين فيه', wd(W(1)), '');
+}
+
+// البلانك يزيد ثوانيَه كل جلسة
+{
+  const sec = (d) => (wd(d).split(String.fromCharCode(10)).find((l) => l.includes('بلانك')) || '');
+  ok('بلانك يبدأ ٤٠ ث', sec(W(0)).includes('٤٠ ث'), sec(W(0)));
+  ok('وبلانك الجلسة التالية أطول', sec(W(2)).includes('٤٢٫٥ ث'), sec(W(2)));
+}
 
 // ── التقدّم المشروط بالإنجاز: اليوم الفائت تُعاد مهمته ولا يتقدم شيء ──
 const { setQuranCompletion, clearQuranCache } = await import('../lib/engine/quran.js');
@@ -253,22 +278,22 @@ setQuranCompletion(null);
 clearQuranCache();
 
 // فوات التمرين الأول كاملًا: يوم التمرين التالي يعرض أهدافه نفسها (بريس ٦ لا ٧)
-setWorkoutCompletion((d) => d !== D(0));
-check('فوات يوم١ → يوم٢ بريس ٤٠×٦', workoutDesc(D(2)).includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
+setWorkoutCompletion((d) => d !== W(0));
+check('فوات يوم١ → يوم٢ بريس ٤٠×٦', workoutDesc(W(2)).includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
 setWorkoutCompletion(null);
-check('بعد الاسترجاع: يوم٢ بريس ٤٠×٧', workoutDesc(D(2)).includes('× ٧ عدات @ ٤٠ كجم'), true);
+check('بعد الاسترجاع: يوم٢ بريس ٤٠×٧', workoutDesc(W(2)).includes('× ٧ عدات @ ٤٠ كجم'), true);
 
 // ── تجميد تمرين واحد لا يؤثر في البقية ──
-setWorkoutCompletion((d, k) => !(d === D(0) && k === 'press'));
-const d10 = workoutDesc(D(2));
+setWorkoutCompletion((d, k) => !(d === W(0) && k === 'press'));
+const d10 = workoutDesc(W(2));
 check('البريس وحده تجمّد (٦ عدات)', d10.includes('الدفع العلوي (بريس مائل) — ٤ جلسات × ٦ عدات @ ٤٠ كجم'), true);
 check('السحب الأفقي تقدّم رغم ذلك (٧ عدات)', d10.includes('السحب الأفقي — ٤ جلسات × ٧ عدات @ ٥٠ كجم'), true);
 setWorkoutCompletion(null);
 
 // ── الخطة المُهيكلة للواجهة التفاعلية ──
 const { workoutPlan } = await import('../lib/engine/workout.js');
-const plan1 = workoutPlan(D(0));
-check('خطة اليوم الأول ٨ بنود', plan1.items.length, 8);
+const plan1 = workoutPlan(W(0));
+check('خطة اليوم الأول ١١ بندًا (حديد + جري)', plan1.items.length, 11);
 check('أول بند البريس', plan1.items[0].key, 'press');
 check('البريس ٤ جلسات', plan1.items[0].sets, 4);
 check('السكوات حتى الفشل', plan1.items[3].kind, 'failure');
@@ -276,13 +301,16 @@ check('باي+تراي سوبر ست', plan1.items[6].kind, 'superset');
 check('السوبر ست طرفان', plan1.items[6].parts.length, 2);
 check('البلانك hold', plan1.items[7].kind, 'hold');
 check('راحة البريس ١٢٠', plan1.items[0].rest, 120);
-const plan2 = workoutPlan(D(2));
-check('خطة اليوم الثاني ٩ بنود', plan2.items.length, 9);
+const plan2 = workoutPlan(W(2));
+check('خطة اليوم الثاني ١٢ بندًا (حديد + جري)', plan2.items.length, 12);
 check('اليوم الثاني فيه فراشة', plan2.items[1].key, 'fly');
 check('اليوم الثاني كتف أمامي فشل', plan2.items.find((i) => i.key === 'frontdelt').kind, 'failure');
 check('اليوم الثاني هامر+تراي', plan2.items.find((i) => i.kind === 'superset').key, 'hammer+tri');
-check('يوم الجري', workoutPlan(D(4)).type, 3);
-check('يوم تطوير بلا خطة', workoutPlan(D(1)), null);
+// الجري صار في يوم التمرين نفسِه، فالدورة نسختان لا ثلاث
+check('الدورة نسختان', HC.workout.days.length, 2);
+check('اليوم الرابع يعود إلى النسخة الأولى', workoutPlan(W(4)).type, 1);
+ok('الجري في كل يوم تمرين', plan1.items.some((i) => i.key === 'sprint') && plan2.items.some((i) => i.key === 'sprint'));
+check('يوم القرآن بلا خطة تمرين', workoutPlan(W(1)), null);
 
 // ── مجمعات أخطاء القرآن (متابعة الأخطاء عبر ثلاثة أماكن) ──────────────
 const { quranTaskLines, tathbeetPoolKey, reviewPoolKey, hifzPoolKey } = await import('../lib/engine/quran.js');

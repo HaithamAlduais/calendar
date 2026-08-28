@@ -802,7 +802,8 @@ export function allEvents(): Ev[] {
   return out
 }
 
-export const weekStartOf = (d: string) => addDays(d, -dow(d)) // الأسبوع يبدأ الأحد
+// الأسبوع يبدأ السبت: السبت ٦ في ترقيم dow، فيُزاح ليصير صفرًا
+export const weekStartOf = (d: string) => addDays(d, -((dow(d) + 1) % 7))
 
 // ── الإنجاز ──
 export function toggleDone(id: string) {
