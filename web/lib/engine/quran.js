@@ -1,19 +1,28 @@
-// نظام القرآن الثلاثي: التسميع (مراجعة جزء يوميًا)، التثبيت (الجزءان قبل جزء الحفظ)،
-// الحفظ (ربع حزب: يوم حفظ ويوم تكرار). مصحف المدينة 604 صفحات.
+// نظام القرآن الثلاثي، ومدارُه الحزبُ لا الجزء. والقرآن ستون حزبًا، والحزبُ أربعة أرباع:
+//
+//   الحفظ    — ربعٌ في بلوك الروتين يوم القرآن: يومَ حفظٍ وتكرار، ثم يومَ قراءةٍ
+//              للأرباع المحفوظة من الحزب من أوله إلى موضعه.
+//   التثبيت  — الأحزاب الأربعة التي قبل حزب الحفظ (جزءان)، موزَّعةً نصفَ حزبٍ
+//              على كل سنّة من السنن الثماني.
+//   المراجعة — ما قبل التثبيت كلُّه، حزبان كل ليلة، تُقرأ في صلاة الوتر من القيام.
+//
+// فإذا تمّ حزبُ الحفظ دخل التثبيت، وخرج من التثبيت أقدمُ أحزابه إلى المراجعة —
+// سيرٌ واحد لا يفلت منه موضع. مصحف المدينة 604 صفحات.
 import { addDays, arab } from './dates.js';
+import { workoutDayType } from './workout.js';
 
 // إعداد المستخدم: موضع البداية، وعدد مرات التكرار، ونمط النظام.
 // 'managed' نظام مُدار يتقدّم وحده ويطالبك بموضع بعينه، و'free' نصٌّ حرّ تكتبه بلا مطالبة.
 export const DEFAULT_QURAN = {
   mode: 'managed',
   date: '2026-08-24',
-  reviewJuz: 1,
+  reviewJuz: 1, // موضع بدء المراجعة — يُقرأ حزبًا: أولُ أحزاب هذا الجزء
   hifzJuz: 10,
-  hifzQuarter: 1, // ١..٨ داخل الجزء
-  hifzMode: 'حفظ', // 'حفظ' أو 'تكرار'
-  repeats: 5, // مرات تكرار ربع الحفظ في يوم التكرار
+  hifzQuarter: 1, // ١..٨ داخل الجزء — وهو موضع البداية كما يكتبه صاحبُه
+  hifzMode: 'حفظ', // 'حفظ' أو 'قراءة'
+  repeats: 5, // مرات تكرار ربع الحفظ في يوم الحفظ نفسِه
   enabled: true, // نظام الحفظ والمراجعة كلّه — من أطفأه خلا بلوكه منه
-  // مكوّنات النظام المُدار — يركّبها المستخدم كما شاء: حفظٌ وحده، أو حفظٌ وتسميع
+  // مكوّنات النظام المُدار — يركّبها المستخدم كما شاء: حفظٌ وحده، أو حفظٌ ومراجعة
   components: { review: true, hifz: true },
   // الورد في السنن: 'tathbeet' مربوط بالحفظ (يقرأ ما حول موضعه)، أو 'reading'
   // قراءةٌ حرّة بمقدار يحدّده صاحبها لكل سنّة
@@ -31,6 +40,7 @@ export const DEFAULT_QURAN = {
     ['isha', 'sunnahAfter'],
   ],
   wirdSlots: 8, // عدد السنن (يُشتقّ من طول wird)
+  reviewHizbs: 2, // كم حزبًا يُراجَع كل ليلة في الوتر
 };
 
 export let QURAN_SEED = DEFAULT_QURAN;
@@ -43,6 +53,7 @@ export function quranConfig() {
   return QURAN_SEED;
 }
 
+// ── مواضع الصفحات ───────────────────────────────────────────────────────────
 export function juzPages(j) {
   const start = j === 1 ? 1 : 20 * j - 18;
   const end = j === 30 ? 604 : 20 * j + 1;
@@ -69,6 +80,47 @@ export function halfHizbPages(j, k) {
   };
 }
 
+// ── الحزب أصلُ الحساب: ستون حزبًا، والجزء حزبان، والحزب أربعة أرباع ─────────
+export const HIZB_COUNT = 60;
+export const juzOfHizb = (h) => Math.ceil(h / 2);
+// أرباعُ الحزب تقع في النصف الأول من أرباع الجزء الثمانية أو في نصفها الثاني
+const quarterBase = (h) => (h % 2 === 1 ? 0 : 4);
+
+// الربع q (١..٤) من الحزب h
+export function hizbQuarterPages(h, q) {
+  return quarterPages(juzOfHizb(h), quarterBase(h) + q);
+}
+
+// الحزب h كاملًا
+export function hizbPages(h) {
+  const j = juzOfHizb(h);
+  const b = quarterBase(h);
+  return { s: quarterPages(j, b + 1).s, e: quarterPages(j, b + 4).e };
+}
+
+// نصف الحزب h: half ١ الأول، ٢ الثاني
+export function hizbHalfPages(h, half) {
+  return halfHizbPages(juzOfHizb(h), (h % 2 === 1 ? 0 : 2) + half);
+}
+
+// موضعُ الحفظ رقمٌ واحد: الربع المطلق ١..٢٤٠ عبر المصحف كلِّه.
+// فمنه يُشتقّ الجزءُ والحزبُ والربعُ داخله، ولا تبقى حالتان تتخالفان.
+const absQuarter = (juz, qInJuz) => (juz - 1) * 8 + qInJuz;
+function spread(q) {
+  const hizb = Math.ceil(q / 4);
+  return {
+    hifzQ: q,
+    hifzHizb: hizb,
+    hifzJuz: juzOfHizb(hizb),
+    hifzQuarter: ((q - 1) % 4) + 1, // الربع داخل الحزب ١..٤
+  };
+}
+
+// نافذة التثبيت: الأحزاب الأربعة قبل حزب الحفظ (جزءان)
+export const tathbeetWindow = (st) => ({ from: Math.max(1, st.hifzHizb - 4), to: st.hifzHizb - 1 });
+// آخر أحزاب المراجعة: ما قبل نافذة التثبيت — فمن لم يبلغ حفظُه الحزبَ السادس فلا مراجعة له
+export const reviewMax = (st) => st.hifzHizb - 5;
+
 // مصدر الإنجاز: دالة (dateIso) => {review, hifz} تقول هل أُنجز مسارا ذلك اليوم.
 // الافتراضي (بلا مصدر): كل يوم منجز — الخطة المثالية. اليوم غير المنجز لا يتقدم بعده المسار
 // بل تُعاد المهمة نفسها في اليوم التالي.
@@ -81,132 +133,168 @@ export function clearQuranCache() {
   stateCache.clear();
 }
 
-function stepQuran(st, flags) {
-  let { reviewJuz, hifzJuz, hifzQuarter, hifzMode } = st;
-  // الحفظ: يوم حفظ ← يوم تكرار للربع نفسه ← الربع التالي (فقط إن أُنجز يومه)
-  if (flags.hifz) {
-    if (hifzMode === 'حفظ') {
-      hifzMode = 'تكرار';
-    } else {
-      if (hifzQuarter === 8) {
-        hifzJuz += 1; // اكتمل جزء الحفظ: يدخل التثبيت وتتوسع دورة المراجعة
-        hifzQuarter = 1;
-      } else {
-        hifzQuarter += 1;
-      }
+// أيامُ الحفظ هي أيامُ القرآن من دورة الروتين — فيومُ التمرين لا يتقدّم فيه الحفظ.
+// وهي دالةٌ تُبدَّل عند الحاجة، وأصلُها دورةُ التمرين نفسها.
+let hifzDay = (dIso) => workoutDayType(dIso) === 0;
+export function setHifzDayPredicate(fn) {
+  hifzDay = fn || ((dIso) => workoutDayType(dIso) === 0);
+  stateCache.clear();
+}
+
+function stepQuran(st, flags, dIso) {
+  let { hifzQ, hifzMode, reviewHizb } = st;
+  // الحفظ يتقدّم في أيام القرآن وحدها: يومَ حفظٍ وتكرار، ثم يومَ قراءةٍ للأرباع،
+  // ثم الربعُ التالي — وإذا تمّ الربعُ الرابع انتقل من نفسه إلى الحزب الذي يليه.
+  if (flags.hifz && hifzDay(dIso)) {
+    if (hifzMode === 'حفظ') hifzMode = 'قراءة';
+    else {
       hifzMode = 'حفظ';
+      hifzQ = Math.min(HIZB_COUNT * 4, hifzQ + 1);
     }
   }
-  // التسميع: دورة من ١ إلى (جزء الحفظ − ٣) ثم تعود إلى ١ (فقط إن أُنجز يومه)
+  // المراجعة تدور كل ليلة على أحزاب ما قبل التثبيت، حزبين حزبين، ثم تعود إلى أولها.
+  // ونافذتُها تتّسع كلما تقدّم الحفظ، فيدخلها الحزبُ الخارج من التثبيت في موضعه.
   if (flags.review) {
-    const cycleMax = hifzJuz - 3;
-    reviewJuz = reviewJuz + 1 > cycleMax ? 1 : reviewJuz + 1;
+    const max = reviewMax(spread(hifzQ));
+    const step = QURAN_SEED.reviewHizbs || 2;
+    if (max >= 1) for (let i = 0; i < step; i++) reviewHizb = reviewHizb >= max ? 1 : reviewHizb + 1;
   }
-  return { reviewJuz, hifzJuz, hifzQuarter, hifzMode };
+  return { hifzQ, hifzMode, reviewHizb };
 }
 
 const stateCache = new Map();
 export function quranStateFor(dateIso) {
-  // قبل تاريخ البذرة نعيد حالة البذرة نفسها (التثبيت لم يتغير: الجزءان ٨ و٩)
+  // قبل تاريخ البذرة نعيد حالة البذرة نفسها (التثبيت لم يتغير)
   if (dateIso < QURAN_SEED.date) dateIso = QURAN_SEED.date;
   if (stateCache.has(dateIso)) return stateCache.get(dateIso);
-  let st = { reviewJuz: QURAN_SEED.reviewJuz, hifzJuz: QURAN_SEED.hifzJuz, hifzQuarter: QURAN_SEED.hifzQuarter, hifzMode: QURAN_SEED.hifzMode };
+  let core = {
+    hifzQ: absQuarter(QURAN_SEED.hifzJuz, QURAN_SEED.hifzQuarter),
+    hifzMode: QURAN_SEED.hifzMode === 'تكرار' ? 'قراءة' : QURAN_SEED.hifzMode,
+    reviewHizb: Math.max(1, 2 * QURAN_SEED.reviewJuz - 1),
+  };
   let d = QURAN_SEED.date;
   while (d < dateIso) {
-    st = stepQuran(st, completionSource ? completionSource(d) : { review: true, hifz: true });
+    core = stepQuran(core, completionSource ? completionSource(d) : { review: true, hifz: true }, d);
     d = addDays(d, 1);
   }
+  const st = { ...spread(core.hifzQ), hifzMode: core.hifzMode, reviewHizb: core.reviewHizb };
   stateCache.set(dateIso, st);
   return st;
 }
 
+// ── أحزاب مراجعة الليلة ─────────────────────────────────────────────────────
+// حزبان متتاليان من نافذة المراجعة، يلتفّان إلى أولها إذا بلغا آخرها
+export function reviewHizbs(st) {
+  const max = reviewMax(st);
+  if (max < 1) return [];
+  const out = [];
+  let h = Math.min(st.reviewHizb, max);
+  for (let i = 0; i < (QURAN_SEED.reviewHizbs || 2); i++) {
+    out.push(h);
+    h = h >= max ? 1 : h + 1;
+  }
+  return out;
+}
+
+const hizbText = (h) => {
+  const { s, e } = hizbPages(h);
+  return `الحزب ${arab(h)} من الجزء ${arab(juzOfHizb(h))} (ص ${arab(s)}–${arab(e)} تقريبًا)`;
+};
+
 export function reviewLine(st) {
-  const { start, end } = juzPages(st.reviewJuz);
-  return `تسميع المراجعة: الجزء ${arab(st.reviewJuz)} (ص ${arab(start)}–${arab(end)})`;
+  const hs = reviewHizbs(st);
+  if (!hs.length) return null;
+  return `تسميع المراجعة: ${hs.map(hizbText).join('، و')}`;
 }
 
 export function hifzLine(st) {
-  const j = st.hifzJuz, q = st.hifzQuarter;
-  const hizb = q <= 4 ? 2 * j - 1 : 2 * j;
-  const { s, e } = quarterPages(j, q);
-  return `${st.hifzMode} الربع ${arab(q)} من الجزء ${arab(j)} — الحزب ${arab(hizb)} (ص ${arab(s)}–${arab(e)} تقريبًا)`;
+  const { s, e } = hizbQuarterPages(st.hifzHizb, st.hifzQuarter);
+  return `حفظ الربع ${arab(st.hifzQuarter)} من الحزب ${arab(st.hifzHizb)} — الجزء ${arab(st.hifzJuz)} (ص ${arab(s)}–${arab(e)} تقريبًا)`;
 }
 
-// مفتاح مجمع أخطاء لكل «مكان» يُقرأ فيه القرآن — ثابت طالما النص نفسه لم يتغير،
-// فتتراكم عليه الأخطاء عبر الزمن بصرف النظر عن السياق (حفظ/تكرار/مراجعة/تثبيت)
-export const reviewPoolKey = (juz) => `rv:${juz}`;
-export const hifzPoolKey = (juz, quarter) => `hz:${juz}:${quarter}`;
+// مفتاح مجمع أخطاء لكل «موضع» يُقرأ فيه القرآن — ثابت طالما الموضع نفسه،
+// فتتراكم عليه الأخطاء عبر الزمن بصرف النظر عن السياق (حفظ/قراءة/مراجعة/تثبيت)
+export const reviewPoolKey = (hizb) => `rv:h${hizb}`;
+export const hifzPoolKey = (hizb, quarter) => `hz:h${hizb}:${quarter}`;
 export function tathbeetPoolKey(st, slotIndex, count = QURAN_SEED.wirdSlots) {
-  const perJuz = Math.max(1, Math.round(count / 2));
-  const juz = slotIndex < perJuz ? st.hifzJuz - 2 : st.hifzJuz - 1;
-  const half = (slotIndex % perJuz) + 1;
-  return `tb:${juz}:${half}`;
+  const { from, to } = tathbeetWindow(st);
+  const span = Math.max(1, to - from + 1);
+  const per = Math.max(1, Math.round(count / span));
+  const h = Math.min(to, from + Math.floor(slotIndex / per));
+  return `tb:h${h}:${(slotIndex % per) + 1}`;
 }
 
-// بنود بلوك «قرآن وسنة الضحى» (بلا سنة الضحى نفسها): التسميع، ثم الحفظ أو —
-// في يوم التكرار — تكرار الربع الحالي ×٥ مرات مع مراجعة الأرباع ١..(n−1) من جزء الحفظ نفسه،
-// كل بند بمجمع أخطائه الخاص (نفس المجمع يُعاد استخدامه كل مرة يُقرأ فيه هذا الربع لاحقًا)
-// لكل بند مفتاح ثابت (key) تتعلّق به علامات التأشير، فلا تنزاح بتغيّر عدد البنود
+// ── بنود بلوك الروتين يوم القرآن ────────────────────────────────────────────
+// يومَ الحفظ: الربعُ ثم تكرارُه إلى آخر البلوك — فقد خلا الوقتُ بانتقال المراجعة
+// إلى القيام. ويومَ القراءة: أرباعُ الحزب من أوله إلى موضعه، كلُّ ربعٍ ببنده.
+// ولكل بند مفتاح ثابت (key) تتعلّق به علامات التأشير، فلا تنزاح بتغيّر عددها.
 export function quranTaskLines(st) {
   // من أطفأ نظام الحفظ خلا بلوكُه منه — ولم يبقَ يطالبه بموضعٍ لا يريده
   if (QURAN_SEED.enabled === false) return [];
-  // النظام الحرّ: بندان بلا موضع ولا تتبّع — تكتب ما قرأته بنفسك
-  if (QURAN_SEED.mode === 'free')
-    return [
-      { key: 'review', text: 'تسميع المراجعة', pool: null },
-      { key: 'hifz', text: 'الحفظ', pool: null },
-    ];
+  // النظام الحرّ: بندٌ بلا موضع ولا تتبّع — تكتب ما قرأته بنفسك
+  if (QURAN_SEED.mode === 'free') return [{ key: 'hifz', text: 'الحفظ', pool: null }];
   const comp = QURAN_SEED.components || { review: true, hifz: true };
+  if (!comp.hifz) return [];
+  const { hifzHizb: h, hifzQuarter: q } = st;
+  if (st.hifzMode === 'حفظ')
+    return [
+      { key: 'hifz', text: hifzLine(st), pool: null }, // الحفظ نفسه بلا تتبّع أخطاء
+      {
+        key: 'repeat',
+        text: `تكرار الربع ${arab(q)} × ${arab(QURAN_SEED.repeats)} مرات إلى آخر البلوك`,
+        pool: hifzPoolKey(h, q),
+      },
+    ];
+  // يوم القراءة: من الربع الأول إلى الربع الذي بلغه الحفظ
   const lines = [];
-  if (comp.review) lines.push({ key: 'review', text: reviewLine(st), pool: reviewPoolKey(st.reviewJuz) });
-  if (!comp.hifz) return lines;
-  if (st.hifzMode === 'تكرار') {
-    lines.push({ key: 'hifz', text: `${hifzLine(st)} × ${arab(QURAN_SEED.repeats)} مرات`, pool: hifzPoolKey(st.hifzJuz, st.hifzQuarter) });
-    for (let k = 1; k < st.hifzQuarter; k++) {
-      const hizb = k <= 4 ? 2 * st.hifzJuz - 1 : 2 * st.hifzJuz;
-      const { s, e } = quarterPages(st.hifzJuz, k);
-      lines.push({
-        key: `rev${k}`,
-        text: `مراجعة الربع ${arab(k)} من الجزء ${arab(st.hifzJuz)} — الحزب ${arab(hizb)} (ص ${arab(s)}–${arab(e)} تقريبًا)`,
-        pool: hifzPoolKey(st.hifzJuz, k),
-      });
-    }
-  } else {
-    lines.push({ key: 'hifz', text: hifzLine(st), pool: null }); // يوم الحفظ نفسه بلا تتبّع أخطاء
+  for (let k = 1; k <= q; k++) {
+    const { s, e } = hizbQuarterPages(h, k);
+    lines.push({
+      key: `read${k}`,
+      text: `قراءة الربع ${arab(k)} من الحزب ${arab(h)} (ص ${arab(s)}–${arab(e)} تقريبًا)`,
+      pool: hifzPoolKey(h, k),
+    });
   }
   return lines;
 }
 
-// أنصاف أحزاب التثبيت الثمانية بترتيب السنن:
+// ── بند المراجعة في صلاة الوتر ──────────────────────────────────────────────
+// المراجعةُ تُقرأ في الوتر كما يُقرأ التثبيت في السنن — صلاةٌ وقرآنٌ معًا
+export function reviewItem(st) {
+  if (QURAN_SEED.enabled === false) return null;
+  if (QURAN_SEED.mode === 'free') return { text: 'تسميع المراجعة', pool: null };
+  const comp = QURAN_SEED.components || { review: true, hifz: true };
+  if (!comp.review) return null;
+  const hs = reviewHizbs(st);
+  if (!hs.length) return null;
+  return { text: reviewLine(st), pool: reviewPoolKey(hs[0]) };
+}
+
+// ── أنصاف أحزاب التثبيت بترتيب السنن ────────────────────────────────────────
 // [الفجر، الضحى، الظهر القبلية، الظهر البعدية، العصر، المغرب، العشاء القبلية، العشاء البعدية]
-// نصوص الورد بترتيب السنن — وفي نمط القراءة الحرّة النصُّ مقدارٌ ثابت يحدّده
-// صاحبُه، لا موضعَ فيه فلا إزاحةَ تلحقه.
-// قائمة نصوص الورد بترتيب السنن. ولها `at(slot, itemId)` تقرأ الموضع من قائمة
-// السنن المُعدّة لا من رقمٍ مكتوب في مولّد البلوك — فمن حذف سنّةً من ورده أو
-// أعاد ترتيبها لم يقرأ «سنة العصر — undefined»، وإنما اسمَ سنّته وحده.
+// ولها `at(slot, itemId)` تقرأ الموضع من قائمة السنن المُعدّة لا من رقمٍ مكتوب في
+// مولّد البلوك — فمن حذف سنّةً من ورده أو أعاد ترتيبها لم يقرأ «سنة العصر — undefined»،
+// وإنما اسمَ سنّته وحده.
 export function tathbeetLabels(st, count = QURAN_SEED.wirdSlots) {
-  if (QURAN_SEED.wirdMode === 'reading') {
-    const out = Array.from({ length: count }, () => `قراءة: ${QURAN_SEED.wirdAmount || 'ورد'}`);
+  const withAt = (out) => {
     out.at = (slot, itemId) => {
       const i = (QURAN_SEED.wird || []).findIndex((w) => w[0] === slot && w[1] === itemId);
       return i < 0 ? null : out[i];
     };
     return out;
-  }
-  const [a, b] = [st.hifzJuz - 2, st.hifzJuz - 1];
-  const perJuz = Math.max(1, Math.round(count / 2));
+  };
+  if (QURAN_SEED.wirdMode === 'reading')
+    return withAt(Array.from({ length: count }, () => `قراءة: ${QURAN_SEED.wirdAmount || 'ورد'}`));
+  const { from, to } = tathbeetWindow(st);
+  const span = Math.max(1, to - from + 1); // أربعة أحزاب
+  const per = Math.max(1, Math.round(count / span)); // نصفان لكل حزب
   const out = [];
   for (let i = 0; i < count; i++) {
-    const j = i < perJuz ? a : b;
-    const k = (i % perJuz) + 1;
-    const hizb = k <= 2 ? 2 * j - 1 : 2 * j;
-    const half = k % 2 === 1 ? 'النصف الأول' : 'النصف الثاني';
-    const { s, e } = halfHizbPages(j, k);
-    out.push(`الجزء ${arab(j)} — الحزب ${arab(hizb)} (${half})، ص ${arab(s)}–${arab(e)} تقريبًا`);
+    const h = Math.min(to, from + Math.floor(i / per));
+    const part = (i % per) + 1;
+    const { s, e } = hizbHalfPages(h, Math.min(2, part));
+    const name = per === 2 ? (part === 1 ? 'النصف الأول' : 'النصف الثاني') : `الجزء ${arab(part)}`;
+    out.push(`الحزب ${arab(h)} من الجزء ${arab(juzOfHizb(h))} (${name})، ص ${arab(s)}–${arab(e)} تقريبًا`);
   }
-  out.at = (slot, itemId) => {
-    const i = (QURAN_SEED.wird || []).findIndex((w) => w[0] === slot && w[1] === itemId);
-    return i < 0 ? null : out[i];
-  };
-  return out;
+  return withAt(out);
 }

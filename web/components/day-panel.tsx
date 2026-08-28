@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { MistakeTracker } from "@/components/mistake-tracker"
 import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
-import { quranStateFor } from "@/lib/engine/quran.js"
+import { quranStateFor, reviewHizbs, reviewMax, tathbeetWindow } from "@/lib/engine/quran.js"
 import { strengthSnapshot } from "@/lib/engine/workout.js"
 import { durMin, fmtDateLong, fmtDur } from "@/lib/format"
 import {
@@ -151,7 +151,8 @@ export function DayPanel({
 
   // القرآن
   const st = quranStateFor(d < SCHEDULE_START ? SCHEDULE_START : d)
-  const hifzPct = Math.round(((st.hifzQuarter - 1 + (st.hifzMode === "تكرار" ? 0.5 : 0)) / 8) * 100)
+  // تقدّمُ الحزب: أربعةُ أرباع، ويومُ القراءة نصفُ خطوة
+  const hifzPct = Math.round(((st.hifzQuarter - 1 + (st.hifzMode === "قراءة" ? 0.5 : 0)) / 4) * 100)
 
   // القوة
   const snap = strengthSnapshot(d < SCHEDULE_START ? SCHEDULE_START : d) as {
@@ -207,11 +208,21 @@ export function DayPanel({
           </Section>
 
           <Section title="القرآن">
-            <Row label="التسميع" value={`الجزء ${arab(st.reviewJuz)} (دورة ١–${arab(st.hifzJuz - 3)})`} />
-            <Row label="الحفظ" value={`${st.hifzMode} الربع ${arab(st.hifzQuarter)} من الجزء ${arab(st.hifzJuz)}`} />
-            <Row label="التثبيت" value={`الجزءان ${arab(st.hifzJuz - 2)} و${arab(st.hifzJuz - 1)}`} />
+            <Row
+              label="المراجعة (في الوتر)"
+              value={
+                reviewHizbs(st).length
+                  ? `الأحزاب ${reviewHizbs(st).map(arab).join("، ")} — دورة ١–${arab(reviewMax(st))}`
+                  : "لم تبدأ بعد"
+              }
+            />
+            <Row label="الحفظ" value={`${st.hifzMode} الربع ${arab(st.hifzQuarter)} من الحزب ${arab(st.hifzHizb)}`} />
+            <Row
+              label="التثبيت (في السنن)"
+              value={`الأحزاب ${arab(tathbeetWindow(st).from)}–${arab(tathbeetWindow(st).to)}`}
+            />
             <Progress value={hifzPct} className="h-1.5" />
-            <Row label="تقدّم جزء الحفظ" value={`${arab(hifzPct)}٪`} />
+            <Row label="تقدّم حزب الحفظ" value={`${arab(hifzPct)}٪`} />
           </Section>
 
           {/* الأخطاء: تظهر مواضع اليوم التي أنجزتها فقط — اضغط الموضع لتسجيل أخطائه */}

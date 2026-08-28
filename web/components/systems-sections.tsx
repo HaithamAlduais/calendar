@@ -147,7 +147,7 @@ export function QuranSection() {
             min={4}
             max={30}
             onChange={(hifzJuz) => set({ hifzJuz })}
-            help="لا ينزل عن ٤، لأن التثبيت يقرأ الجزأين اللذين قبله والتسميع يدور فيما قبلهما."
+            help="لا ينزل عن ٤، لأن التثبيت يقرأ الحزبين اللذين قبله (جزأين) والمراجعة تدور فيما قبلهما."
           />
           <Num
             label="الربع داخل الجزء"
@@ -158,14 +158,14 @@ export function QuranSection() {
           />
           <Pick
             options={[
-              ["حفظ", "اليوم حفظ"],
-              ["تكرار", "اليوم تكرار"],
+              ["حفظ", "اليوم حفظ وتكرار"],
+              ["قراءة", "اليوم قراءة الأرباع"],
             ]}
             value={q.hifzMode}
             onChange={(hifzMode) => set({ hifzMode })}
           />
           <Num
-            label="جزء التسميع"
+            label="جزء بدء المراجعة"
             value={q.reviewJuz}
             min={1}
             max={30}

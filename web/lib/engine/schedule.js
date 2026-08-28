@@ -2,7 +2,7 @@
 // لا بناءَ أوقاتٍ هنا ولا حسابَ مراسٍ: قالبٌ افتراضي بسيط، ومولّدات بنود الصلاة
 // والقرآن، وإسنادُ القوالب إلى الأيام أسبوعًا أو دورةً.
 import { addDays, daysBetween, dow } from './dates.js';
-import { quranStateFor, quranTaskLines, tathbeetLabels } from './quran.js';
+import { quranStateFor, quranTaskLines, tathbeetLabels, reviewItem } from './quran.js';
 import { workoutDayType } from './workout.js';
 import { isFasting } from './fasting.js';
 import { templates as HAITHAM_TEMPLATES, weekPlan as HAITHAM_WEEK_PLAN } from '../presets/haitham.js';
@@ -110,6 +110,17 @@ const GEN = {
   // القيام: وجبة رقم ١ (السحور) أيام العمل، وفي الجمعة والسبت تنتقل إلى نهارهما
   qiyam: () => [...QIYAM_BASE, it('meal1', 'وجبة رقم ١ (سحور)')],
   qiyamWeekend: () => [...QIYAM_BASE],
+  // قيام الليل: وجبةٌ ثم وترٌ تُقرأ فيه المراجعة — كما يُقرأ التثبيت في السنن،
+  // صلاةٌ وقرآنٌ معًا، فلا يبقى للمراجعة بلوكٌ تنفرد به من النهار
+  qiyamNight: (t, st) => {
+    const rv = reviewItem(st);
+    return [
+      it('meal1', 'وجبة رقم ١', { meal: 1 }),
+      it('witr', rv ? `صلاة الوتر — ${rv.text}` : 'صلاة الوتر', rv ? { pool: rv.pool || undefined, quran: true } : {}),
+      it('dua', 'دعاء'),
+      it('tawbah', 'توبة واستخارة'),
+    ];
+  },
 };
 
 const MAGHRIB_TAIL = (t) => [

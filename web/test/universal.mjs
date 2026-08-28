@@ -9,7 +9,7 @@ import {
   buildUnit,
   setScheduleConfig,
 } from '../lib/engine/schedule.js';
-import { setQuranConfig, quranTaskLines, quranStateFor, tathbeetLabels } from '../lib/engine/quran.js';
+import { setQuranConfig, quranTaskLines, quranStateFor, tathbeetLabels, reviewItem } from '../lib/engine/quran.js';
 import { setWorkoutConfig, workoutDayType, workoutTitle, DEFAULT_WORKOUT } from '../lib/engine/workout.js';
 import { setPrayerConfig, prayerTimes } from '../lib/engine/prayers.js';
 import { addDays } from '../lib/engine/dates.js';
@@ -180,14 +180,17 @@ const mins = (stamp) => +stamp.slice(11, 13) * 60 + +stamp.slice(14, 16);
 // ── ٦. القرآن قابلًا للتركيب ──────────────────────────────────────
 {
   const base = { mode: 'managed', date: '2026-08-24', reviewJuz: 1, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ', repeats: 5, wirdSlots: 8 };
+  // الروتين للحفظ، والوترُ للمراجعة — فلكلِّ مكوّنٍ موضعُه
   setQuranConfig({ ...base, components: { review: true, hifz: true } });
-  check('الكلّ: بندان', quranTaskLines(quranStateFor('2026-08-24')).length >= 2, 'true');
+  const st = () => quranStateFor('2026-08-24');
+  check('الكلّ: الروتين بندان', quranTaskLines(st()).length >= 2, 'true');
+  ok('والمراجعة في الوتر', !!reviewItem(st()));
   setQuranConfig({ ...base, components: { review: false, hifz: true } });
-  ok('حفظ وحده: لا تسميع', !quranTaskLines(quranStateFor('2026-08-24')).some((l) => l.key === 'review'));
+  ok('حفظ وحده: لا مراجعة في الوتر', reviewItem(st()) === null);
+  ok('والروتين على حاله', quranTaskLines(st()).length >= 2);
   setQuranConfig({ ...base, components: { review: true, hifz: false } });
-  const lines = quranTaskLines(quranStateFor('2026-08-24'));
-  check('تسميع وحده: بند واحد', lines.length, 1);
-  check('وهو التسميع', lines[0].key, 'review');
+  check('مراجعة وحدها: الروتين خالٍ', quranTaskLines(st()).length, 0);
+  ok('والمراجعة قائمة', !!reviewItem(st()));
   // ورد القراءة الحرّة: نصٌّ بمقدار صاحبه لا موضعَ فيه
   setQuranConfig({ ...base, wirdMode: 'reading', wirdAmount: 'صفحتان' });
   const labels = tathbeetLabels(quranStateFor('2026-08-24'));

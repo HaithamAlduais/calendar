@@ -14,7 +14,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { arab } from "@/lib/engine/dates.js"
-import { quranStateFor, reviewLine, hifzLine } from "@/lib/engine/quran.js"
+import { quranStateFor, reviewLine, hifzLine, reviewHizbs } from "@/lib/engine/quran.js"
 import { workoutDayType, workoutTitle } from "@/lib/engine/workout.js"
 import { fmtDateLong } from "@/lib/format"
 import {
@@ -96,14 +96,14 @@ export function DayPopup() {
               {settings.hifzEnabled && (
                 <StatusRow
                   ok={reviewDone}
-                  label={`التسميع: الجزء ${arab(stPrev.reviewJuz)}`}
-                  note={reviewDone ? undefined : "لم يُنجز — سيُعاد الجزء نفسه اليوم"}
+                  label={`المراجعة: ${reviewHizbs(stPrev).map((h) => `الحزب ${arab(h)}`).join("، ") || "—"}`}
+                  note={reviewDone ? undefined : "لم تُنجز — سيُعاد الموضع نفسه الليلة"}
                 />
               )}
               {settings.hifzEnabled && (
                 <StatusRow
                   ok={hifzDone}
-                  label={`الحفظ: ${stPrev.hifzMode} الربع ${arab(stPrev.hifzQuarter)} من الجزء ${arab(stPrev.hifzJuz)}`}
+                  label={`الحفظ: ${stPrev.hifzMode} الربع ${arab(stPrev.hifzQuarter)} من الحزب ${arab(stPrev.hifzHizb)}`}
                   note={hifzDone ? undefined : "لم يُنجز — سيُعاد الربع نفسه اليوم"}
                 />
               )}
@@ -125,7 +125,9 @@ export function DayPopup() {
           {(settings.hifzEnabled || settings.workoutEnabled) && (
             <>
               <h3 className="text-sm font-semibold">{first ? "خطة أول يوم" : "اليوم بناءً على ذلك"}</h3>
-              {settings.hifzEnabled && <p className="text-sm leading-relaxed">• {reviewLine(stCur)}</p>}
+              {settings.hifzEnabled && reviewLine(stCur) && (
+                <p className="text-sm leading-relaxed">• {reviewLine(stCur)}</p>
+              )}
               {settings.hifzEnabled && <p className="text-sm leading-relaxed">• {hifzLine(stCur)}</p>}
               {settings.workoutEnabled && <p className="text-sm leading-relaxed">• {workoutTitle(cur)}</p>}
             </>

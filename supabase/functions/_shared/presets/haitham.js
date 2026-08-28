@@ -23,6 +23,8 @@ const PRAYER_NOTE =
 const note = () => ({ id: 'note', text: PRAYER_NOTE, note: true });
 
 // ── بنود القيام: الوجبة الأولى ثم الوتر ثم الدعاء ثم التوبة والاستخارة ──
+// بنودُ القيام يولّدها المحرك (qiyamNight) ليحمل وترُها موضعَ المراجعة —
+// وهذه صورتُها الساكنة لمن أراد تحريرها بيده من الواجهة
 export const qiyamItems = [
   it('meal1', 'وجبة رقم ١', { meal: 1 }),
   it('witr', 'صلاة الوتر'),
@@ -50,8 +52,8 @@ function makeDay(work) {
       },
       // ٢) النوم: من الهَزيع إلى ما قبل الفجر بخمسٍ وأربعين — لا يُنقر عليه
       { id: 'sleep1', title: 'نوم', colorId: 8, sleep: true, locked: true, end: { prayer: 'fajr', offset: -45 } },
-      // ٣) القيام: آخر خمسٍ وأربعين قبل الفجر
-      { id: 'qiyam', title: 'قيام الليل', colorId: 9, items: qiyamItems, end: { prayer: 'fajr' } },
+      // ٣) القيام: آخر خمسٍ وأربعين قبل الفجر — وفي وتره تُسمَّع المراجعة
+      { id: 'qiyam', title: 'قيام الليل', colorId: 9, gen: 'qiyamNight', end: { prayer: 'fajr' } },
       // ٤) الفجر
       { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
       // ٥) الروتين: إلى الشروق وربع — يومُ قرآنٍ ويومُ تمرين بالتناوب

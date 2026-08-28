@@ -204,22 +204,54 @@ check('كل وحدة: أربعٌ وعشرون ساعة', spanOk, true);
   check('السبت: المهام مهام', b.work1, 'مهام');
 }
 
-// ── آلة حالة القرآن (البذرة: مراجعة جزء ١، حفظ ربع ١ من جزء ١٠) ──
+// ── آلة حالة القرآن: الحزبُ مدارُها ─────────────────────────────────────
+// البذرةُ حزبُ ١٩ ربعُ ١ (الجزء ١٠)، فالتثبيتُ أحزابُ ١٥–١٨ والمراجعةُ ١–١٤.
+// والحفظُ لا يتقدّم إلا في يوم القرآن — ويومُ التمرين لا يمسّه.
 const q = (d) => quranStateFor(d);
-check('البذرة: مراجعة 1 حفظ ربع1', JSON.stringify(q(D(0))), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
-check('قبل البذرة = البذرة', JSON.stringify(q(D(-6))), JSON.stringify(q(D(0))));
-check('+١ تكرار ربع1', JSON.stringify(q(D(1))), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'تكرار' }));
-check('+٥ review=6 تكرار ربع3', JSON.stringify(q(D(5))), JSON.stringify({ reviewJuz: 6, hifzJuz: 10, hifzQuarter: 3, hifzMode: 'تكرار' }));
-check('+٧ review يلف إلى 1', JSON.stringify(q(D(7))), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 4, hifzMode: 'تكرار' }));
-check('+١٥ تكرار ربع8', JSON.stringify(q(D(15))), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 8, hifzMode: 'تكرار' }));
-check('+١٦ انتقال جزء الحفظ', JSON.stringify(q(D(16))), JSON.stringify({ reviewJuz: 3, hifzJuz: 11, hifzQuarter: 1, hifzMode: 'حفظ' }));
-// التثبيت: قبل الانتقال [٨،٩] وبعده [٩،١٠]
-const fajr23 = buildUnit(D(15)).find((e) => e.slot === 'fajr');
-check('تثبيت +١٥ = جزء ٨', txt(fajr23).includes('سنة الفجر — الجزء ٨'), true);
-const fajr24 = buildUnit(D(16)).find((e) => e.slot === 'fajr');
-check('تثبيت +١٦ = جزء ٩', txt(fajr24).includes('سنة الفجر — الجزء ٩'), true);
-const isha24 = buildUnit(D(16)).find((e) => e.slot === 'isha');
-check('عشاء +١٦ على الجزء ١٠', txt(isha24).includes('الجزء ١٠'), true);
+const st0 = q(D(0));
+check('البذرة: حزب ١٩ ربع ١ حفظ', [st0.hifzHizb, st0.hifzQuarter, st0.hifzMode].join('/'), '19/1/حفظ');
+check('البذرة: الجزء يُشتقّ من الحزب', st0.hifzJuz, 10);
+check('قبل البذرة = البذرة', JSON.stringify(q(D(-6))), JSON.stringify(st0));
+
+// نافذتا التثبيت والمراجعة
+const { tathbeetWindow, reviewMax, reviewHizbs, hizbPages, hizbQuarterPages } = await import('../lib/engine/quran.js');
+const tw = tathbeetWindow(st0);
+check('التثبيت: الأحزاب ١٥–١٨ (الجزءان ٨ و٩)', tw.from + '–' + tw.to, '15–18');
+check('المراجعة تنتهي عند الحزب ١٤ (آخر الجزء ٧)', reviewMax(st0), 14);
+
+// دورةُ الحفظ: يومَ قرآنٍ حفظٌ وتكرار، ثم يومَ قرآنٍ قراءةٌ للأرباع، ثم الربع التالي.
+// وأيامُ القرآن يومٌ بعد يوم، فالخطوةُ الواحدة يومان.
+const modeAt = (n) => { const x = q(D(n)); return x.hifzHizb + ':' + x.hifzQuarter + ':' + x.hifzMode; };
+check('يوم القرآن الأول: حفظ ربع ١', modeAt(0), '19:1:حفظ');
+// يومُ التمرين لا خطوةَ فيه: حالتُه هي حالةُ يوم القرآن الذي يليه بعينها
+ok('يوم التمرين لا يقدّم الحفظ', modeAt(1) === modeAt(2), modeAt(1) + ' ≠ ' + modeAt(2));
+check('يوم القرآن الثاني: قراءة الأرباع', modeAt(2), '19:1:قراءة');
+check('يوم القرآن الثالث: حفظ ربع ٢', modeAt(4), '19:2:حفظ');
+check('الربع الرابع بعد ست دورات', modeAt(12), '19:4:حفظ');
+check('وبعد قراءته ينتقل إلى الحزب ٢٠', modeAt(16), '20:1:حفظ');
+
+// وباكتمال الحزب ٢٠ يدخل الجزء ٨ كاملًا في المراجعة
+const stNext = q(D(16));
+check('التثبيت بعد الانتقال: ١٦–١٩', tathbeetWindow(stNext).from + '–' + tathbeetWindow(stNext).to, '16–19');
+check('ودخل الحزب ١٥ في المراجعة', reviewMax(stNext), 15);
+
+// المراجعة تدور كل ليلة حزبين، ولا تنتظر يوم القرآن
+check('المراجعة حزبان كل ليلة', reviewHizbs(q(D(0))).join(','), '1,2');
+check('وليلة الغد الحزبان التاليان', reviewHizbs(q(D(1))).join(','), '3,4');
+ok('المراجعة تلتفّ إلى أولها', reviewHizbs(q(D(7)))[0] === 1, reviewHizbs(q(D(7))).join(','));
+
+// التثبيت في السنن: نصفُ حزبٍ لكل سنّة، فجزءان في اليوم
+const fajr0 = buildUnit(D(0)).find((e) => e.slot === 'fajr');
+check('تثبيت الفجر = الحزب ١٥', txt(fajr0).includes('سنة الفجر — الحزب ١٥'), true);
+const isha0 = buildUnit(D(0)).find((e) => e.slot === 'isha');
+check('تثبيت العشاء = الحزب ١٨ (آخر النافذة)', txt(isha0).includes('الحزب ١٨'), true);
+
+// المراجعة انتقلت إلى الوتر من القيام — ولم تبقَ في الروتين
+const qiyam0 = buildUnit(D(0)).find((e) => e.slot === 'qiyam');
+ok('المراجعة في وتر القيام', /صلاة الوتر — تسميع المراجعة/.test(txt(qiyam0)), txt(qiyam0).slice(0, 90));
+const routine0 = buildUnit(D(0)).find((e) => e.slot === 'routine');
+check('ولا مراجعة في الروتين', /تسميع المراجعة/.test(txt(routine0)), false);
+check('والروتين يوم القرآن حفظٌ وتكرار', /حفظ الربع ١ من الحزب ١٩/.test(txt(routine0)) && /تكرار الربع ١/.test(txt(routine0)), true);
 
 // ── تقدّم التمرين: قاعدةً لا أرقامًا محفوظة ──
 // W(0) أولُ أيام التمرين، وأيامُه كلَّ يومين (يومُ تمرين فيومُ قرآن)
@@ -269,11 +301,12 @@ const { setWorkoutCompletion, workoutDesc } = await import('../lib/engine/workou
 
 // فوات يوم البذرة كاملًا: اليوم التالي يعيد نفس الحالة تمامًا
 setQuranCompletion((d) => (d === D(0) ? { review: false, hifz: false } : { review: true, hifz: true }));
-check('فوات يوم البذرة → التالي يعيد نفس المهمة', JSON.stringify(q(D(1))), JSON.stringify({ reviewJuz: 1, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
-check('ثم +٢ يتقدم طبيعيًا', JSON.stringify(q(D(2))), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'تكرار' }));
+check('فوات يوم البذرة → المراجعة تعيد موضعها', reviewHizbs(q(D(1))).join(','), '1,2');
+check('والحفظ يعيد ربعه', modeAt(2), '19:1:حفظ');
+check('ثم يتقدم طبيعيًا بعد إنجازه', modeAt(4), '19:1:قراءة');
 // إنجاز جزئي: التسميع أُنجز والحفظ فات — يتقدم مسار دون الآخر
 setQuranCompletion((d) => (d === D(0) ? { review: true, hifz: false } : { review: true, hifz: true }));
-check('إنجاز التسميع وحده يقدّمه وحده', JSON.stringify(q(D(1))), JSON.stringify({ reviewJuz: 2, hifzJuz: 10, hifzQuarter: 1, hifzMode: 'حفظ' }));
+check('إنجاز المراجعة وحدها يقدّمها وحدها', reviewHizbs(q(D(1))).join(',') + ' | ' + modeAt(2), '3,4 | 19:1:حفظ');
 setQuranCompletion(null);
 clearQuranCache();
 
@@ -316,32 +349,35 @@ check('يوم القرآن بلا خطة تمرين', workoutPlan(W(1)), null);
 const { quranTaskLines, tathbeetPoolKey, reviewPoolKey, hifzPoolKey } = await import('../lib/engine/quran.js');
 // يوم حفظ (يوم البذرة): بندان فقط، بند الحفظ بلا مجمع أخطاء (لا تتبّع يوم الحفظ نفسه)
 const tlH = quranTaskLines(q(D(0)));
-check('يوم حفظ: بندان', tlH.length, 2);
-check('يوم حفظ: مجمع التسميع', tlH[0].pool, 'rv:1');
-check('يوم حفظ: بند الحفظ بلا مجمع', tlH[1].pool, null);
-// يوم تكرار الربع الأول (+١): بندان، تكرار بمجمعه، بلا مراجعة أرباع سابقة (لا يوجد ربع قبل 1)
-const tlR1 = quranTaskLines(q(D(1)));
-check('تكرار ربع1: بندان (لا مراجعة سابقة)', tlR1.length, 2);
-check('تكرار ربع1: نص «× ٥ مرات»', tlR1[1].text.includes('× ٥ مرات'), true);
-check('تكرار ربع1: مجمع hz:10:1', tlR1[1].pool, 'hz:10:1');
-// يوم تكرار الربع الثامن (+١٥): ٩ بنود — تسميع + تكرار + مراجعة الأرباع ١..٧، كل بند بمجمعه الخاص
-const tlR8 = quranTaskLines(q(D(15)));
-check('تكرار ربع8: ٩ بنود (تسميع + تكرار + مراجعة ١..٧)', tlR8.length, 9);
-check('تكرار ربع8: مجمع الربع الحالي', tlR8[1].pool, 'hz:10:8');
-check('تكرار ربع8: مجمع مراجعة الربع1', tlR8[2].pool, 'hz:10:1');
-check('تكرار ربع8: مجمع مراجعة الربع7', tlR8[8].pool, 'hz:10:7');
-// نفس الربع يحمل نفس المجمع سواء في يوم تكراره أو حين يُراجَع لاحقًا ضمن تكرار ربع أعلى
-check('استمرارية المجمع: hz:10:1 من تكرار الربع1 ومن مراجعة تكرار الربع8', hifzPoolKey(10, 1), tlR8[2].pool);
-// مساعد مفاتيح التثبيت: يطابق الترتيب [فجر،ضحى،ظهرقبلية،ظهربعدية،عصر،مغرب،عشاءقبلية،عشاءبعدية]
-const stR8 = q(D(15)); // hifzJuz=10 → تثبيت [8,9]
-check('تثبيت فجر = tb:8:1', tathbeetPoolKey(stR8, 0), 'tb:8:1');
-check('تثبيت ضحى = tb:8:2', tathbeetPoolKey(stR8, 1), 'tb:8:2');
-check('تثبيت عصر = tb:9:1 (يبدأ الجزء الثاني)', tathbeetPoolKey(stR8, 4), 'tb:9:1');
-check('تثبيت عشاء بعدية = tb:9:4', tathbeetPoolKey(stR8, 7), 'tb:9:4');
-check('reviewPoolKey/hifzPoolKey تطابق بناء الأسطر', reviewPoolKey(5), 'rv:5');
-check('hifzPoolKey', hifzPoolKey(11, 3), 'hz:11:3');
+check('يوم الحفظ: بندان — الحفظ ثم تكراره', tlH.map((l) => l.key).join(','), 'hifz,repeat');
+check('الحفظ نفسه بلا مجمع', tlH[0].pool, null);
+check('التكرار على مجمع الربع', tlH[1].pool, 'hz:h19:1');
 
-// ── بين الأذان والإقامة: شعر في كل الصلوات، وسورة الكهف في صلاة الجمعة (٧ أغسطس) ──
+// يوم القراءة: بندٌ لكل ربعٍ بلغه الحفظ، ولكلٍّ مجمعُه
+const tlR = quranTaskLines(q(D(6))); // حزب ١٩ ربع ٢ قراءة
+check('يوم القراءة: ربعان', tlR.map((l) => l.key).join(','), 'read1,read2');
+check('قراءة الربع ١ على مجمعه', tlR[0].pool, 'hz:h19:1');
+check('قراءة الربع ٢ على مجمعه', tlR[1].pool, 'hz:h19:2');
+check('استمرارية المجمع: تكرارُ الربع ١ وقراءتُه موضعٌ واحد', hifzPoolKey(19, 1), tlR[0].pool);
+
+// التثبيت: نصفان لكل حزبٍ من أحزاب النافذة الأربعة
+const stT = q(D(0));
+check('تثبيت فجر = tb:h15:1', tathbeetPoolKey(stT, 0), 'tb:h15:1');
+check('تثبيت ضحى = tb:h15:2', tathbeetPoolKey(stT, 1), 'tb:h15:2');
+check('تثبيت عصر = tb:h17:1', tathbeetPoolKey(stT, 4), 'tb:h17:1');
+check('تثبيت عشاء بعدية = tb:h18:2', tathbeetPoolKey(stT, 7), 'tb:h18:2');
+check('reviewPoolKey بالحزب', reviewPoolKey(5), 'rv:h5');
+check('hifzPoolKey بالحزب', hifzPoolKey(19, 3), 'hz:h19:3');
+
+// الأرباع تُغطّي الحزب كلَّه بلا فجوة ولا تداخل
+{
+  const qs = [1, 2, 3, 4].map((k) => hizbQuarterPages(19, k));
+  const whole = hizbPages(19);
+  check('الربع الأول يبدأ من أول الحزب', qs[0].s, whole.s);
+  check('الربع الرابع ينتهي بآخره', qs[3].e, whole.e);
+  ok('لا فجوة بين الأرباع', qs.every((r, i) => i === 0 || r.s <= qs[i - 1].e + 1), JSON.stringify(qs));
+}
+
 const u7 = buildUnit('2026-08-14'); // جمعة
 const u8 = buildUnit('2026-08-16'); // أحد (يوم عادي)
 const bl = (u, slot) => u.find((e) => e.slot === slot);

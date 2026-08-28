@@ -185,10 +185,10 @@ export type Template = { name?: string; start: Anchor; blocks: Block[] }
 export type QuranCfg = {
   mode: string
   date: string
-  reviewJuz: number
+  reviewJuz: number // موضع بدء المراجعة — يُقرأ حزبًا
   hifzJuz: number
-  hifzQuarter: number
-  hifzMode: string
+  hifzQuarter: number // ١..٨ داخل الجزء كما يكتبه صاحبُه
+  hifzMode: string // 'حفظ' أو 'قراءة'
   repeats: number
   wirdSlots: number
   components?: { review: boolean; hifz: boolean }
