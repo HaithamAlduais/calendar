@@ -116,7 +116,9 @@ const GEN = {
     const rv = reviewItem(st);
     return [
       it('meal1', 'وجبة رقم ١', { meal: 1 }),
-      it('witr', rv ? `صلاة الوتر — ${rv.text}` : 'صلاة الوتر', rv ? { pool: rv.pool || undefined, quran: true } : {}),
+      // بلا علامة quran: المراجعةُ تُقرأ في الوتر كما تُقرأ السنّةُ في موضعها،
+      // فلا تطفو مهمةً عائمة على بلوكات النهار — ومجمعُ أخطائها قائمٌ على كل حال
+      it('witr', rv ? `صلاة الوتر — ${rv.text}` : 'صلاة الوتر', rv ? { pool: rv.pool || undefined } : {}),
       it('dua', 'دعاء'),
       it('tawbah', 'توبة واستخارة'),
     ];

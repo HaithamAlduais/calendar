@@ -701,7 +701,8 @@ export type DayTask =
 
 export function dayTasks(events: Ev[], unit: string): DayTask[] {
   const out: DayTask[] = []
-  const qEv = events.find((e) => e.unit === unit && e.slot === "quran")
+  // بلوكُ القرآن يُعرف ببنوده لا بمعرّفٍ مكتوب — فمن أعاد تسميته أو نقله لم يفقده
+  const qEv = events.find((e) => e.unit === unit && !e.external && e.items.some((i) => i.quran))
   if (qEv && !qEv.done) {
     const marked = new Set(checksFor(qEv.id)) // بنود القرآن وحدها دون مهامك اليدوية
     const pending = qEv.items

@@ -80,7 +80,7 @@ export function EventSheet({
   const earlies: Early[] = earlyMap(events, now).get(ev.id) || []
   // مهمتا اليوم (القرآن والتمرين/التطوير) تظهران في كل بلوك مهام — والقرآن أصلًا داخل بلوكه
   const today: DayTask[] = isTaskHost
-    ? dayTasks(events, ev.unit!).filter((g) => !(g.kind === "quran" && ev.slot === "quran"))
+    ? dayTasks(events, ev.unit!).filter((g) => !(g.kind === "quran" && g.srcId === ev.id))
     : []
   const pendingHere = missed ? items.filter((i) => !checked.has(i.id)) : []
   let destTitle = ""

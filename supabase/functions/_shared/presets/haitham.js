@@ -56,8 +56,9 @@ function makeDay(work) {
       { id: 'qiyam', title: 'قيام الليل', colorId: 9, gen: 'qiyamNight', end: { prayer: 'fajr' } },
       // ٤) الفجر
       { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
-      // ٥) الروتين: إلى الشروق وربع — يومُ قرآنٍ ويومُ تمرين بالتناوب
-      { id: 'routine', title: 'الروتين', colorId: 10, gen: 'routine', end: { prayer: 'sunrise', offset: 15 } },
+      // ٥) الروتين: إلى الشروق وربع — يومُ قرآنٍ ويومُ تمرين بالتناوب.
+      //    وهو مستضيفُ مهام اليوم، فبطاقةُ التمرين تُفتح منه يومَ التمرين
+      { id: 'routine', title: 'الروتين', colorId: 10, gen: 'routine', task: true, end: { prayer: 'sunrise', offset: 15 } },
       // ٦) النوم: إلى الغَزالة — لا يُنقر عليه
       { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, locked: true, end: { dayHour: 3 } },
       // ٧) الأسرة: من الغَزالة إلى الهاجِرة — لا يُنقر عليه
@@ -123,7 +124,7 @@ export const prayer = { lat: 24.7136, lng: 46.6753, tz: 3, method: 'ummAlQura', 
 
 export const quran = {
   mode: 'managed',
-  date: '2026-08-28',
+  date: '2026-08-29',
   reviewJuz: 1,
   hifzJuz: 10,
   hifzQuarter: 1,
@@ -139,8 +140,8 @@ const HEADER = 'التقدّم المزدوج: زد عدة كل جلسة حتى 
 
 // الدورة: يوم تمرين فيوم قرآن — ثلاثة أنواع تمرين تتعاقب على أيام التمرين
 export const workout = {
-  // أولُ أيام التمرين: السبت ٢٩ — وما قبله قرآن، فاليومُ (الجمعة) قرآن
-  start: '2026-08-29',
+  // اليومُ قرآن وغدًا تمرين: فأولُ أيام التمرين الأحدُ ٣٠
+  start: '2026-08-30',
   offTitle: 'قرآن',
   restBetween: true,
   scheduleMode: 'cycle',
@@ -197,4 +198,4 @@ export const workout = {
   ],
 };
 
-export const startDate = '2026-08-28';
+export const startDate = '2026-08-29';
