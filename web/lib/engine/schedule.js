@@ -164,7 +164,7 @@ function plainTemplate() {
     blocks: [
       { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, end: { prayer: 'fajr' } },
       { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
-      { id: 'quran', title: TASKS_TITLE, colorId: 10, gen: 'quran', task: true, end: { prayer: 'sunrise', offset: 90 } },
+      { id: 'quran', title: TASKS_TITLE, colorId: 10, gen: 'quran', task: true, floats: true, end: { prayer: 'sunrise', offset: 90 } },
       { id: 'nap', title: 'نوم', colorId: 8, sleep: true, end: { balance: SLEEP_BALANCE } },
       { id: 'work1', title: TASKS_TITLE, colorId: 6, items: [], task: true, end: { prayer: 'dhuhr' } },
       { id: 'dhuhr', title: 'الظهر', colorId: 9, gen: 'dhuhr', end: { prayer: 'dhuhr', offset: 45 } },
@@ -197,6 +197,26 @@ export function defaultPrayerTasks(genKey, labels) {
   const g = GEN[genKey];
   if (!g) return [];
   return g(labels || [], null).map((x) => ({ ...x }));
+}
+
+// توزيع أنصاف التثبيت على السنن: لكل سنّةٍ نصفٌ واحد لا يشاركها فيه غيرُها،
+// والترتيبُ بموعد القراءة الفعلي — السنّةُ في وقتها، والفائتةُ في موعد قضائها.
+// فلا يتكرّر نصفٌ في قضاءين، ولا يُقرأ متأخّرٌ قبل ما هو أسبق منه.
+//
+// مثاله: فاتت سنّتا الفجر والضحى وأنت في الظهر — فسنّتا الظهر تأخذان النصفين
+// الأول والثاني (لأنهما أقربُ موعدًا)، وقضاءُ الفجر والضحى في بلوك المهام
+// بعدهما يأخذ الثالث والرابع، ثم يمضي العصرُ فما بعده على ما بقي.
+//
+// المدخل لكل سنّة بترتيبها الزمني: { at } موعدُها، و{ makeupAt } موعدُ قضائها
+// إن كانت قد فاتت ولم تُقرأ (وإلا فلا شيء). والمخرج: رقمُ النصف لكل سنّة.
+export function wirdOrder(slots) {
+  const when = slots.map((s, i) => ({ i, t: s.makeupAt || s.at || '\uffff' }));
+  when.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : a.i - b.i));
+  const out = [];
+  when.forEach((w, rank) => {
+    out[w.i] = rank;
+  });
+  return out;
 }
 
 export function taskSlots() {

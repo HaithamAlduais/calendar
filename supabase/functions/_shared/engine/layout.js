@@ -204,5 +204,6 @@ export function buildDay(dIso, tpl, itemsFor) {
     items: itemsFor(b, dIso).map((x) => ({ ...x })), // نسخة لكل يوم
     transparent: !!b.transparent,
     locked: !!b.locked,
+    floats: !!b.floats, // مضيفُ مهام اليوم العائمة: لا يفوت ولا تُقضى بنودُه
   }));
 }

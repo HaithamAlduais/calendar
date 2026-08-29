@@ -58,7 +58,7 @@ function makeDay(work) {
       { id: 'fajr', title: 'الفجر', colorId: 10, gen: 'fajr', end: { len: 45 } },
       // ٥) الروتين: إلى الشروق وربع — يومُ قرآنٍ ويومُ تمرين بالتناوب.
       //    وهو مستضيفُ مهام اليوم، فبطاقةُ التمرين تُفتح منه يومَ التمرين
-      { id: 'routine', title: 'الروتين', colorId: 10, gen: 'routine', task: true, end: { prayer: 'sunrise', offset: 15 } },
+      { id: 'routine', title: 'الروتين', colorId: 10, gen: 'routine', task: true, floats: true, end: { prayer: 'sunrise', offset: 15 } },
       // ٦) النوم: إلى الغَزالة — لا يُنقر عليه
       { id: 'sleep2', title: 'نوم', colorId: 8, sleep: true, locked: true, end: { dayHour: 3 } },
       // ٧) الأسرة: من الغَزالة إلى الهاجِرة — لا يُنقر عليه

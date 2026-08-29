@@ -6,6 +6,7 @@ import {
   unitStart,
   setScheduleConfig,
   taskSlots,
+  wirdOrder,
   defaultPrayerTasks,
   DEFAULT_BETWEEN,
   DEFAULT_TEMPLATES,
@@ -56,6 +57,7 @@ export type Ev = {
   items: Item[]
   transparent?: boolean
   locked?: boolean // بلوكٌ لا يُفتح: نومٌ أو وقتُ أهل
+  floats?: boolean // مضيفُ مهام اليوم العائمة: لا يفوت ولا تُقضى بنودُه
   done?: boolean
   external?: boolean
   account?: string // بريد حساب Google المصدر (للأحداث الخارجية)
@@ -478,7 +480,8 @@ function windowEnd(): string {
 }
 
 // البلوكات التي تستقبل مهام Google: بلوكات العمل/الأسرة والراحة
-const GOOGLE_HOST_SLOTS = ["quran", "work1", "work2", "work3", "family", "rest"]
+// أحداث Google تنزل في بلوكات المهام — ومصدرُها القوالب لا قائمةٌ مكتوبة
+const GOOGLE_HOST_SLOTS = () => taskSlots()
 
 function fmt12Short(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number)
@@ -497,21 +500,20 @@ const wirdSeq = (): [string, string][] => settings.wird
 
 
 
-// نصف الحزب المعروض في السنّة i = i − (عدد السنن الفائتة قبلها)
-// فما فات لا يُتخطّى: الصلاة التالية تبدأ من حيث توقّف
-function computeShift(unitEvents: Ev[], st: { hifzMode: string }, now: string): number[] {
-  const out: number[] = []
-  let missed = 0
-  const seq = wirdSeq()
-  for (let i = 0; i < seq.length; i++) {
-    out[i] = i - missed
-    const [slot] = seq[i]
+// مواعيدُ قراءة أنصاف التثبيت: لكل سنّةٍ موعدُها، وللفائتة موعدُ قضائها.
+// والقاعدةُ نفسُها في المحرك (wirdOrder) — وهذه تجمع لها مدخلَها من اليوم.
+function wirdTimes(unitEvents: Ev[], now: string): { at?: string; makeupAt?: string }[] {
+  // البلوكات المستقبِلة التي لم ينتهِ وقتها — وهي مواعيد القضاء
+  const dests = unitEvents
+    .filter((e) => !e.external && WORK_SLOTS().includes(e.slot || "") && e.end > now)
+    .sort((a, b) => (a.start < b.start ? -1 : 1))
+  return wirdSeq().map(([slot, itemId]) => {
     const ev = unitEvents.find((e) => e.slot === slot)
-    if (!ev) continue
-    const itemId = seq[i][1]
-    if (ev.end <= now && !checksFor(ev.id).includes(itemId)) missed++ // فاتت ولم تُقرأ
-  }
-  return out
+    if (!ev) return {} // سنّةٌ بلا بلوك: آخر الترتيب
+    if (ev.end > now || checksFor(ev.id).includes(itemId)) return { at: ev.start }
+    const dest = dests.find((d) => d.start >= ev.end) || dests[0]
+    return { at: ev.start, makeupAt: dest?.start } // بلا مستقبِل: يبقى في موضعه
+  })
 }
 
 
@@ -548,7 +550,7 @@ export type Makeup = {
 export function isMissed(ev: Ev, now: string): boolean {
   if (ev.external || ev.done || ev.end > now) return false
   // بلوك «مهام» الصباحي لا يفوت: مهمتاه متاحتان في كل بلوك مهام طوال اليوم
-  if (ev.slot === "quran") return false
+  if (ev.floats) return false
   const items = checkable(ev)
   if (!items.length) return false
   const marked = new Set(checksFor(ev.id))
@@ -608,7 +610,7 @@ export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
 
   for (const ev of sorted) {
     if (ev.external || ev.done || ev.end > now) continue
-    if (ev.slot === "quran") continue // مهمتا اليوم عائمتان بإنجاز كامل، فلا تُقضيان
+    if (ev.floats) continue // مهمتا اليوم عائمتان بإنجاز كامل، فلا تُقضيان
     const marked = new Set(checksFor(ev.id))
     const pending = qadaEligible(ev, checkable(ev).filter((i) => !marked.has(i.id)))
     if (!pending.length) continue
@@ -656,7 +658,7 @@ export function earlyMap(events: Ev[], now: string): Map<string, Early[]> {
     const list: Early[] = []
     for (const src of sorted) {
       if (src.id === dest.id || src.start < dest.end) continue // اللاحق فقط
-      if (!EARLY_SRC_SLOTS().includes(src.slot || "") || src.done || src.slot === "quran") continue
+      if (!EARLY_SRC_SLOTS().includes(src.slot || "") || src.done || src.floats) continue
       const marked = new Set(checksFor(src.id))
       for (const item of checkable(src)) {
         if (marked.has(item.id)) continue
@@ -753,7 +755,7 @@ export function allEvents(): Ev[] {
     const st = quranStateFor(unit)
     const seq = wirdSeq()
     const labels = tathbeetLabels(st, seq.length) as string[]
-    const shift = computeShift(evs, st, now)
+    const shift = wirdOrder(wirdTimes(evs, now)) as number[]
     for (let i = 0; i < seq.length; i++) {
       const [slot, itemId] = seq[i]
       const item = evs.find((e) => e.slot === slot)?.items.find((x) => x.id === itemId)
@@ -788,7 +790,7 @@ export function allEvents(): Ev[] {
         ev.items.push({ id: `cab:${item.id}:${sub.id}`, text: sub.title, cabItemId: item.id, depth: 1 })
     }
     // أحداث Google التي تبدأ داخل هذا البلوك تصير بنودًا فيه (وما خارج هذه البلوكات يُهمل)
-    if (GOOGLE_HOST_SLOTS.includes(ev.slot || ""))
+    if (GOOGLE_HOST_SLOTS().includes(ev.slot || ""))
       for (const g of pulledEvents
         .filter((g) => g.start >= ev.start && g.start < ev.end)
         .sort((a, b) => (a.start < b.start ? -1 : 1)))
@@ -1016,6 +1018,7 @@ export type Block = {
   gen?: string // بنود مولّدة (صلاة أو قرآن) — لا تُحذف
   task?: boolean // بلوك مهام: يقبل مهامك اليدوية ويستقبل القضاء والتقديم
   locked?: boolean // لا يُنقر عليه ولا يُطالَب فيه بشيء — نومٌ أو وقتُ أهل
+  floats?: boolean // مضيفُ مهام اليوم العائمة
   items?: Item[]
 }
 
