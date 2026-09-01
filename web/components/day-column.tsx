@@ -44,7 +44,7 @@ export function DayColumn({
   evs,
   isCur,
   now,
-  mk,
+  lt,
   em,
   dayCount,
   taskSlots,
@@ -55,7 +55,7 @@ export function DayColumn({
   evs: Ev[]
   isCur: boolean
   now: string
-  mk: Map<string, unknown[]>
+  lt: Map<string, number>
   em: Map<string, unknown[]>
   dayCount: number
   taskSlots: string[]
@@ -94,7 +94,7 @@ export function DayColumn({
               ev={seg.ev}
               now={now}
               current={isCur && seg.ev.start <= now && seg.ev.end > now}
-              makeupCount={mk.get(seg.ev.id)?.length || 0}
+              owedCount={lt.get(seg.ev.id) || 0}
               earlyCount={em.get(seg.ev.id)?.length || 0}
               dayCount={taskSlots.includes(seg.ev.slot || "") && !seg.ev.external ? dayCount : 0}
               preview={preview}

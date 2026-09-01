@@ -11,7 +11,7 @@ export function EventChip({
   ev,
   current,
   now,
-  makeupCount = 0,
+  owedCount = 0,
   earlyCount = 0,
   dayCount = 0,
   preview = false,
@@ -21,7 +21,7 @@ export function EventChip({
   ev: Ev
   current: boolean
   now: string
-  makeupCount?: number
+  owedCount?: number
   earlyCount?: number
   dayCount?: number
   preview?: boolean
@@ -91,9 +91,9 @@ export function EventChip({
             مهام اليوم {arab(dayCount)}
           </span>
         )}
-        {makeupCount > 0 && !missed && (
+        {owedCount > 0 && (
           <span className="rounded bg-amber-500/15 px-1 font-medium text-amber-600 dark:text-amber-400">
-            قضاء {arab(makeupCount)}
+            قضاء {arab(owedCount)}
           </span>
         )}
         {earlyCount > 0 && !missed && (

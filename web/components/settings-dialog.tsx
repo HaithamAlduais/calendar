@@ -309,23 +309,17 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           <div className="border-t pt-3">
             <h3 className="mb-2 flex items-center gap-1 text-sm font-semibold">
               القضاء والتقديم
-              <Help text="ما فات وقته لا يسقط: ينتقل إلى أول بلوك مهام قادم فتقضيه — لكن بنصف إنجاز، لأن الوقت جزءٌ من العمل. وعكسه التقديم: تؤدي مهمة بلوكٍ لاحق في بلوك سابق من يومك، فتُحتسب كاملة إذ أدّيتها في يومها." />
+              <Help text="ما فات وقته لا يسقط ولا يُنقل: يبقى في بلوكه فتؤشّره فيه — لكن بنصف إنجاز، لأن الوقت جزءٌ من العمل. وعكسه التقديم: تؤدي مهمة بلوكٍ لاحق في بلوك سابق من يومك، فتُحتسب كاملة إذ أدّيتها في يومها." />
             </h3>
             <div className="flex flex-col gap-2">
               <Toggle
                 on={settings.qada.enabled}
                 onClick={() => saveSettings({ qada: { ...settings.qada, enabled: !settings.qada.enabled } })}
                 label="قضاء ما فات"
-                help="إن أطفأته، فالبلوك الذي انتهى وقته يُغلق بما فيه ولا تنتقل بنوده."
+                help="إن أطفأته، فالبلوك الذي انتهى وقته يُغلق بما فيه فلا تُؤشَّر بنودُه بعد وقتها."
               />
               {settings.qada.enabled && (
                 <>
-                  <Toggle
-                    on={settings.qada.crossDay}
-                    onClick={() => saveSettings({ qada: { ...settings.qada, crossDay: !settings.qada.crossDay } })}
-                    label="ترحيل ما لم يُنجز من الأمس"
-                    help="يوم واحد فقط: ما انقضى يومه ويومُ غده لا يُقضى، وإلا صار دَينًا لا يُسدّد."
-                  />
                   <div className="flex items-center gap-2">
                     <span className="text-xs">حظّ المقضيّ من الإنجاز</span>
                     <Help text="البند المقضيّ يُحتسب بهذا الحظّ في نسبة يومك. والنصف هو الأصل: أدّيتَه، لكن لا في وقته." />

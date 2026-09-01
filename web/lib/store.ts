@@ -249,7 +249,6 @@ const DEFAULT_SETTINGS = {
   qada: {
     enabled: true,
     credit: 0.5, // حظّ البند المقضيّ من الإنجاز
-    crossDay: true, // ترحيل ما لم يُنجز من الأمس إلى اليوم (يوم واحد)
     early: true, // إتاحة التقديم
   },
 }
@@ -534,16 +533,7 @@ const WORK_SLOTS = () => taskSlots()
 // البلوكات التي تقبل مهامك اليدوية — هي نفسها بلوكات المهام
 export const TASK_SLOTS = () => taskSlots()
 
-export type Makeup = {
-  destId: string
-  srcId: string
-  srcTitle: string
-  srcStart: string
-  itemId: string
-  text: string
-  kind?: "line" | "train" // train: بطاقة تمرين تُفتح من بلوك العمل
-  crossDay?: boolean // مُرحَّل من أمس (يوم واحد فقط)
-}
+
 
 // البلوك فائت: انتهى وقته وفيه بنود لم تُنجز (والتمرين: جلسات ناقصة)
 // تعليمه ✅ يدويًا تصريحٌ بإنجازه كاملًا: يُغلق فلا يفوت ولا تُرحَّل بنوده
@@ -558,75 +548,25 @@ export function isMissed(ev: Ev, now: string): boolean {
 }
 
 // خريطة القضاء:
-//  • داخل اليوم: البند الفائت ينتقل إلى أول بلوك مستقبِل قادم (عمل/أسرة ثم زوجة/راحة)
-//  • من الأمس: كل ما لم يُنجز — أيًّا كان بلوكه، حتى مهام العمل — ينتقل إلى «راحة أو تعويض» وحده
-// في الصلوات لا يُقضى إلا الورد: الأذانُ والصلاةُ والأذكار لوقتها، فإن فات
-// فقد فات — والورد وحده ينتقل. قاعدةٌ نصّها صاحب البرنامج نصًّا.
-function qadaEligible(ev: Ev, pending: Item[]): Item[] {
-  if (WORK_SLOTS().includes(ev.slot || "")) return pending
-  if (!settings.wirdEnabled) return []
-  const wirdSet = new Set(settings.wird.map(([sl, id]) => sl + ":" + id))
-  return pending.filter((i) => wirdSet.has((ev.slot || "") + ":" + i.id))
+// البندُ الفائت لا ينتقل إلى بلوكٍ آخر: يبقى في بلوكه ويُؤشَّر فيه، ويُحتسب
+// نصف إنجاز — فالوقتُ جزءٌ من العمل، لكنّ المكان لا يُنقل عن أهله.
+//
+// وفي الصلوات لا يُقضى إلا القرآن: الأذانُ والصلاةُ والأذكار لوقتها، فإن فات
+// فقد فات — وما فيه قرآنٌ وحده يبقى. قاعدةٌ نصّها صاحب البرنامج نصًّا.
+//
+// وعلامتُه أن يحمل البندُ موضعًا من المصحف (pool): وهي أنصافُ التثبيت في السنن
+// ومراجعةُ الوتر في القيام — لا قائمةً مكتوبة تُنسى كلما انتقل موضعٌ من بلوك.
+export function lateEligible(ev: Ev, item: Item): boolean {
+  if (!settings.qada.enabled || ev.external) return false
+  if (WORK_SLOTS().includes(ev.slot || "")) return true
+  return !!item.pool
 }
 
-export function makeupMap(events: Ev[], now: string): Map<string, Makeup[]> {
-  const map = new Map<string, Makeup[]>()
-  if (!settings.qada.enabled) return map
-  const cu = currentUnit()
-  const sorted = events
-    .filter((e) => e.unit === cu)
-    .sort((a, b) => (a.start < b.start ? -1 : 1))
-  // البلوكات المستقبِلة التي لم ينتهِ وقتها بعد، بالترتيب
-  const dests = sorted.filter((e) => !e.external && WORK_SLOTS().includes(e.slot || "") && e.end > now)
-  if (!dests.length) return map
-  const push = (destId: string, m: Makeup) => {
-    const list = map.get(destId) || []
-    list.push(m)
-    map.set(destId, list)
-  }
-
-  // ── تعويض الأمس: بنود أمس غير المنجزة تُوزَّع بالتناوب على بلوكات اليوم المستقبِلة
-  //    (راحة ← عمل/أسرة ← زوجة…) واحدًا تلو الآخر — يوم واحد فقط ──
-  const prevU = addDays(cu, -1)
-  if (settings.qada.crossDay && prevU >= SCHEDULE_START) {
-    let turn = 0
-    for (const ev of events) {
-      if (ev.unit !== prevU || ev.external || ev.done) continue
-      const marked = new Set(checksFor(ev.id))
-      for (const item of qadaEligible(ev, checkable(ev).filter((i) => !marked.has(i.id)))) {
-        const dest = dests[turn++ % dests.length]
-        push(dest.id, {
-          destId: dest.id,
-          srcId: ev.id,
-          srcTitle: `${ev.title} — أمس`,
-          srcStart: ev.start,
-          itemId: item.id,
-          crossDay: true,
-          text: item.text,
-        })
-      }
-    }
-  }
-
-  for (const ev of sorted) {
-    if (ev.external || ev.done || ev.end > now) continue
-    if (ev.floats) continue // مهمتا اليوم عائمتان بإنجاز كامل، فلا تُقضيان
-    const marked = new Set(checksFor(ev.id))
-    const pending = qadaEligible(ev, checkable(ev).filter((i) => !marked.has(i.id)))
-    if (!pending.length) continue
-    // أول بلوك عمل يبدأ بعد نهاية البلوك الفائت (أو الجاري الآن)
-    const dest = dests.find((d) => d.start >= ev.end) || dests[0]
-    for (const item of pending)
-      push(dest.id, {
-        destId: dest.id,
-        srcId: ev.id,
-        srcTitle: ev.title,
-        srcStart: ev.start,
-        itemId: item.id,
-        text: item.text,
-      })
-  }
-  return map
+// كم بندًا فائتًا ما زال يُقضى في هذا البلوك — لشارة البلوك في العمود
+export function pendingLateCount(ev: Ev, now: string): number {
+  if (!isMissed(ev, now)) return 0
+  const marked = new Set(checksFor(ev.id))
+  return checkable(ev).filter((i) => !marked.has(i.id) && lateEligible(ev, i)).length
 }
 
 // ── التقديم: أداء بنود بلوك قادم في بلوك مستقبِل سابق له من الوحدة نفسها ──

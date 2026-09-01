@@ -124,7 +124,7 @@ export const prayer = { lat: 24.7136, lng: 46.6753, tz: 3, method: 'ummAlQura', 
 
 export const quran = {
   mode: 'managed',
-  date: '2026-08-29',
+  date: '2026-09-01',
   reviewJuz: 1,
   hifzJuz: 10,
   hifzQuarter: 1,
@@ -140,8 +140,8 @@ const HEADER = 'التقدّم المزدوج: زد عدة كل جلسة حتى 
 
 // الدورة: يوم تمرين فيوم قرآن — ثلاثة أنواع تمرين تتعاقب على أيام التمرين
 export const workout = {
-  // اليومُ قرآن وغدًا تمرين: فأولُ أيام التمرين الأحدُ ٣٠
-  start: '2026-08-30',
+  // اليومُ قرآن وغدًا تمرين: فأولُ أيام التمرين الأربعاءُ ٢
+  start: '2026-09-02',
   offTitle: 'قرآن',
   restBetween: true,
   scheduleMode: 'cycle',
@@ -198,4 +198,4 @@ export const workout = {
   ],
 };
 
-export const startDate = '2026-08-29';
+export const startDate = '2026-09-01';

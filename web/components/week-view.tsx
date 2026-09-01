@@ -10,8 +10,8 @@ import {
   dayTasks,
   earlyMap,
   isPreviewing,
-  makeupMap,
   nowStamp,
+  pendingLateCount,
   previewVisibleSlots,
   TASK_SLOTS,
   type Ev,
@@ -44,13 +44,12 @@ export function WeekView({
   const now = nowStamp()
   const pv = isPreviewing() // معاينة المعالج: مخططٌ نظيف بلا قضاءٍ ولا عدّادات
   const pvSlots = pv ? previewVisibleSlots() : null // وما لم يُبنَ بعدُ لا يُعرض
-  const mk = pv ? new Map<string, unknown[]>() : makeupMap(events, now)
   const em = pv ? new Map<string, unknown[]>() : earlyMap(events, now)
 
   return (
-    // سبعة أعمدة لا تُعرض إلا إذا اتّسع لها فعلًا (≥١٢٨٠ بكسل ≈ ١٧٠ لكل عمود)،
-    // وما دون ذلك تمرير أفقي بيوم واحد كامل — أوضح من سبعة أعمدة مزدحمة
-    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-6 xl:grid xl:grid-cols-7 xl:gap-1 xl:overflow-visible xl:px-3">
+    // يومٌ واحد يملأ الشاشة مركَّزًا، والأيام تُطوى بالسحب — فاليومُ الذي أنت
+    // فيه هو كلُّ ما تراه، لا سبعةُ أعمدةٍ يزاحم بعضُها بعضًا
+    <div className="flex snap-x snap-mandatory overflow-x-auto pb-6">
       {days.map((d) => {
         const isCur = d === cu
         // عمود اليوم = وحدته كاملة بترتيبها الزمني
@@ -64,12 +63,16 @@ export function WeekView({
           )
           .sort((a, b) => (a.start < b.start ? -1 : 1))
         const dayCount = pv ? 0 : dayTasks(unitEvs, d).length // مهام اليوم العائمة ما لم تُنجز
+        // شارةُ البلوك الفائت: كم بندًا ما زال يُقضى فيه
+        const lt = new Map<string, number>()
+        if (!pv) for (const e of unitEvs) lt.set(e.id, pendingLateCount(e, now))
         return (
           <div
             key={d}
             ref={isCur ? curRef : undefined}
-            className="w-[82vw] max-w-80 flex-none snap-center xl:w-auto xl:max-w-none"
+            className="w-full flex-none snap-center px-3"
           >
+            <div className="mx-auto w-full max-w-lg">
             <div className="bg-background/95 sticky top-0 z-10 flex items-center justify-center gap-2 py-2 backdrop-blur">
               <span
                 className={cn("text-muted-foreground text-xs", isCur && "text-primary font-semibold")}
@@ -94,7 +97,7 @@ export function WeekView({
                 evs={unitEvs}
                 isCur={isCur}
                 now={now}
-                mk={mk}
+                lt={lt}
                 em={em}
                 dayCount={dayCount}
                 taskSlots={TASK_SLOTS()}
@@ -102,6 +105,7 @@ export function WeekView({
                 onOpen={onOpen}
               />
             )}
+            </div>
           </div>
         )
       })}

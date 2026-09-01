@@ -34,7 +34,7 @@ import {
   isAutoDone,
   isLate,
   isMissed,
-  makeupMap,
+  lateEligible,
   nowStamp,
   removeTask,
   TASK_SLOTS,
@@ -45,7 +45,6 @@ import {
   type DayTask,
   type Early,
   type Ev,
-  type Makeup,
 } from "@/lib/store"
 import { arab } from "@/lib/engine/dates.js"
 
@@ -71,11 +70,9 @@ export function EventSheet({
   const isTaskHost = !ev.external && TASK_SLOTS().includes(ev.slot || "")
   const auto = isAutoDone(ev) // اكتمل ببنوده فلا حاجة لزر الإنجاز
 
-  // القضاء: البلوك الفائت مقفل وبنوده تظهر في بلوك العمل القادم
+  // القضاء في مكانه: البلوك الفائت يبقى مفتوحًا لبنوده، تُؤشَّر فيه بنصف إنجاز
   const now = nowStamp()
   const missed = isMissed(ev, now)
-  const map = makeupMap(events, now)
-  const makeups: Makeup[] = map.get(ev.id) || []
   // التقديم: بنود بلوكات لاحقة من الوحدة نفسها يمكن أداؤها هنا
   const earlies: Early[] = earlyMap(events, now).get(ev.id) || []
   // مهمتا اليوم (القرآن والتمرين/التطوير) تظهران في كل بلوك مهام — والقرآن أصلًا داخل بلوكه
@@ -83,15 +80,8 @@ export function EventSheet({
     ? dayTasks(events, ev.unit!).filter((g) => !(g.kind === "quran" && g.srcId === ev.id))
     : []
   const pendingHere = missed ? items.filter((i) => !checked.has(i.id)) : []
-  let destTitle = ""
-  if (missed && pendingHere.length) {
-    for (const [destId, list] of map)
-      if (list.some((m) => m.srcId === ev.id)) {
-        const dest = events.find((e) => e.id === destId)
-        if (dest) destTitle = `${dest.title} ${fmt12(timeOf(dest.start))}`
-        break
-      }
-  }
+  // وما زال يُقضى منها هنا — وفي الصلوات الوردُ وحده
+  const lateOk = pendingHere.filter((i) => lateEligible(ev, i))
 
   const submitTask = () => {
     const t = taskText.trim()
@@ -129,9 +119,11 @@ export function EventSheet({
               <p className="text-muted-foreground text-xs leading-relaxed">
                 {pendingHere.length === 0
                   ? "لا بنود معلّقة."
-                  : destTitle
-                    ? `انتقل ${arab(pendingHere.length)} من بنوده غير المنجزة إلى «${destTitle}» — أشّرها هناك قضاءً، وستُحتسب نصف إنجاز ½.`
-                    : `انقضى يومه و${arab(pendingHere.length)} من بنوده لم تُنجز — لا يمكن قضاؤها الآن. اجعل غدك أفضل.`}
+                  : lateOk.length === pendingHere.length
+                    ? `${arab(pendingHere.length)} من بنوده لم تُنجز — أشّرها هنا في بلوكها، وتُحتسب نصف إنجاز ½ لأنها خارج وقتها.`
+                    : lateOk.length > 0
+                      ? `الوردُ وحده يُقضى هنا (${arab(lateOk.length)}) بنصف إنجاز ½ — وما سواه من الأذان والصلاة والأذكار لوقته، فإن فات فقد فات.`
+                      : "الأذانُ والصلاةُ والأذكار لوقتها، فإن فات فقد فات. اجعل غدك أفضل."}
               </p>
             </div>
           )}
@@ -157,16 +149,19 @@ export function EventSheet({
                     <label
                       className={cn(
                         "flex items-start gap-3 rounded-md p-2 text-sm",
-                        missed ? "opacity-60" : "hover:bg-muted cursor-pointer",
+                        missed && !lateEligible(ev, l)
+                          ? "opacity-60"
+                          : "hover:bg-muted cursor-pointer",
                         checked.has(l.id) && "text-muted-foreground line-through"
                       )}
                     >
                       <Checkbox
                         checked={checked.has(l.id)}
-                        disabled={missed}
+                        disabled={missed && !lateEligible(ev, l)}
                         onCheckedChange={() => {
                           const checking = !checked.has(l.id)
-                          const asMakeup = checking && !!pool && hasOldMistakes(pool)
+                          // خارجَ وقته نصفُ إنجاز، وكذلك ما عليه أخطاءٌ قديمة لم تُصحَّح
+                          const asMakeup = checking && (missed || (!!pool && hasOldMistakes(pool)))
                           toggleCheck(ev.id, l.id, asMakeup)
                         }}
                         className="mt-0.5"
@@ -278,58 +273,6 @@ export function EventSheet({
               </div>
               <p className="text-muted-foreground px-1 pt-1 text-[11px]">
                 مهمتا يومك تظهران في كل بلوك مهام — أدّهما في أيّها شئت، وما تُنجزه يختفي من البقية.
-              </p>
-            </div>
-          )}
-
-          {/* قضاء: بنود فاتت أوقاتها وانتقلت إلى هذا البلوك */}
-          {makeups.length > 0 && (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2">
-              <div className="mb-1 flex items-center gap-1.5 px-1 text-sm font-medium text-amber-600 dark:text-amber-400">
-                <ClockAlertIcon className="size-4" />
-                قضاء — {arab(makeups.length)} بند فات وقته
-              </div>
-              <div className="flex flex-col gap-1">
-                {makeups.map((m) => {
-                  if (m.kind === "train") {
-                    // بطاقة التمرين الفائت: تُفتح وتُكمل جلساته قضاءً
-                    const trainEv = events.find((e2) => e2.id === m.srcId)
-                    return (
-                      <button
-                        key={m.srcId}
-                        onClick={() => trainEv && onOpen?.(trainEv)}
-                        className="hover:bg-muted flex items-center gap-3 rounded-md border border-amber-500/30 p-2 text-start text-sm"
-                      >
-                        <DumbbellIcon className="size-4 flex-none text-amber-600" />
-                        <span className="leading-relaxed">{m.text}</span>
-                      </button>
-                    )
-                  }
-                  const on = checksFor(m.srcId).includes(m.itemId)
-                  return (
-                    <label
-                      key={`${m.srcId}:${m.itemId}`}
-                      className={cn(
-                        "hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md p-2 text-sm",
-                        on && "text-muted-foreground line-through",
-                        m.crossDay && "border border-amber-500/30"
-                      )}
-                    >
-                      <Checkbox
-                        checked={on}
-                        onCheckedChange={() => toggleCheck(m.srcId, m.itemId, true)}
-                        className="mt-0.5"
-                      />
-                      <span className="leading-relaxed">
-                        {m.text}
-                        <span className="text-muted-foreground/70 me-1 text-xs"> ({m.srcTitle})</span>
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-              <p className="text-muted-foreground px-1 pt-1 text-[11px]">
-                تأشيرها هنا يؤشّرها في بلوكها الأصلي، وتُحتسب نصف إنجاز ½ لأنها خارج وقتها.
               </p>
             </div>
           )}
